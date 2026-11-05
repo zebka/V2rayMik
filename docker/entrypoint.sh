@@ -55,6 +55,10 @@ render_config() {
     die "invalid-outbound: give one outbound object; it must not contain inbounds or use the tun protocol"
   fi
 
+  if printf '%s' "$ob" | jq -e '[((.settings.vnext // .settings.servers // [])[] | .address // "") | select(test(":"))] | length > 0' >/dev/null 2>&1; then
+    die "ipv6-unsupported: this build has no IPv6; use an IPv4 or a domain"
+  fi
+
   tmp=$(mktemp)
   printf '%s' "$ob" > "$tmp"
   jq -n \
@@ -103,8 +107,8 @@ case "$cmd" in
     fi
     ;;
   routes)
-    ob=$(load_outbound)
-    ep=$(endpoint_of "$ob")
+    ob=$(load_outbound) || exit 2
+    ep=$(endpoint_of "$ob") || exit 2
     plan_routes "$(resolve_endpoint "${ep%:*}")" "$TUN_NAME" "${EGRESS_IF:-eth0}"
     ;;
   run)
@@ -112,8 +116,8 @@ case "$cmd" in
     render_config > "$XRAY_CONFIG"
     validate_config "$XRAY_CONFIG"
 
-    ob=$(load_outbound)
-    ep=$(endpoint_of "$ob")
+    ob=$(load_outbound) || exit 2
+    ep=$(endpoint_of "$ob") || exit 2
     host=${ep%:*}
     eth=${EGRESS_IF:-eth0}
 
@@ -130,6 +134,11 @@ case "$cmd" in
         sh -c "$cmdline" || log "route failed: $cmdline"
       done
       ip link set dev "$TUN_NAME" up 2>/dev/null || true
+      if ! verify_routes "$TUN_NAME"; then
+        kill "$pid" 2>/dev/null || true
+        wait "$pid" 2>/dev/null || true
+        exit 1
+      fi
       reapply_endpoint_route "$host" "$TUN_NAME" "$eth" &
     else
       log "tun-not-ready: $TUN_NAME did not appear; exiting"

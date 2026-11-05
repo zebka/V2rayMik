@@ -70,8 +70,10 @@ router own ──┘                 │
    or a share link in the container environment:
 
    ```
-   /container/envs/set [find where list=xray-gw and key=XRAY_LINK] value="vless://…"
+   /container/envs/add list=xray-gw key=XRAY_LINK value="vless://…"
    ```
+
+   (or `set` on the existing entry if you already added one)
 
    Do not set both. The JSON path accepts anything; the link path understands
    `vless://`, `vmess://`, `trojan://` and `ss://`.

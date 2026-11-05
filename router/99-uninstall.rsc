@@ -26,8 +26,15 @@
   }
 }
 
-# The address list we populated for the router's own traffic.
-:if ([:len [/ip firewall address-list find where list="router-direct"]] > 0) do={
+# The address-list entries we added for the router's own traffic (only ours:
+# they carry a hostname comment).
+:foreach h in={"cloud.mikrotik.com";"cloud2.mikrotik.com";"upgrade.mikrotik.com"} do={
+  :if ([:len [/ip firewall address-list find where list="router-direct" and comment=$h]] > 0) do={
+    /ip firewall address-list remove [find where list="router-direct" and comment=$h]
+  }
+}
+# Drop the list itself only when nothing else is left in it.
+:if ([:len [/ip firewall address-list find where list="router-direct"]] = 0) do={
   /ip firewall address-list remove [find where list="router-direct"]
 }
 
@@ -63,7 +70,12 @@
   /ip address remove [find where interface=$XrayBridge and address=($XrayGatewayIp . "/24")]
 }
 :if ([:len [/interface bridge find where name=$XrayBridge]] > 0) do={
-  /interface bridge remove [find where name=$XrayBridge]
+  # only the bridge this project created; a pre-existing one is left alone
+  :if ([:len [/interface bridge find where name=$XrayBridge and comment="container network"]] > 0) do={
+    /interface bridge remove [find where name=$XrayBridge and comment="container network"]
+  } else={
+    :log warning ("99-uninstall: bridge " . $XrayBridge . " was not created by this project; left in place")
+  }
 }
 :if ([:len [/interface veth find where name=$XrayVeth]] > 0) do={
   /interface veth remove [find where name=$XrayVeth]

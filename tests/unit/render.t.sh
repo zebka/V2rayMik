@@ -13,6 +13,9 @@ cat > "$OB" <<'JSON'
 JSON
 
 out=$(XRAY_OUTBOUND_FILE=$OB sh "$E" render -)
+# the image's ENTRYPOINT must be executable, not just readable (a Linux checkout
+# keeps COPY's 0644 mode, and `exec` then fails with permission denied)
+[ -x "$E" ] || { echo "entrypoint is not directly executable" >&2; exit 1; }
 assert_eq "$(printf '%s' "$out" | jq -r '.inbounds[0].protocol')" "tun" "inbound protocol"
 assert_eq "$(printf '%s' "$out" | jq -r '.inbounds[0].settings.name')" "tun0" "tun name"
 assert_eq "$(printf '%s' "$out" | jq -r '.inbounds[0].settings.gateway[0]')" "198.18.0.1/15" "tun gateway"
@@ -52,3 +55,10 @@ err=$(XRAY_OUTBOUND_FILE=/tmp/bad2.json sh "$E" render - 2>&1); code=$?
 set -e
 assert_eq "$code" "2" "inbounds-in-outbound exit"
 assert_match "$err" "invalid-outbound"
+
+echo '{"protocol":"vless","settings":{"vnext":[{"address":"2001:db8::1","port":443,"users":[{"id":"11111111-1111-4111-8111-111111111111"}]}]}}' > /tmp/v6.json
+set +e
+err=$(XRAY_OUTBOUND_FILE=/tmp/v6.json sh "$E" render - 2>&1); code=$?
+set -e
+assert_eq "$code" "2" "ipv6 outbound exit"
+assert_match "$err" "ipv6-unsupported"

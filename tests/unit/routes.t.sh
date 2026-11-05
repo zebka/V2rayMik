@@ -26,3 +26,34 @@ assert_eq "$(endpoint_of 'vless://u@203.0.113.9:8443?security=tls&type=tcp')" \
 # ENDPOINT_IP wins over resolution
 out=$(ENDPOINT_IP=198.51.100.7 resolve_endpoint a.test)
 assert_eq "$out" "198.51.100.7" "endpoint override"
+
+# a literal IPv4 endpoint must not go through nslookup at all
+mkdir -p /tmp/nodns
+cat > /tmp/nodns/nslookup <<'EOF'
+#!/bin/sh
+echo "nslookup was called for $*" >&2
+exit 1
+EOF
+chmod +x /tmp/nodns/nslookup
+out=$(PATH=/tmp/nodns:$PATH sh -c '. /app/lib/links.sh; . /app/lib/routes.sh; resolve_endpoint 203.0.113.9' 2>/dev/null)
+assert_eq "$out" "203.0.113.9" "literal ipv4 endpoint"
+
+# an outbound with no endpoint (freedom, wireguard) is rejected, not rendered as ":"
+set +e
+msg=$(endpoint_of '{"protocol":"freedom"}' 2>&1); code=$?
+set -e
+assert_eq "$code" "2" "endpointless outbound exit"
+assert_match "$msg" "unsupported-outbound"
+
+# verify_routes fails loudly when traffic does not enter the tun
+mkdir -p /tmp/fakebin
+cat > /tmp/fakebin/ip <<'EOF'
+#!/bin/sh
+echo "1.1.1.1 via 172.17.0.1 dev eth0 src 172.17.0.2"
+EOF
+chmod +x /tmp/fakebin/ip
+set +e
+msg=$(PATH=/tmp/fakebin:$PATH verify_routes tun0 2>&1); code=$?
+set -e
+assert_eq "$code" "1" "verify_routes detects a bypassed tun"
+assert_match "$msg" "route-not-installed"

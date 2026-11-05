@@ -56,11 +56,12 @@ link_to_outbound() {
 # host_port <userinfo@host:port> → sets HOST and PORT
 split_host_port() {
   hp=${1##*@}
-  case "$hp" in
-    \[*) link_fail "ipv6-unsupported: brackets in host" ;;
-  esac
   HOST=${hp%:*}
   PORT=${hp##*:}
+  case "$HOST" in
+    *:*) link_fail "ipv6-unsupported: this build has no IPv6" ;;
+    \[*) link_fail "ipv6-unsupported: brackets in host" ;;
+  esac
   [ -n "$HOST" ] && [ -n "$PORT" ] || link_fail "bad-link: missing host or port"
   case "$PORT" in
     *[!0-9]*) link_fail "bad-link: port is not a number" ;;

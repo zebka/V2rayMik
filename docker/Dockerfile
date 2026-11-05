@@ -19,6 +19,7 @@ RUN apk add --no-cache ca-certificates jq unzip \
 
 COPY entrypoint.sh /app/entrypoint.sh
 COPY lib/ /app/lib/
+RUN chmod +x /app/entrypoint.sh
 
 WORKDIR /app
 ENTRYPOINT ["/app/entrypoint.sh"]

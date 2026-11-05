@@ -14,11 +14,11 @@
 :if ([:len [/ip firewall filter find where comment="xray: container tcp transport"]] = 0) do={
   :if ([:len $firstFwdDrop] > 0) do={
     /ip firewall filter add chain=forward action=accept src-address=$XraySubnet \
-      out-interface=$XrayWan protocol=tcp dst-port=443,80 \
+      out-interface=$XrayWan protocol=tcp dst-port=$XrayContainerToWanPorts \
       comment="xray: container tcp transport" place-before=$firstFwdDrop
   } else={
     /ip firewall filter add chain=forward action=accept src-address=$XraySubnet \
-      out-interface=$XrayWan protocol=tcp dst-port=443,80 \
+      out-interface=$XrayWan protocol=tcp dst-port=$XrayContainerToWanPorts \
       comment="xray: container tcp transport"
   }
 }
@@ -26,11 +26,11 @@
 :if ([:len [/ip firewall filter find where comment="xray: container udp transport"]] = 0) do={
   :if ([:len $firstFwdDrop] > 0) do={
     /ip firewall filter add chain=forward action=accept src-address=$XraySubnet \
-      out-interface=$XrayWan protocol=udp dst-port=443,53 \
+      out-interface=$XrayWan protocol=udp dst-port=$XrayContainerToWanPorts \
       comment="xray: container udp transport" place-before=$firstFwdDrop
   } else={
     /ip firewall filter add chain=forward action=accept src-address=$XraySubnet \
-      out-interface=$XrayWan protocol=udp dst-port=443,53 \
+      out-interface=$XrayWan protocol=udp dst-port=$XrayContainerToWanPorts \
       comment="xray: container udp transport"
   }
 }
@@ -62,11 +62,13 @@
     out-interface=$XrayWan comment="xray: container egress"
 }
 
-# LAN -> container: the container only ever sees the router as a peer, so it
-# needs no route back to the LAN and no NAT of its own.
+# LAN -> container: match on the egress interface, not the destination. A
+# tunnelled packet is addressed to 8.8.8.8; 172.17.0.2 is the *gateway*, so a
+# dst-address match would never fire and the container would receive the
+# client's LAN address — whose replies fall into 128.0.0.0/1 and loop.
 :if ([:len [/ip firewall nat find where comment="xray: LAN to container"]] = 0) do={
   /ip firewall nat add chain=srcnat action=masquerade src-address=$XrayLanSubnet \
-    dst-address=$XrayContainerIp comment="xray: LAN to container"
+    out-interface=$XrayBridge dst-address-type=!local comment="xray: LAN to container"
 }
 
 # --- fasttrack ---------------------------------------------------------------

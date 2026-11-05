@@ -48,16 +48,28 @@ design. It leaves through the WAN on the main table. The only bypass needed is
 enter the TUN.
 
 The router never learns the endpoint address. There is no address list to keep in
-sync, and a rotating or CDN-fronted endpoint keeps working: the entrypoint
-re-resolves every five minutes and replaces the `/32` without restarting Xray.
+sync. A hostname with **one** A record keeps working: the entrypoint re-resolves
+every five minutes and swaps the `/32` without restarting Xray.
+
+A hostname with several A records (typical for a CDN in front of the server) is
+**not** safe that way: Xray may dial an address the bypass does not know, and that
+packet would enter the tunnel that carries it. Set `ENDPOINT_IP` to pin the
+address; the re-resolve loop then does nothing.
 
 ## Health and failover
 
 - `restart-policy=always` handles a crashed process.
 - `healthcheck-cmd` (RouterOS 7.23+) checks that `tun0` exists; `stop-on-unhealthy`
-  prevents a container that is "running" with no tunnel.
-- Fail-open adds a distance-2 route to the WAN. Fail-closed does not, which is
-  the whole difference: a missing next hop drops marked traffic.
+  stops a container that is "running" with no tunnel.
+- `check-gateway=ping` on the world route deactivates it when `172.17.0.2` stops
+  answering — which is what a stopped container is.
+- Fail-open adds a distance-2 route to the WAN, so a deactivated world route leaves
+  the internet reachable. Fail-closed does not: a missing next hop drops marked
+  traffic.
+
+The chain that matters: Xray's `tun0` disappears → the healthcheck stops the
+container → the veth stops answering → the world route goes inactive → fallback (or
+blackhole, in fail-closed).
 
 ## Sizing
 

@@ -15,7 +15,7 @@
 # --- the world route ---------------------------------------------------------
 :if ([:len [/ip route find where comment="xray-world"]] = 0) do={
   /ip route add dst-address=0.0.0.0/0 gateway=$XrayContainerIp routing-table=$XrayTable \
-    distance=1 comment="xray-world"
+    distance=1 check-gateway=ping comment="xray-world"
 }
 
 # fail-open keeps a direct route at distance 2, so the internet survives an
@@ -57,12 +57,14 @@
 # Router-originated traffic for these hosts stays on the WAN: IP-Cloud would
 # otherwise publish the exit IP as the device's public address and lock Winbox
 # out of the DDNS name (this happened on the reference device in 2026-11).
-:if ([:len [/ip firewall address-list find where list="router-direct"]] = 0) do={
+:if ([:len [/ip firewall address-list find where list="router-direct"]] = 0 or [:len $XrayRefreshRouterDirect] > 0) do={
   :foreach h in={"cloud.mikrotik.com";"cloud2.mikrotik.com";"upgrade.mikrotik.com"} do={
-    :do {
-      :local a [:resolve $h]
-      /ip firewall address-list add list=router-direct address=$a comment=$h
-    } on-error={ :log warning ("xray-gw: could not resolve " . $h) }
+    :if ([:len [/ip firewall address-list find where list="router-direct" and comment=$h]] = 0) do={
+      :do {
+        :local a [:resolve $h]
+        /ip firewall address-list add list=router-direct address=$a comment=$h
+      } on-error={ :log warning ("xray-gw: could not resolve " . $h) }
+    }
   }
 }
 :if ([:len [/ip firewall mangle find where comment="xray: keep router-direct off the tunnel"]] = 0) do={
@@ -97,7 +99,11 @@
 # failing, which looks like "the site is broken".
 :if ([:len [/ip firewall mangle find where comment="xray: MSS clamp"]] = 0) do={
   /ip firewall mangle add chain=forward protocol=tcp tcp-flags=syn action=change-mss \
-    new-mss=1360 tcp-mss=1361-65535 out-interface=$XrayVeth comment="xray: MSS clamp"
+    new-mss=1360 tcp-mss=1361-65535 out-interface=$XrayBridge comment="xray: MSS clamp"
+}
+:if ([:len [/ip firewall mangle find where comment="xray: MSS clamp back"]] = 0) do={
+  /ip firewall mangle add chain=forward protocol=tcp tcp-flags=syn action=change-mss \
+    new-mss=1360 tcp-mss=1361-65535 in-interface=$XrayBridge comment="xray: MSS clamp back"
 }
 
 # --- container health --------------------------------------------------------

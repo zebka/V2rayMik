@@ -19,16 +19,34 @@ endpoint_of() {
     \{*) ob=$src ;;
     *) ob=$(link_to_outbound "$src") ;;
   esac
-  printf '%s' "$ob" | jq -r '((.settings.vnext // .settings.servers)[0] // {})
-                            | "\(.address // ""):\(.port // "")"'
+  addr=$(printf '%s' "$ob" | jq -r '((.settings.vnext // .settings.servers)[0] // {}) | .address // ""')
+  port=$(printf '%s' "$ob" | jq -r '((.settings.vnext // .settings.servers)[0] // {}) | .port // ""')
+  if [ -z "$addr" ] || [ -z "$port" ]; then
+    echo "unsupported-outbound: the outbound has no vnext/servers address (freedom, wireguard and similar have no endpoint)" >&2
+    exit 2
+  fi
+  printf '%s:%s\n' "$addr" "$port"
+}
+
+# is_ipv4 <string>
+is_ipv4() {
+  case "$1" in
+    *[!0-9.]*|"") return 1 ;;
+  esac
+  printf '%s' "$1" | grep -Eq '^([0-9]{1,3}\.){3}[0-9]{1,3}$'
 }
 
 # resolve_endpoint <host> — prints an IPv4 address.
-# ENDPOINT_IP overrides resolution (CDN endpoints, poisoned resolvers).
+# ENDPOINT_IP overrides resolution (multi-A/CDN endpoints, poisoned resolvers).
+# A literal IPv4 is returned as-is; busybox nslookup cannot resolve one.
 resolve_endpoint() {
   host=$1
   if [ -n "${ENDPOINT_IP:-}" ]; then
     printf '%s\n' "$ENDPOINT_IP"
+    return 0
+  fi
+  if is_ipv4 "$host"; then
+    printf '%s\n' "$host"
     return 0
   fi
   i=0
@@ -36,7 +54,7 @@ resolve_endpoint() {
     ip=$(nslookup "$host" 2>/dev/null \
          | awk '/^Address[ 0-9]*:/ {print $NF}' \
          | grep -E '^[0-9]{1,3}(\.[0-9]{1,3}){3}$' \
-         | grep -v '^127\.' | tail -n 1)
+         | grep -v '^127\.' | head -n 1)
     if [ -n "$ip" ]; then
       printf '%s\n' "$ip"
       return 0
@@ -62,23 +80,43 @@ wait_for_tun() {
   return 1
 }
 
-# reapply_endpoint_route <host> <tun> <eth> — background loop; replaces only
-# the /32 when the endpoint address moves.
+# reapply_endpoint_route <host> <tun> <eth> — background loop; keeps the /32 in
+# step with DNS. Does nothing when ENDPOINT_IP pins the address: a multi-A or
+# CDN endpoint must be pinned, because only one address can hold the bypass.
 reapply_endpoint_route() {
   host=$1
   tun=${2:-tun0}
   eth=${3:-eth0}
+  [ -n "${ENDPOINT_IP:-}" ] && return 0
   last=""
   while :; do
     sleep 300
     ip=$(nslookup "$host" 2>/dev/null \
          | awk '/^Address[ 0-9]*:/ {print $NF}' \
          | grep -E '^[0-9]{1,3}(\.[0-9]{1,3}){3}$' \
-         | grep -v '^127\.' | tail -n 1)
+         | grep -v '^127\.' | head -n 1)
     [ -n "$ip" ] || continue
     [ "$ip" = "$last" ] && continue
+    if [ -n "$last" ]; then
+      ip route del "$last/32" >/dev/null 2>&1 || true
+    fi
     ip route replace "$ip/32" dev "$eth" || continue
     last=$ip
     echo "xray-gw: endpoint ${host} -> ${ip}" >&2
   done
+}
+
+# verify_routes <tun> — the tunnel only works if traffic really enters the TUN.
+# A container that says "healthy" while its routes are wrong is the one failure
+# mode this project must not ship.
+verify_routes() {
+  tun=$1
+  got=$(ip route get 1.1.1.1 2>/dev/null || true)
+  case "$got" in
+    *"dev $tun"*) return 0 ;;
+    *)
+      echo "route-not-installed: 'ip route get 1.1.1.1' says: ${got:-nothing}" >&2
+      return 1
+      ;;
+  esac
 }

@@ -56,6 +56,12 @@ assert_eq "$code" "2" "ipv6 exit"
 assert_match "$err" "ipv6-unsupported"
 
 set +e
+err=$(link_to_outbound 'vless://u@2001:db8::1:443?type=tcp' 2>&1); code=$?
+set -e
+assert_eq "$code" "2" "unbracketed ipv6 exit"
+assert_match "$err" "ipv6-unsupported"
+
+set +e
 err=$(link_to_outbound 'vless://nope' 2>&1); code=$?
 set -e
 assert_eq "$code" "2" "bad-link exit"
