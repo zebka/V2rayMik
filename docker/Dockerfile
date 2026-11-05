@@ -17,9 +17,8 @@ RUN apk add --no-cache ca-certificates jq unzip \
  && rm -f /tmp/xray.zip \
  && apk del unzip
 
-COPY entrypoint.sh /app/entrypoint.sh
-COPY lib/ /app/lib/
-RUN chmod +x /app/entrypoint.sh
+COPY --chmod=755 entrypoint.sh /app/entrypoint.sh
+COPY --chmod=755 lib/ /app/lib/
 
 WORKDIR /app
 ENTRYPOINT ["/app/entrypoint.sh"]

@@ -65,19 +65,22 @@
 }
 
 # --- NAT ---------------------------------------------------------------------
-# Container -> WAN: needed for the transport itself.
-:if ([:len [/ip firewall nat find where comment="xray: container egress"]] = 0) do={
-  /ip firewall nat add chain=srcnat action=masquerade src-address=$XraySubnet \
-    out-interface=$XrayWan comment="xray: container egress"
+# One rule covers everything that enters the container: LAN clients and the
+# router's own traffic. This is not cosmetic — measured on 7.25.1, the router's
+# own packets left with the WAN address as source and were dropped inside the
+# container, while the same packets masqueraded to the veth address went through.
+# The container therefore only ever sees 172.17.0.1 as a peer, needs no route
+# back to the LAN, and needs no NAT of its own.
+:if ([:len [/ip firewall nat find where comment="xray: masquerade to container"]] = 0) do={
+  /ip firewall nat add chain=srcnat action=masquerade out-interface=$XrayVeth \
+    comment="xray: masquerade to container"
 }
-
-# LAN -> container: match on the egress interface, not the destination. A
-# tunnelled packet is addressed to 8.8.8.8; 172.17.0.2 is the *gateway*, so a
-# dst-address match would never fire and the container would receive the
-# client's LAN address — whose replies fall into 128.0.0.0/1 and loop.
-:if ([:len [/ip firewall nat find where comment="xray: LAN to container"]] = 0) do={
-  /ip firewall nat add chain=srcnat action=masquerade src-address=$XrayLanSubnet \
-    out-interface=$XrayVeth dst-address-type=!local comment="xray: LAN to container"
+# Clean up the two narrower rules older versions installed.
+:if ([:len [/ip firewall nat find where comment="xray: LAN to container"]] > 0) do={
+  /ip firewall nat remove [find where comment="xray: LAN to container"]
+}
+:if ([:len [/ip firewall nat find where comment="xray: router to container masq"]] > 0) do={
+  /ip firewall nat remove [find where comment="xray: router to container masq"]
 }
 
 # --- fasttrack ---------------------------------------------------------------

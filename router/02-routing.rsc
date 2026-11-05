@@ -145,6 +145,13 @@
   /ip firewall mangle add chain=forward protocol=tcp tcp-flags=syn action=change-mss \
     new-mss=1360 tcp-mss=1361-65535 in-interface=$XrayVeth comment="xray: MSS clamp back"
 }
+# Traffic the router itself sends needs the clamp too: `chain=forward` never sees
+# it, and without this a 10 MB download stalls at zero bytes while small pages
+# work fine (measured).
+:if ([:len [/ip firewall mangle find where comment="xray: MSS clamp (router output)"]] = 0) do={
+  /ip firewall mangle add chain=output protocol=tcp tcp-flags=syn action=change-mss \
+    new-mss=1360 tcp-mss=1361-65535 comment="xray: MSS clamp (router output)"
+}
 
 # --- container health --------------------------------------------------------
 # 7.23+: if the TUN disappears, the container is stopped and restarted by the
