@@ -78,6 +78,11 @@ router own ──┘                 │
    Do not set both. The JSON path accepts anything; the link path understands
    `vless://`, `vmess://`, `trojan://` and `ss://`.
 
+   **The port in that link must be in `XrayContainerToWanPorts`** (default:
+   every Cloudflare proxy port plus 53). A provider on a non-standard port needs
+   one line changed — see "The container's egress allowlist" in
+   `docs/security.md` for why it is an allowlist and how to extend it.
+
 4. Import the RouterOS scripts **in one session**, in order:
 
    ```

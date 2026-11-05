@@ -52,9 +52,13 @@
 # hostnames (IP-Cloud addresses change over time).
 :global XrayRefreshRouterDirect ""
 
-# Ports the container may reach on the WAN: 443 for TLS/REALITY, 80 for a
-# CDN-fronted endpoint, 53 for its own resolver.
-:global XrayContainerToWanPorts "443,80,53"
+# Ports the container may reach on the WAN. This is an allowlist, not a filter
+# you can forget about: anything the Xray transport dials must be listed, or the
+# forward chain drops it and the tunnel looks broken with no error.
+# The default covers every port Cloudflare's proxy accepts (80/8080/8880, 443/
+# 8443, 2052/2053/2082/2083/2086/2087/2095/2096) plus 53 for the container's own
+# DNS. A provider on a non-standard port must be added here.
+:global XrayContainerToWanPorts "443,80,8080,8880,2052,2053,2082,2083,2086,2087,2095,2096,8443,53"
 
 # Allow the container into the LAN. Leave false unless you know why.
 :global XrayAllowContainerToLan false
