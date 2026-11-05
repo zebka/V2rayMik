@@ -134,8 +134,17 @@ Both are shipped on purpose; pick deliberately and read `docs/security.md`.
 
 ## Measured performance
 
-See `docs/benchmarks.md`. Numbers are filled from a real device run (Task 12 of
-the plan); anything marked TBD has not been measured yet and must not be quoted.
+Single-stream download through the tunnel, from the router itself: **9.5 MiB in
+6 s ≈ 13 Mbps**, on a hAP ax³. The same box ran OpenVPN/TCP at ~14 Mbps, so the
+container costs roughly nothing — the path is the limit. Full table, commands and
+the not-yet-measured cells are in `docs/benchmarks.md`.
+
+## Roadmap
+
+- A one-page local UI (served by the router) to paste a config, validate it and
+  restart the container without Winbox.
+- Upload/tests for upload throughput, multi-stream and reboot recovery.
+- Optional XHTTP-first examples, since WebSocket is deprecated in Xray.
 
 ## Layout
 

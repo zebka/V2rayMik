@@ -12,7 +12,7 @@ measured and must not be quoted as a result.
 | RAM | 1 GB |
 | Storage | USB 2.0 SATA enclosure, ext4, 233 GB |
 | Uplink | DHCP behind a modem (double NAT) |
-| Exit | Xray over TCP 443 to a VPS outside the country |
+| Exit | Xray over TCP (REALITY 8999, WebSocket 2087 via CDN, plain VLESS 8089/3010 all tested) |
 | Split | `iran-ips` on RouterOS, `to-world` table |
 
 ## Footprint
