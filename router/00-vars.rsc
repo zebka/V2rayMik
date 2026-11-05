@@ -25,6 +25,10 @@
 # at a tar you side-load (see docs/install-side-load.md).
 :global XrayImage "ghcr.io/OWNER/mikrotik-xray-gateway:latest"
 
+# Side-loaded docker-archive tar on the disk (wins over XrayImage when set),
+# for example "usb2/royal-xray-gateway.tar".
+:global XrayImageFile ""
+
 # Disk that holds the container root-dir (must be a mounted external disk).
 :global XrayDisk "usb2"
 

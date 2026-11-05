@@ -27,7 +27,13 @@
     :if ([:len $mainRoute] > 0) do={ :set fbGw [/ip route get [:pick $mainRoute 0] gateway] }
   }
   :if ([:len $fbGw] > 0) do={
-    :if ([:len [/ip route find where comment="xray-fallback"]] = 0) do={
+    # Reuse a fallback that is already there: a second route to the same gateway
+    # at the same distance is just noise.
+    :local existing 0
+    :foreach r in=[/ip route find where routing-table=$XrayTable] do={
+      :if ([/ip route get $r distance] > 1) do={ :set existing ($existing + 1) }
+    }
+    :if ([:len [/ip route find where comment="xray-fallback"]] = 0 and $existing = 0) do={
       /ip route add dst-address=0.0.0.0/0 gateway=$fbGw routing-table=$XrayTable \
         distance=2 comment="xray-fallback"
     }
@@ -37,6 +43,18 @@
 } else={
   :if ([:len [/ip route find where comment="xray-fallback"]] > 0) do={
     /ip route remove [find where comment="xray-fallback"]
+  }
+}
+
+# A competing distance-1 route in the same table makes the choice per-connection
+# and unpredictable. Refuse to guess: tell the operator which one to disable.
+:foreach c in=[/ip route find where routing-table=$XrayTable] do={
+  :if ([/ip route get $c distance] = 1) do={
+    :if ([/ip route get $c comment] != "xray-world") do={
+      :if ([/ip route get $c disabled] = false) do={
+        :log warning ("xray-gw: another distance-1 route is active in " . $XrayTable . ": " . [/ip route get $c comment] . " — disable it or the exit is per-connection random")
+      }
+    }
   }
 }
 
@@ -78,16 +96,29 @@
   }
 }
 
-# Mark LAN and router traffic for the world table — only when the device does
-# not already do it, and never against an empty iran-ips list (that would send
-# everything, including local destinations, into the tunnel).
-:if ([:len [/ip firewall mangle find where new-routing-mark=$XrayTable]] = 0) do={
-  :if ([:len [/ip firewall address-list find where list="iran-ips"]] = 0) do={
-    :log warning "xray-gw: iran-ips is empty; import an Iran address list, then re-run 02-routing.rsc"
-  } else={
+# Mark LAN and router traffic for the world table — per chain, because a device
+# may already mark one of them. Never against an empty iran-ips list (that would
+# send everything, including local destinations, into the tunnel).
+:if ([:len [/ip firewall address-list find where list="iran-ips"]] = 0) do={
+  :log warning "xray-gw: iran-ips is empty; import an Iran address list, then re-run 02-routing.rsc"
+} else={
+  :if ([:len [/ip firewall mangle find where chain=prerouting and action=mark-routing and new-routing-mark=$XrayTable]] = 0) do={
     /ip firewall mangle add chain=prerouting dst-address-list=!iran-ips \
       dst-address-type=!local action=mark-routing new-routing-mark=$XrayTable passthrough=no \
       comment="World -> xray (LAN)"
+  }
+  # Router-originated traffic: only a *general* enabled rule counts. A narrow
+  # rule (DNS to port 53, an endpoint bypass) must not make the script think the
+  # router is already covered, and neither must a disabled leftover.
+  :local liveOut 0
+  :foreach r in=[/ip firewall mangle find where chain=output and action=mark-routing and new-routing-mark=$XrayTable] do={
+    :if ([/ip firewall mangle get $r disabled] = false) do={
+      :local dp ""
+      :do { :set dp [/ip firewall mangle get $r dst-port] } on-error={ :set dp "" }
+      :if ([:len $dp] = 0) do={ :set liveOut 1 }
+    }
+  }
+  :if ($liveOut = 0) do={
     /ip firewall mangle add chain=output dst-address-list=!iran-ips \
       dst-address-type=!local action=mark-routing new-routing-mark=$XrayTable passthrough=no \
       comment="World -> xray (router)"

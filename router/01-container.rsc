@@ -48,11 +48,22 @@
 
 # --- container ---------------------------------------------------------------
 # Adding the container starts the image pull; it is not started automatically.
-:if ([:len [/container find where name=$XrayContainerName]] = 0) do={
-  /container add name=$XrayContainerName remote-image=$XrayImage interface=$XrayVeth \
-    root-dir=($XrayDisk . "/" . $XrayContainerName) dns=1.1.1.1 \
-    envlist=$XrayContainerName start-on-boot=yes restart-policy=always \
-    memory-high=100663296 logging=yes
+# Two paths: pull from a registry (XrayImage) or side-load a docker-archive tar
+# already uploaded to the disk (XrayImageFile). The file path wins when set.
+:if ([:len $XrayImageFile] > 0) do={
+  :if ([:len [/container find where name=$XrayContainerName]] = 0) do={
+    /container add name=$XrayContainerName file=$XrayImageFile interface=$XrayVeth \
+      root-dir=($XrayDisk . "/" . $XrayContainerName) dns=1.1.1.1 \
+      envlist=$XrayContainerName start-on-boot=yes restart-policy=always \
+      memory-high=100663296 logging=yes
+  }
+} else={
+  :if ([:len [/container find where name=$XrayContainerName]] = 0) do={
+    /container add name=$XrayContainerName remote-image=$XrayImage interface=$XrayVeth \
+      root-dir=($XrayDisk . "/" . $XrayContainerName) dns=1.1.1.1 \
+      envlist=$XrayContainerName start-on-boot=yes restart-policy=always \
+      memory-high=100663296 logging=yes
+  }
 }
 
 :log info "01-container: objects ready; wait for /container/print status=stopped, then run 02-routing.rsc"

@@ -39,6 +39,12 @@ assert_match "$err" "unsupported-link: hysteria2"
 out=$(link_to_outbound 'ss://2022-blake3-aes-128-gcm:secret@203.0.113.9:8388')
 assert_eq "$(printf '%s' "$out" | jq -r '.settings.servers[0].method')" "2022-blake3-aes-128-gcm" "ss plain method"
 
+# reality spiderX survives, and is absent when the link has no spx
+out=$(link_to_outbound 'vless://u@203.0.113.9:443?security=reality&sni=x.test&pbk=P&sid=ab&spx=%2Fabc&type=tcp')
+assert_eq "$(printf '%s' "$out" | jq -r '.streamSettings.realitySettings.spiderX')" "/abc" "spiderX"
+out=$(link_to_outbound 'vless://u@203.0.113.9:443?security=reality&sni=x.test&pbk=P&sid=ab&type=tcp')
+assert_eq "$(printf '%s' "$out" | jq -r '.streamSettings.realitySettings | has("spiderX")')" "false" "no spiderX when unset"
+
 # --- Task 4: vmess and named rejections -------------------------------------
 j='{"v":"2","ps":"n","add":"203.0.113.9","port":"443","id":"11111111-1111-4111-8111-111111111111","net":"ws","path":"/x","tls":"tls","sni":"x.test","scy":"auto"}'
 vm="vmess://$(printf '%s' "$j" | base64 | tr -d '\n')"

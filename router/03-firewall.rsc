@@ -35,6 +35,15 @@
   }
 }
 
+# Keep an existing rule in step with the variable: re-importing must change the
+# allowed ports, not leave the old list behind.
+:foreach r in=[/ip firewall filter find where comment="xray: container tcp transport"] do={
+  /ip firewall filter set $r dst-port=$XrayContainerToWanPorts
+}
+:foreach r in=[/ip firewall filter find where comment="xray: container udp transport"] do={
+  /ip firewall filter set $r dst-port=$XrayContainerToWanPorts
+}
+
 # --- optional: let the container reach the LAN (off by default) ---------------
 :if ($XrayAllowContainerToLan = true) do={
   :if ([:len [/ip firewall filter find where comment="xray: container to LAN (opt-in)"]] = 0) do={

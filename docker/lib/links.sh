@@ -77,7 +77,7 @@ split_userinfo() {
 
 stream_settings() {
   # $1 network, $2 security, $3 sni, $4 fingerprint, $5 publicKey,
-  # $6 shortId, $7 path, $8 host header, $9 serviceName
+  # $6 shortId, $7 path, $8 host header, $9 serviceName, $10 spiderX
   jq -n \
     --arg net "${1:-tcp}" \
     --arg sec "${2:-none}" \
@@ -88,6 +88,7 @@ stream_settings() {
     --arg path "$7" \
     --arg hosthdr "$8" \
     --arg svc "$9" \
+    --arg spx "${10:-}" \
     '({network:$net}
       + (if $sec == "tls" then
            {security:"tls",
@@ -96,8 +97,9 @@ stream_settings() {
          else {} end)
       + (if $sec == "reality" then
            {security:"reality",
-            realitySettings:{serverName:$sni, publicKey:$pbk,
-                             shortId:$sid, fingerprint:$fp}}
+            realitySettings:({serverName:$sni, publicKey:$pbk,
+                              shortId:$sid, fingerprint:$fp}
+                             + (if $spx != "" then {spiderX:$spx} else {} end))}
          else {} end)
       + (if $net == "ws" then
            {wsSettings:({path:(if $path == "" then "/" else $path end)}
@@ -117,7 +119,7 @@ link_vless() {
     --arg enc "${enc:-none}" --arg flow "$flow" \
     --argjson stream "$(stream_settings "$(qs "$2" type)" "$(qs "$2" security)" \
         "$(qs "$2" sni)" "$(qs "$2" fp)" "$(qs "$2" pbk)" "$(qs "$2" sid)" \
-        "$(qs "$2" path)" "$(qs "$2" host)" "$(qs "$2" serviceName)")" \
+        "$(qs "$2" path)" "$(qs "$2" host)" "$(qs "$2" serviceName)" "$(qs "$2" spx)")" \
     '{protocol:"vless",
       settings:{vnext:[{address:$addr, port:$port,
                         users:[({id:$id, encryption:$enc}
@@ -133,7 +135,7 @@ link_trojan() {
     --arg addr "$HOST" --argjson port "$PORT" --arg pass "$pass" \
     --argjson stream "$(stream_settings "$(qs "$2" type)" "$(qs "$2" security)" \
         "$(qs "$2" sni)" "$(qs "$2" fp)" "" "" \
-        "$(qs "$2" path)" "$(qs "$2" host)" "$(qs "$2" serviceName)")" \
+        "$(qs "$2" path)" "$(qs "$2" host)" "$(qs "$2" serviceName)" "$(qs "$2" spx)")" \
     '{protocol:"trojan",
       settings:{servers:[{address:$addr, port:$port, password:$pass}]},
       streamSettings:$stream}'
