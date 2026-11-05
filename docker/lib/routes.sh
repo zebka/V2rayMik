@@ -1,13 +1,31 @@
 # Route planning and container bring-up. Sourced by entrypoint.sh.
 
-# plan_routes <endpoint-ip> [tun] [eth] — prints the route commands to run.
-# /32 keeps the transport out of the tunnel; the two /1 routes are the default
-# without touching (and without depending on) the kernel's ip-rule order.
+# detect_egress — the container's real interface name. RouterOS names the
+# container's NIC after the veth (veth-xray), not eth0, so this must never be
+# hard-coded.
+detect_egress() {
+  ip route show default 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1); exit}}'
+}
+
+# detect_gateway — the default gateway inside the container (172.17.0.1).
+detect_gateway() {
+  ip route show default 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="via"){print $(i+1); exit}}'
+}
+
+# plan_routes <endpoint-ip> [tun] [eth] [gateway]
+# The endpoint bypass MUST go via the default gateway. `dev <eth>` would make the
+# endpoint on-link, and the container would ARP for a host that is not on its
+# subnet — the route looks right and nothing works.
 plan_routes() {
   ip=$1
   tun=${2:-tun0}
   eth=${3:-eth0}
-  printf 'ip route replace %s/32 dev %s\n' "$ip" "$eth"
+  gw=${4:-}
+  if [ -n "$gw" ]; then
+    printf 'ip route replace %s/32 via %s dev %s\n' "$ip" "$gw" "$eth"
+  else
+    printf 'ip route replace %s/32 dev %s\n' "$ip" "$eth"
+  fi
   printf 'ip route replace 0.0.0.0/1 dev %s\n' "$tun"
   printf 'ip route replace 128.0.0.0/1 dev %s\n' "$tun"
 }
@@ -87,6 +105,7 @@ reapply_endpoint_route() {
   host=$1
   tun=${2:-tun0}
   eth=${3:-eth0}
+  gw=${4:-}
   [ -n "${ENDPOINT_IP:-}" ] && return 0
   last=""
   while :; do
@@ -100,7 +119,11 @@ reapply_endpoint_route() {
     if [ -n "$last" ]; then
       ip route del "$last/32" >/dev/null 2>&1 || true
     fi
-    ip route replace "$ip/32" dev "$eth" || continue
+    if [ -n "$gw" ]; then
+      ip route replace "$ip/32" via "$gw" dev "$eth" || continue
+    else
+      ip route replace "$ip/32" dev "$eth" || continue
+    fi
     last=$ip
     echo "xray-gw: endpoint ${host} -> ${ip}" >&2
   done

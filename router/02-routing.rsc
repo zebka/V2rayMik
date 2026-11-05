@@ -15,7 +15,7 @@
 # --- the world route ---------------------------------------------------------
 :if ([:len [/ip route find where comment="xray-world"]] = 0) do={
   /ip route add dst-address=0.0.0.0/0 gateway=$XrayContainerIp routing-table=$XrayTable \
-    distance=1 check-gateway=ping comment="xray-world"
+    distance=1 comment="xray-world"
 }
 
 # fail-open keeps a direct route at distance 2, so the internet survives an
@@ -56,6 +56,15 @@
       }
     }
   }
+}
+
+# The gateway must be reachable inside the table that uses it. RouterOS keeps
+# connected routes in `main`, and a marked route whose gateway is only reachable
+# there silently drops locally-originated traffic (measured on 7.25.1: active
+# route, packets never leave). This row is what makes it work.
+:if ([:len [/ip route find where comment="xray: connected to container"]] = 0) do={
+  /ip route add dst-address=$XraySubnet gateway=$XrayBridge routing-table=$XrayTable \
+    comment="xray: connected to container"
 }
 
 # --- marking -----------------------------------------------------------------

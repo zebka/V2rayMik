@@ -59,7 +59,7 @@ if have 02-routing.rsc; then
   grep -q 'src-address=\$XraySubnet' "$dir/02-routing.rsc" || err "02-routing.rsc: no mangle exemption for the container subnet"
   grep -q 'change-mss' "$dir/02-routing.rsc" || err "02-routing.rsc: no MSS clamp"
   grep -q 'out-interface=\$XrayBridge' "$dir/02-routing.rsc" || err "02-routing.rsc: MSS clamp must match the bridge egress, not the veth port"
-  grep -q 'check-gateway=ping' "$dir/02-routing.rsc" || err "02-routing.rsc: world route has no gateway check"
+  grep -q 'comment="xray: connected to container"' "$dir/02-routing.rsc" || err "02-routing.rsc: missing the connected route that makes the gateway reachable inside the table"
   grep -q 'XrayFailOpen' "$dir/02-routing.rsc" || err "02-routing.rsc: failover flag unused"
 fi
 

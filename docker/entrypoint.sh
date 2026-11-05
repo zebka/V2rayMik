@@ -27,8 +27,12 @@ done
 log() { echo "xray-gw: $*" >&2; }
 die() { echo "$1" >&2; exit 2; }
 
-# Prints one outbound object (JSON) on stdout.
+# load_outbound — prints one outbound object.
 load_outbound() {
+  if [ -n "${XRAY_OUTBOUND_JSON:-}" ]; then
+    printf '%s' "$XRAY_OUTBOUND_JSON"
+    return 0
+  fi
   if [ -n "${XRAY_LINK:-}" ]; then
     if [ -e "$XRAY_OUTBOUND_FILE" ]; then
       die "conflicting-config: set either XRAY_LINK or $XRAY_OUTBOUND_FILE, not both"
@@ -112,25 +116,40 @@ case "$cmd" in
     plan_routes "$(resolve_endpoint "${ep%:*}")" "$TUN_NAME" "${EGRESS_IF:-eth0}"
     ;;
   run)
-    mkdir -p "$(dirname "$XRAY_CONFIG")"
-    render_config > "$XRAY_CONFIG"
-    validate_config "$XRAY_CONFIG"
+    eth=${EGRESS_IF:-$(detect_egress)}
+    if [ -z "$eth" ]; then
+      die "no-egress: could not find the container's default-route interface"
+    fi
+    gw=${EGRESS_GW:-$(detect_gateway)}
 
     ob=$(load_outbound) || exit 2
     ep=$(endpoint_of "$ob") || exit 2
     host=${ep%:*}
-    eth=${EGRESS_IF:-eth0}
+    ipv4=$(resolve_endpoint "$host")
+
+    # Pin the endpoint address into the config. xray resolves the outbound's
+    # address at dial time, and inside this container DNS goes *through the
+    # tunnel*, which cannot come up until the server is dialable: a deadlock.
+    # Dialing an IP removes the resolver from the startup path entirely.
+    if ! is_ipv4 "$host"; then
+      ob=$(printf '%s' "$ob" | jq --arg ip "$ipv4" '(.settings.vnext // .settings.servers)[0].address = $ip') || exit 2
+      XRAY_OUTBOUND_JSON=$ob
+      export XRAY_OUTBOUND_JSON
+    fi
+
+    mkdir -p "$(dirname "$XRAY_CONFIG")"
+    render_config > "$XRAY_CONFIG"
+    validate_config "$XRAY_CONFIG"
 
     enable_forwarding
-    ipv4=$(resolve_endpoint "$host")
-    log "endpoint ${host} -> ${ipv4}, tun ${TUN_NAME}, egress ${eth}"
+    log "endpoint ${host} -> ${ipv4}, tun ${TUN_NAME}, egress ${eth}, gw ${gw:-none}"
 
     xray run -c "$XRAY_CONFIG" &
     pid=$!
     trap 'kill -TERM "$pid" 2>/dev/null; wait "$pid" 2>/dev/null; exit 0' TERM INT
 
     if wait_for_tun "$TUN_NAME" "$pid"; then
-      plan_routes "$ipv4" "$TUN_NAME" "$eth" | while IFS= read -r cmdline; do
+      plan_routes "$ipv4" "$TUN_NAME" "$eth" "$gw" | while IFS= read -r cmdline; do
         sh -c "$cmdline" || log "route failed: $cmdline"
       done
       ip link set dev "$TUN_NAME" up 2>/dev/null || true
@@ -139,7 +158,7 @@ case "$cmd" in
         wait "$pid" 2>/dev/null || true
         exit 1
       fi
-      reapply_endpoint_route "$host" "$TUN_NAME" "$eth" &
+      reapply_endpoint_route "$host" "$TUN_NAME" "$eth" "$gw" &
     else
       log "tun-not-ready: $TUN_NAME did not appear; exiting"
       kill "$pid" 2>/dev/null || true
