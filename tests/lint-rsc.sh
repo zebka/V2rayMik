@@ -1,0 +1,74 @@
+#!/bin/sh
+# Static checks for the RouterOS scripts. It cannot replace importing the files
+# on a device (Task 12), but it catches the mistakes that are cheap to catch:
+# unbalanced blocks, globals that were never declared, unguarded `add`, and
+# invariants the design depends on.
+set -u
+
+dir=${1:-router}
+rc=0
+err() { echo "lint: $*" >&2; rc=1; }
+have() { [ -f "$dir/$1" ]; }
+declared=""
+if have 00-vars.rsc; then
+  declared=$(sed -n 's/^:global \([A-Za-z0-9_]*\).*/\1/p' "$dir/00-vars.rsc")
+else
+  err "missing $dir/00-vars.rsc"
+fi
+
+for f in "$dir"/*.rsc; do
+  [ -e "$f" ] || continue
+  [ "$(basename "$f")" = "00-vars.rsc" ] && continue
+
+  open=$(tr -cd '{' < "$f" | wc -c)
+  close=$(tr -cd '}' < "$f" | wc -c)
+  [ "$open" -eq "$close" ] || err "$f: unbalanced braces ($open open, $close close)"
+
+  for g in $(grep -o '\$Xray[A-Za-z0-9_]*' "$f" | tr -d '$' | sort -u); do
+    printf '%s\n' "$declared" | grep -qx "$g" || err "$f: undeclared global \$$g"
+  done
+
+  # every `add` needs a guard (someone imports this twice)
+  line_no=0
+  while IFS= read -r line; do
+    line_no=$((line_no + 1))
+    case "$line" in
+      *"/add "*) ;;
+      *) continue ;;
+    esac
+    start=$((line_no - 6))
+    [ "$start" -lt 1 ] && start=1
+    if ! sed -n "${start},${line_no}p" "$f" | grep -qE ':if|find where'; then
+      err "$f:$line_no: /add without an :if / find guard"
+    fi
+  done < "$f"
+done
+
+# --- invariants -------------------------------------------------------------
+have 01-container.rsc || err "01-container.rsc: missing"
+
+if have 01-container.rsc; then  grep -q 'veth' "$dir/01-container.rsc" || err "01-container.rsc: no veth"
+  grep -q 'container/config/set' "$dir/01-container.rsc" || err "01-container.rsc: tmpdir not set"
+fi
+
+if have 02-routing.rsc; then
+  grep -q 'gateway=\$XrayContainerIp' "$dir/02-routing.rsc" || err "02-routing.rsc: route does not use the container as gateway"
+  grep -q 'src-address=\$XraySubnet' "$dir/02-routing.rsc" || err "02-routing.rsc: no mangle exemption for the container subnet"
+  grep -q 'change-mss' "$dir/02-routing.rsc" || err "02-routing.rsc: no MSS clamp"
+  grep -q 'XrayFailOpen' "$dir/02-routing.rsc" || err "02-routing.rsc: failover flag unused"
+fi
+
+if have 03-firewall.rsc; then
+  grep -q 'action=drop' "$dir/03-firewall.rsc" || err "03-firewall.rsc: no default deny"
+  grep -q 'out-interface=\$XrayWan' "$dir/03-firewall.rsc" || err "03-firewall.rsc: no container→WAN masquerade"
+fi
+
+if have 99-uninstall.rsc; then
+  for obj in veth-xray containers xray-gw; do
+    grep -q "$obj" "$dir/99-uninstall.rsc" || err "99-uninstall.rsc: does not mention $obj"
+  done
+  grep -q 'iran-ips' "$dir/99-uninstall.rsc" && err "99-uninstall.rsc: touches iran-ips"
+  grep -q 'local-nets' "$dir/99-uninstall.rsc" && err "99-uninstall.rsc: touches local-nets"
+fi
+
+exit "$rc"

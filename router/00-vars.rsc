@@ -19,6 +19,11 @@
 :global XraySubnet "172.17.0.0/24"
 :global XrayGatewayIp "172.17.0.1"
 :global XrayContainerIp "172.17.0.2"
+:global XrayContainerName "xray-gw"
+
+# Image to pull. Replace OWNER once the repo publishes to GHCR, or point this
+# at a tar you side-load (see docs/install-side-load.md).
+:global XrayImage "ghcr.io/OWNER/mikrotik-xray-gateway:latest"
 
 # Disk that holds the container root-dir (must be a mounted external disk).
 :global XrayDisk "usb2"
