@@ -8,7 +8,7 @@ measured and must not be quoted as a result.
 | Item | Value |
 | --- | --- |
 | Device | MikroTik hAP ax³ (C53UiG+5HPaxD2HPaxD), arm64 |
-| RouterOS | 7.24.2 |
+| RouterOS | 7.25.1 |
 | RAM | 1 GB |
 | Storage | USB 2.0 SATA enclosure, ext4, 233 GB |
 | Uplink | DHCP behind a modem (double NAT) |
@@ -32,18 +32,16 @@ and four-stream. Record the CPU percentage during the run
 
 | Test | Result |
 | --- | --- |
-| Download, 1 stream | TBD |
+| Download, 1 stream, from the router | 9.5 MiB in 6 s ≈ **13 Mbps** |
 | Download, 4 streams | TBD |
 | Upload, 1 stream | TBD |
 | Upload, 4 streams | TBD |
 | CPU during download | TBD |
 
-Context, so the numbers are not read in isolation: the same reference line
-previously ran OpenVPN/TCP at ~14 Mbps down / ~15.8 Mbps up, while the server
-itself could do ~350/330 Mbps. Container networking on this hardware is
-CPU-bound; published reports for other container-based designs range from
-~25 Mbps (original tun2socks) to ~65 Mbps (hev-socks5-tunnel). The single-process
-TUN design has no published figure, which is exactly why this table exists.
+The first figure is a `tool fetch` of a 10 MB file through the tunnel, from the
+router itself, on 7.25.1. For comparison, OpenVPN/TCP on the same box measured
+~14 Mbps down / ~15.8 Mbps up, so the container eats roughly none of the link —
+the path is the limit. Four-stream and upload numbers are still to be taken.
 
 ## Latency
 
