@@ -90,6 +90,11 @@ patch the live rule:
 `03-firewall.rsc` re-applies the variable on every import, so the script and the
 device stay in step.
 
+RouterOS accepts at most **15 ports in one `dst-port` list**. The default list has
+14, which leaves room for exactly one exception. If you need more, add a second
+pair of accept rules (for example one for the CDN ports and one per provider)
+rather than trimming the first list.
+
 A tunnel whose port is missing does not fail loudly: Xray keeps redialling, the
 router logs nothing, and the symptom is "the internet is slow / half broken".
 That is why the port list is documented here rather than left implicit.
