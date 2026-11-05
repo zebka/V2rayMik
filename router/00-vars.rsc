@@ -21,9 +21,9 @@
 :global XrayContainerIp "172.17.0.2"
 :global XrayContainerName "xray-gw"
 
-# Image to pull. Replace OWNER once the repo publishes to GHCR, or point this
-# at a tar you side-load (see docs/install-side-load.md).
-:global XrayImage "ghcr.io/OWNER/mikrotik-xray-gateway:latest"
+# Image to pull. The published multi-arch image lives here; replace the owner
+# only if you fork or host your own.
+:global XrayImage "ghcr.io/zebka/mikrotik-xray-gateway:latest"
 
 # Side-loaded docker-archive tar on the disk (wins over XrayImage when set),
 # for example "usb2/royal-xray-gateway.tar".

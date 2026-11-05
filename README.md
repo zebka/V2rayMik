@@ -1,4 +1,4 @@
-# mikrotik-xray-gateway
+﻿# mikrotik-xray-gateway
 
 Put a MikroTik RouterOS device's world-bound traffic through **one** Alpine
 container running [Xray-core](https://github.com/XTLS/Xray-core) with its native
@@ -67,7 +67,7 @@ What is *not* verified is written down as such there and in `CHANGELOG.md`.
 1. Build or pull the image:
 
    ```sh
-   make image            # or: docker pull ghcr.io/OWNER/mikrotik-xray-gateway
+   make image            # or: docker pull ghcr.io/zebka/mikrotik-xray-gateway
    ```
 
 2. Get the image onto the router — either let the router pull it
