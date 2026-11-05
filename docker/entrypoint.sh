@@ -70,8 +70,19 @@ render_config() {
   rm -f "$tmp"
 }
 
-validate_config() {
-  # $1 = path to a config file
+# Turns on IPv4 forwarding in the container's namespace. RouterOS containers
+# normally allow this; if not, say so loudly instead of failing silently.
+enable_forwarding() {
+  sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1 || true
+  if [ "$(cat /proc/sys/net/ipv4/ip_forward 2>/dev/null)" != "1" ]; then
+    echo 1 > /proc/sys/net/ipv4/ip_forward 2>/dev/null || true
+  fi
+  if [ "$(cat /proc/sys/net/ipv4/ip_forward 2>/dev/null)" != "1" ]; then
+    log "ip-forward-unavailable: cannot enable IPv4 forwarding in this namespace; forwarded LAN traffic will not reach the tunnel"
+  fi
+}
+
+validate_config() {  # $1 = path to a config file
   if ! out=$(xray run -test -c "$1" 2>&1); then
     printf '%s\n' "$out" >&2
     die "invalid-config: xray rejected the rendered configuration"
@@ -86,14 +97,48 @@ case "$cmd" in
     if [ "$dest" = "-" ]; then
       printf '%s\n' "$cfg"
     else
+      mkdir -p "$(dirname "$dest")"
       printf '%s\n' "$cfg" > "$dest"
       validate_config "$dest"
     fi
     ;;
+  routes)
+    ob=$(load_outbound)
+    ep=$(endpoint_of "$ob")
+    plan_routes "$(resolve_endpoint "${ep%:*}")" "$TUN_NAME" "${EGRESS_IF:-eth0}"
+    ;;
   run)
+    mkdir -p "$(dirname "$XRAY_CONFIG")"
     render_config > "$XRAY_CONFIG"
     validate_config "$XRAY_CONFIG"
-    exec xray run -c "$XRAY_CONFIG"
+
+    ob=$(load_outbound)
+    ep=$(endpoint_of "$ob")
+    host=${ep%:*}
+    eth=${EGRESS_IF:-eth0}
+
+    enable_forwarding
+    ipv4=$(resolve_endpoint "$host")
+    log "endpoint ${host} -> ${ipv4}, tun ${TUN_NAME}, egress ${eth}"
+
+    xray run -c "$XRAY_CONFIG" &
+    pid=$!
+    trap 'kill -TERM "$pid" 2>/dev/null; wait "$pid" 2>/dev/null; exit 0' TERM INT
+
+    if wait_for_tun "$TUN_NAME" "$pid"; then
+      plan_routes "$ipv4" "$TUN_NAME" "$eth" | while IFS= read -r cmdline; do
+        sh -c "$cmdline" || log "route failed: $cmdline"
+      done
+      ip link set dev "$TUN_NAME" up 2>/dev/null || true
+      reapply_endpoint_route "$host" "$TUN_NAME" "$eth" &
+    else
+      log "tun-not-ready: $TUN_NAME did not appear; exiting"
+      kill "$pid" 2>/dev/null || true
+      wait "$pid" 2>/dev/null || true
+      exit 1
+    fi
+
+    wait "$pid"
     ;;
   *)
     die "usage: entrypoint.sh [render|routes|run]"
