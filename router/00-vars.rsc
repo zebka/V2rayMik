@@ -37,6 +37,10 @@
 #   down. No leak, but the network is down for those destinations.
 :global XrayFailOpen true
 
+# Gateway for the fail-open fallback route. Leave empty to take it from the main
+# table's default route at import time.
+:global XrayFallbackGw ""
+
 # Ports the container may reach on the WAN: 443 for TLS/REALITY, 80 for a
 # CDN-fronted endpoint, 53 for its own resolver.
 :global XrayContainerToWanPorts "443,80,53"
