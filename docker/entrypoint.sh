@@ -17,6 +17,13 @@ TUN_MTU=${TUN_MTU:-1500}
 TUN_GATEWAY=${TUN_GATEWAY:-198.18.0.1/15}
 ENDPOINT_IP=${ENDPOINT_IP:-}
 
+# Link parsing and route planning live in lib/ so the tests can source them.
+for f in /app/lib/*.sh; do
+  [ -e "$f" ] || continue
+  # shellcheck source=/dev/null
+  . "$f"
+done
+
 log() { echo "xray-gw: $*" >&2; }
 die() { echo "$1" >&2; exit 2; }
 
