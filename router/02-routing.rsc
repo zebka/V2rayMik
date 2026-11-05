@@ -1,4 +1,4 @@
-# 02-routing.rsc — world route, marking, MSS clamp, health.
+﻿# 02-routing.rsc — world route, marking, MSS clamp, health.
 #
 # Import after 01-container.rsc, in the same session.
 # Safe to import twice.
@@ -63,7 +63,7 @@
 # there silently drops locally-originated traffic (measured on 7.25.1: active
 # route, packets never leave). This row is what makes it work.
 :if ([:len [/ip route find where comment="xray: connected to container"]] = 0) do={
-  /ip route add dst-address=$XraySubnet gateway=$XrayBridge routing-table=$XrayTable \
+  /ip route add dst-address=$XraySubnet gateway=$XrayVeth routing-table=$XrayTable \
     comment="xray: connected to container"
 }
 
@@ -139,11 +139,11 @@
 # failing, which looks like "the site is broken".
 :if ([:len [/ip firewall mangle find where comment="xray: MSS clamp"]] = 0) do={
   /ip firewall mangle add chain=forward protocol=tcp tcp-flags=syn action=change-mss \
-    new-mss=1360 tcp-mss=1361-65535 out-interface=$XrayBridge comment="xray: MSS clamp"
+    new-mss=1360 tcp-mss=1361-65535 out-interface=$XrayVeth comment="xray: MSS clamp"
 }
 :if ([:len [/ip firewall mangle find where comment="xray: MSS clamp back"]] = 0) do={
   /ip firewall mangle add chain=forward protocol=tcp tcp-flags=syn action=change-mss \
-    new-mss=1360 tcp-mss=1361-65535 in-interface=$XrayBridge comment="xray: MSS clamp back"
+    new-mss=1360 tcp-mss=1361-65535 in-interface=$XrayVeth comment="xray: MSS clamp back"
 }
 
 # --- container health --------------------------------------------------------

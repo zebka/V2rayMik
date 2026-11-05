@@ -58,7 +58,7 @@ if have 02-routing.rsc; then
   grep -q 'gateway=\$XrayContainerIp' "$dir/02-routing.rsc" || err "02-routing.rsc: route does not use the container as gateway"
   grep -q 'src-address=\$XraySubnet' "$dir/02-routing.rsc" || err "02-routing.rsc: no mangle exemption for the container subnet"
   grep -q 'change-mss' "$dir/02-routing.rsc" || err "02-routing.rsc: no MSS clamp"
-  grep -q 'out-interface=\$XrayBridge' "$dir/02-routing.rsc" || err "02-routing.rsc: MSS clamp must match the bridge egress, not the veth port"
+  grep -q 'out-interface=\$XrayVeth' "$dir/02-routing.rsc" || err "02-routing.rsc: MSS clamp must match the veth egress"
   grep -q 'comment="xray: connected to container"' "$dir/02-routing.rsc" || err "02-routing.rsc: missing the connected route that makes the gateway reachable inside the table"
   grep -q 'XrayFailOpen' "$dir/02-routing.rsc" || err "02-routing.rsc: failover flag unused"
 fi
@@ -67,7 +67,7 @@ if have 03-firewall.rsc; then
   grep -q 'action=drop' "$dir/03-firewall.rsc" || err "03-firewall.rsc: no default deny"
   grep -q 'out-interface=\$XrayWan' "$dir/03-firewall.rsc" || err "03-firewall.rsc: no container→WAN masquerade"
   grep -q 'dst-port=\$XrayContainerToWanPorts' "$dir/03-firewall.rsc" || err "03-firewall.rsc: transport port list is hard-coded"
-  grep -q 'out-interface=\$XrayBridge' "$dir/03-firewall.rsc" || err "03-firewall.rsc: LAN→container masquerade must match the egress bridge"
+  grep -q 'out-interface=\$XrayVeth' "$dir/03-firewall.rsc" || err "03-firewall.rsc: LAN→container masquerade must match the veth egress"
   grep -q 'dst-address=\$XrayContainerIp' "$dir/03-firewall.rsc" && err "03-firewall.rsc: LAN→container masquerade matches the destination, which is never the container"
 fi
 

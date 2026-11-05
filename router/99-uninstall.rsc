@@ -66,6 +66,10 @@
 :if ([:len [/interface bridge port find where bridge=$XrayBridge and interface=$XrayVeth]] > 0) do={
   /interface bridge port remove [find where bridge=$XrayBridge and interface=$XrayVeth]
 }
+:if ([:len [/ip address find where interface=$XrayVeth and address=($XrayGatewayIp . "/24")]] > 0) do={
+  /ip address remove [find where interface=$XrayVeth and address=($XrayGatewayIp . "/24")]
+}
+# Older versions put the address on a bridge; clean that up if it is still there.
 :if ([:len [/ip address find where interface=$XrayBridge and address=($XrayGatewayIp . "/24")]] > 0) do={
   /ip address remove [find where interface=$XrayBridge and address=($XrayGatewayIp . "/24")]
 }

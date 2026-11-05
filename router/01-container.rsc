@@ -19,22 +19,17 @@
 /container/config/set tmpdir=($XrayDisk . "/tmp") registry-url="https://registry-1.docker.io"
 
 # --- veth --------------------------------------------------------------------
+# The address goes on the veth itself, with no bridge in between. Measured on
+# RouterOS 7.25.1: with the veth in a bridge, the router could ARP the container
+# but never delivered a packet to it (ping and TCP both timed out while the
+# container answered its own gateway). Direct on the veth, it works.
 :if ([:len [/interface veth find where name=$XrayVeth]] = 0) do={
   /interface veth add name=$XrayVeth address=($XrayContainerIp . "/24") \
     gateway=$XrayGatewayIp comment="xray gateway"
 }
 
-# --- container bridge (L3 next hop; never added to the LAN bridge) ------------
-:if ([:len [/interface bridge find where name=$XrayBridge]] = 0) do={
-  /interface bridge add name=$XrayBridge comment="container network"
-}
-
-:if ([:len [/interface bridge port find where bridge=$XrayBridge and interface=$XrayVeth]] = 0) do={
-  /interface bridge port add bridge=$XrayBridge interface=$XrayVeth
-}
-
-:if ([:len [/ip address find where interface=$XrayBridge and address=($XrayGatewayIp . "/24")]] = 0) do={
-  /ip address add address=($XrayGatewayIp . "/24") interface=$XrayBridge comment="xray gateway"
+:if ([:len [/ip address find where interface=$XrayVeth and address=($XrayGatewayIp . "/24")]] = 0) do={
+  /ip address add address=($XrayGatewayIp . "/24") interface=$XrayVeth comment="xray gateway"
 }
 
 # --- container environment ---------------------------------------------------

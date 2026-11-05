@@ -1,4 +1,4 @@
-# 03-firewall.rsc — what the container may reach, and how it is NATed.
+﻿# 03-firewall.rsc — what the container may reach, and how it is NATed.
 #
 # Import after 02-routing.rsc, in the same session.
 # Safe to import twice.
@@ -77,7 +77,7 @@
 # client's LAN address — whose replies fall into 128.0.0.0/1 and loop.
 :if ([:len [/ip firewall nat find where comment="xray: LAN to container"]] = 0) do={
   /ip firewall nat add chain=srcnat action=masquerade src-address=$XrayLanSubnet \
-    out-interface=$XrayBridge dst-address-type=!local comment="xray: LAN to container"
+    out-interface=$XrayVeth dst-address-type=!local comment="xray: LAN to container"
 }
 
 # --- fasttrack ---------------------------------------------------------------
