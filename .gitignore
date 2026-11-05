@@ -1,0 +1,13 @@
+# Build and side-load artifacts
+dist/
+*.tar
+*.tar.gz
+
+# Local scratch and the execution ledger
+.superpowers/
+
+# Editors / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
