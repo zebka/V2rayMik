@@ -48,6 +48,7 @@ done
 have 01-container.rsc || err "01-container.rsc: missing"
 have 02-routing.rsc || err "02-routing.rsc: missing"
 have 03-firewall.rsc || err "03-firewall.rsc: missing"
+have 99-uninstall.rsc || err "99-uninstall.rsc: missing"
 
 if have 01-container.rsc; then  grep -q 'veth' "$dir/01-container.rsc" || err "01-container.rsc: no veth"
   grep -q 'container/config/set' "$dir/01-container.rsc" || err "01-container.rsc: tmpdir not set"
@@ -66,8 +67,8 @@ if have 03-firewall.rsc; then
 fi
 
 if have 99-uninstall.rsc; then
-  for obj in veth-xray containers xray-gw; do
-    grep -q "$obj" "$dir/99-uninstall.rsc" || err "99-uninstall.rsc: does not mention $obj"
+  for sym in XrayVeth XrayBridge XrayContainerName; do
+    grep -q "\$$sym" "$dir/99-uninstall.rsc" || err "99-uninstall.rsc: does not mention \$$sym"
   done
   grep -q 'iran-ips' "$dir/99-uninstall.rsc" && err "99-uninstall.rsc: touches iran-ips"
   grep -q 'local-nets' "$dir/99-uninstall.rsc" && err "99-uninstall.rsc: touches local-nets"

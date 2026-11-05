@@ -41,6 +41,9 @@
 # table's default route at import time.
 :global XrayFallbackGw ""
 
+# Route to re-enable when 99-uninstall.rsc runs (id or comment). Empty = none.
+:global XrayRestoreRoute ""
+
 # Ports the container may reach on the WAN: 443 for TLS/REALITY, 80 for a
 # CDN-fronted endpoint, 53 for its own resolver.
 :global XrayContainerToWanPorts "443,80,53"
