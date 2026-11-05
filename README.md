@@ -13,7 +13,7 @@ LAN clients ─┐
 router own ──┘                 │
                      /ip route in to-world: gw 172.17.0.2 (distance 1)
                                │
-                     veth ── bridge "containers" ── 172.17.0.1
+                     veth-xray (172.17.0.2 ⇄ 172.17.0.1, no bridge)
                                │
                      container eth0 172.17.0.2
                      ip_forward=1, routes: 0/1 + 128/1 → tun0, <endpoint>/32 → eth0
@@ -39,7 +39,8 @@ router own ──┘                 │
 
 ## Requirements
 
-- RouterOS 7.24.x, arm64 or x86 device with the **container** package.
+- RouterOS 7.24.x or newer (validated on **7.25.1**), arm64 or x86 device with the
+  **container** package.
 - Container mode enabled, which needs **physical access** to the device
   (`/system/device-mode/update container=yes`, then confirm on the device).
 - An external disk for `root-dir` and `tmpdir`. Internal flash is too small and
@@ -47,6 +48,19 @@ router own ──┘                 │
 - Clean DNS on the router. If `:resolve twitter.com` returns `10.10.34.x`, fix DNS
   before blaming the tunnel.
 - An Xray server you already run. Any outbound Xray understands will do.
+
+## Verified
+
+On a hAP ax³ (arm64, 1 GB) with RouterOS 7.25.1 and USB storage:
+
+- Router-originated **and** LAN traffic leave through the tunnel.
+- Exit was confirmed in three countries with three transports (VLESS+REALITY,
+  VLESS over WebSocket, plain VLESS), plus a Shadowsocks config that carried TCP
+  but not UDP.
+- ~13 Mbps single-stream through the tunnel from the router itself; the container
+  idles at 10–17 MiB RSS. Details and commands in `docs/benchmarks.md`.
+
+What is *not* verified is written down as such there and in `CHANGELOG.md`.
 
 ## Quick start
 

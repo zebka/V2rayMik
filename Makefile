@@ -27,9 +27,10 @@ lint:
 	else echo "shellcheck not installed, skipped"; fi
 	@if [ -f tests/lint-rsc.sh ]; then sh tests/lint-rsc.sh router; else echo "no RouterOS lint yet"; fi
 
-save: image
+save:
 	mkdir -p $(DIST)
-	docker save $(IMAGE):$(TAG) -o $(DIST)/$(IMAGE)-$(XRAY_VERSION).tar
+	docker buildx build --platform $(PLATFORM) --build-arg XRAY_VERSION=$(XRAY_VERSION) \
+		-t $(IMAGE):$(TAG) --output type=docker,dest=$(DIST)/$(IMAGE)-$(XRAY_VERSION).tar docker/
 	@ls -lh $(DIST)/$(IMAGE)-$(XRAY_VERSION).tar
 
 clean:

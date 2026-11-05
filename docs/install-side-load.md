@@ -1,57 +1,64 @@
 # Side-loading the image
 
-Registries are not always reachable from the target country, and a router pull
-failure is hard to diagnose. Side-loading needs nothing but SMB or Winbox upload.
+Registries are not always reachable from the target country, and a failed pull is
+hard to diagnose on a router. Side-loading needs nothing but SMB or a Winbox
+upload.
 
 ## 1. Build and export
 
-On a machine with Docker:
-
 ```sh
-make image PLATFORM=linux/arm64
 make save PLATFORM=linux/arm64
 ```
 
-`make save` writes `dist/mikrotik-xray-gateway-26.10.31.tar`. The image must match
-the router's architecture (`arm64` for hAP ax³, `arm` for older hEX, `amd64` for
-x86/CHR).
+This writes `dist/mikrotik-xray-gateway-26.10.31.tar`. It must match the router's
+architecture: `arm64` for hAP ax³, `arm` for older hEX, `amd64` for x86/CHR.
 
-RouterOS imports docker-save archives. If the import fails with a format error,
-convert it (this is a known RouterOS quirk with some OCI outputs):
+BuildKit writes the archive with `blobs/sha256/…` paths. Some RouterOS versions
+import that directly; the ones tested here want the classic `<layer>.tar` layout
+with a repository tag. Normalize it once (this is what was verified to import):
 
 ```sh
-skopeo copy docker-archive:dist/mikrotik-xray-gateway-26.10.31.tar \
-              docker-archive:dist/clean.tar
+docker run --rm -v "$PWD/dist:/w" quay.io/skopeo/stable copy \
+  docker-archive:/w/mikrotik-xray-gateway-26.10.31.tar \
+  docker-archive:/w/royal-xray-gateway.tar:royal-xray-gateway:latest
 ```
+
+The result has `RepoTags: ["docker.io/library/royal-xray-gateway:latest"]` and
+layers named `<hash>.tar` — the shape RouterOS accepted on 7.25.1.
 
 ## 2. Upload
 
 Through SMB to the disk you configured as `XrayDisk` (e.g. `/usb2`), or drag the
-file into Winbox's Files panel.
+file into Winbox's Files panel. Put it at the path your install uses:
+`usb2/royal-xray-gateway.tar`.
 
-## 3. Create the container from the file
+## 3. Point the container at the file
 
-Instead of `remote-image=`, use `file=`:
+`01-container.rsc` uses `XrayImageFile` when it is set, otherwise it pulls
+`XrayImage` from a registry:
 
 ```
-/container/add name=xray-gw file=usb2/mikrotik-xray-gateway-26.10.31.tar \
-  interface=veth-xray root-dir=usb2/xray-gw dns=1.1.1.1 envlist=xray-gw \
-  start-on-boot=yes restart-policy=always memory-high=100663296 logging=yes
+/import file-name=00-vars.rsc
+:global XrayImageFile "usb2/royal-xray-gateway.tar"
+/import file-name=01-container.rsc
+/container/start [find where name="xray-gw"]
 ```
-
-`01-container.rsc` uses `remote-image=$XrayImage`. If you side-load, either run the
-`/container/add` line above by hand instead of importing `01-container.rsc`, or
-set `XrayImage` to a name that the router already has stored locally.
 
 ## 4. Update later
 
-With a file: export a new tar, upload it, then
+Export a new archive, upload it over the same name, then:
 
 ```
-/container/set [find where name="xray-gw"] file=usb2/new.tar
 /container/repull [find where name="xray-gw"]
+/container/start [find where name="xray-gw"]
 ```
 
-With a registry: `/container/update [find where name="xray-gw"]`.
+`repull` re-extracts the file. The root-dir (and therefore your `outbound.json`)
+survives — but anything you `apk add`ed inside the old container does not.
 
-The root-dir (and therefore your `outbound.json`) survives both.
+Check that the new image is actually in use: the first log line from the
+entrypoint names the egress interface.
+
+```
+/log print where topics~"container" and message~"xray-gw:"
+```
