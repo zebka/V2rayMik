@@ -47,6 +47,7 @@ done
 # --- invariants -------------------------------------------------------------
 have 01-container.rsc || err "01-container.rsc: missing"
 have 02-routing.rsc || err "02-routing.rsc: missing"
+have 03-firewall.rsc || err "03-firewall.rsc: missing"
 
 if have 01-container.rsc; then  grep -q 'veth' "$dir/01-container.rsc" || err "01-container.rsc: no veth"
   grep -q 'container/config/set' "$dir/01-container.rsc" || err "01-container.rsc: tmpdir not set"
