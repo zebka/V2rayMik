@@ -1,5 +1,56 @@
 # Changelog
 
+## 1.0.0 — 2026-11-06
+
+### Changed
+
+- **The project is V2rayMik.** The repository is `zebka/V2rayMik`, the image is
+  `azebka/v2raymik` (also `ghcr.io/zebka/v2raymik`), the container is
+  `v2raymik`, the router globals are `Mik*`, object comments start with `mik: `,
+  and the persistent data lives in `/usb2/v2raymik-data`. The name matches what
+  the project has been since 0.5.0 — a sing-box gateway — instead of the Xray
+  name it shipped under until 0.4.x.
+- **An existing install moves over with one import.**
+  `router/90-migrate-from-xray.rsc` reads every value from the device, stops and
+  removes the old container, removes the old veth and its `172.17.0.1/24`
+  address, the old mount, env list, firewall rules, routes and scheduler, copies
+  `sub.txt` to the new data directory, and prints the `:global Mik*` block to
+  paste into `00-vars.rsc`. Running it twice prints "nothing to migrate" and
+  changes nothing. The old root-dir and data directory are left in place as the
+  rollback path. Both READMEs carry the same section.
+
+### Breaking
+
+- **The deprecated `XRAY_LINK`, `XRAY_OUTBOUND_JSON`, `XRAY_OUTBOUND_FILE` and
+  `XRAY_LOG_LEVEL` environment names are no longer read.** They have been
+  aliases since 0.5.0; `NODE_LINK`, `NODE_OUTBOUND_JSON`, `NODE_OUTBOUND_FILE`
+  and `SINGBOX_LOG_LEVEL` are the names, and a set that only carries the old
+  ones now falls back to the default instead of being picked up.
+- **Anything that matches our object comments has to match `mik: `.** The
+  firewall, mangle and route comments changed from `xray: ` to `mik: `, and the
+  objects themselves are recreated under their new names.
+
+### Fixed
+
+- **`99-uninstall.rsc` removes the container again.** The section header comment
+  and the section's `:if` had been merged onto one line, so the entire
+  container-removal block was part of the comment: uninstall removed the routes
+  and the firewall rules and then left the container and its plumbing behind.
+- **`01-container.rsc` points the outbound file at the documented path.** The
+  `NODE_OUTBOUND_FILE` entry was created with `/etc/xray/outbound.json` while
+  everything else — the entrypoint's own default, the READMEs, the data
+  directory the mount creates — uses `/etc/sing-box/outbound.json`. A JSON-file
+  install therefore found nothing at the path it was told about. The env name is
+  also `NODE_OUTBOUND_FILE` now, matching the other three.
+
+### Docs
+
+- Both READMEs, the Docker Hub page and every live doc use the new names; the
+  build pipeline, the `Makefile` default and the published tags follow. History
+  (older changelog entries, benchmark numbers, the server-side reference) keeps
+  the names it was written with, and the migration section is the only place
+  that still spells the old ones out.
+
 ## 0.5.1 — 2026-11-06
 
 ### Fixed
