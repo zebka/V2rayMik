@@ -87,6 +87,11 @@ for f in "$root/README.md" "$root/README.fa.md" "$root/SECURITY.md" \
   [ -z "$hit" ] || { printf '%s\n' "$hit" >&2; err "old identifier in a live doc (only the old-name markers may carry one)"; }
   hit=$(grep -En "$legacy" "$f")
   [ -z "$hit" ] || { printf '%s\n' "$hit" >&2; err "old global name in a live doc; globals are Mik*"; }
+  # A global whose name starts with the engine means a bulk rename ran over a
+  # global (`sing-boxDisk` where `MikDisk` belongs), which the checks above miss
+  # because no old name is left in it.
+  hit=$(grep -n 'sing-box[A-Z]' "$f")
+  [ -z "$hit" ] || { printf '%s: %s\n' "$f" "$hit" >&2; err "engine name glued to a name above; globals are Mik*"; }
 done
 
 # --- invariants -------------------------------------------------------------

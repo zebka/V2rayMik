@@ -56,7 +56,7 @@ and nothing else: the router could resolve the container's MAC, `ping 172.17.0.2
 timed out, TCP to the container timed out, and the container's replies never
 arrived — while the container itself could reach `172.17.0.1` without trouble.
 
-Putting `172.17.0.1/24` directly on `veth-xray` fixed it immediately. The scripts
+Putting `172.17.0.1/24` directly on `veth-mik` fixed it immediately. The scripts
 therefore create no bridge at all. A leftover bridge from an older install is
 removed by `99-uninstall.rsc` only if this project created it.
 
@@ -93,7 +93,7 @@ lint rule in this repo:
 
 | Symptom | Cause |
 | --- | --- |
-| `ip: can't find device 'eth0'`, tunnel loops | RouterOS names the container's NIC after the veth (`veth-xray`) |
+| `ip: can't find device 'eth0'`, tunnel loops | RouterOS names the container's NIC after the veth (`veth-mik`) |
 | Every dial fails, route looks right | `/32` installed with `dev` instead of `via <gateway>` |
 | Tunnel never comes up with a hostname endpoint | DNS-through-the-tunnel deadlock |
 | Marked route "active", packets vanish | gateway reachable only from `main`; needs a connected route inside `to-world` |
@@ -130,7 +130,7 @@ dial would enter the live TUN and the measurement would describe the wrong node.
   the ISP, never another tunnel, so a dead node cannot hide behind a VPN that
   changes the exit country.
 - `05-auto-route.rsc` is the only thing that should toggle those routes. It keeps
-  `xray-world` enabled only while the panel reports a selected, up and live node,
+  `mik-world` enabled only while the panel reports a selected, up and live node,
   and otherwise enables the ISP route and disables every other default route in
   the table.
 

@@ -1,7 +1,9 @@
-# mikrotik-xray-gateway
+# V2rayMik
 
-[![build](https://github.com/zebka/mikrotik-xray-gateway/actions/workflows/build.yml/badge.svg)](https://github.com/zebka/mikrotik-xray-gateway/actions/workflows/build.yml)
-[![Docker Hub](https://img.shields.io/docker/pulls/azebka/mikrotik-xray-gateway)](https://hub.docker.com/r/azebka/mikrotik-xray-gateway)
+**sing-box** gateway for MikroTik RouterOS.
+
+[![build](https://github.com/zebka/V2rayMik/actions/workflows/build.yml/badge.svg)](https://github.com/zebka/V2rayMik/actions/workflows/build.yml)
+[![Docker Hub](https://img.shields.io/docker/pulls/azebka/v2raymik)](https://hub.docker.com/r/azebka/v2raymik)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![فارسی](https://img.shields.io/badge/readme-%D9%81%D8%A7%D8%B1%D8%B3%DB%8C-0a7)](README.fa.md)
 
@@ -9,10 +11,10 @@ Put a MikroTik RouterOS device's world-bound traffic through **one** Alpine
 container running [sing-box](https://github.com/SagerNet/sing-box) with its native
 TUN inbound. No tun2socks, no second container, no geodata files.
 
-> The repository keeps its historic name; since **0.5.0 the engine is sing-box**
-> (it was Xray until 0.4.x). That is what lets the same gateway carry
-> **hysteria2**, tuic, vless/REALITY, vmess, trojan and shadowsocks nodes — the
-> config format the panel already receives from providers.
+> Since **1.0.0** the project is **V2rayMik** and the engine is sing-box (it was
+> Xray until 0.4.x). That is what lets the same gateway carry **hysteria2**, tuic,
+> vless/REALITY, vmess, trojan and shadowsocks nodes — the config format the panel
+> already receives from providers.
 
 RouterOS has no VLESS/REALITY/hysteria2 support. This closes that gap without
 asking you to give up the router as the place where traffic is split. It also
@@ -25,7 +27,7 @@ LAN clients ─┐
 router own ──┘                 │
                      /ip route in to-world: gw 172.17.0.2 (distance 1)
                                │
-                     veth-xray (172.17.0.2 ⇄ 172.17.0.1, no bridge)
+                     veth-mik (172.17.0.2 ⇄ 172.17.0.1, no bridge)
                                │
                      container eth0 172.17.0.2
                      ip_forward=1, routes: 0/1 + 128/1 → tun0, <endpoint>/32 → eth0
@@ -65,10 +67,10 @@ supported** — sing-box has no such transport, and the panel says so instead of
 silently failing.
 
 Hysteria2 and TUIC are UDP, and providers usually pick a port of their own. Add
-that port to `XrayExtraWanPorts` in `router/00-vars.rsc`:
+that port to `MikExtraWanPorts` in `router/00-vars.rsc`:
 
 ```
-:global XrayExtraWanPorts "22001,8443"
+:global MikExtraWanPorts "22001,8443"
 ```
 
 The scripts then keep an extra accept rule for it. Without it the node's handshake
@@ -121,9 +123,9 @@ What is *not* verified is written down as such there and in `CHANGELOG.md`.
    `ghcr.io` is unreachable from your network):
 
    ```
-   docker pull azebka/mikrotik-xray-gateway:latest   # newest release
-   docker pull azebka/mikrotik-xray-gateway:0.4.2    # pin repo + image together
-   docker pull ghcr.io/zebka/mikrotik-xray-gateway:latest
+   docker pull azebka/v2raymik:latest   # newest release
+   docker pull azebka/v2raymik:1.0.0    # pin repo + image together
+   docker pull ghcr.io/zebka/v2raymik:latest
    ```
 
    `latest` is republished only when a release tag is pushed, so it always equals
@@ -148,13 +150,13 @@ What is *not* verified is written down as such there and in `CHANGELOG.md`.
    outbound object:
 
    ```
-   <disk>/xray-gw/etc/sing-box/outbound.json
+   <disk>/v2raymik/etc/sing-box/outbound.json
    ```
 
    or a share link in the container environment:
 
    ```
-   /container/envs/add list=xray-gw key=NODE_LINK value="hysteria2://…"
+   /container/envs/add list=v2raymik key=NODE_LINK value="hysteria2://…"
    ```
 
    (or `set` on the existing entry if you already added one)
@@ -163,7 +165,7 @@ What is *not* verified is written down as such there and in `CHANGELOG.md`.
    understands `vless://`, `vmess://`, `trojan://`, `ss://`, `hysteria2://`
    (`hy2://`) and `tuic://`.
 
-   **The port in that link must be in `XrayContainerToWanPorts`** (default:
+   **The port in that link must be in `MikContainerToWanPorts`** (default:
    every Cloudflare proxy port plus 53; the rule covers TCP and UDP). A provider
    on a non-standard port needs one line changed — see "The container's egress
    allowlist" in `docs/security.md` for why it is an allowlist and how to extend
@@ -181,7 +183,7 @@ What is *not* verified is written down as such there and in `CHANGELOG.md`.
    ```
 
    Edit `00-vars.rsc` first: WAN interface, LAN subnet, disk, and
-   `XrayAdminPassword` if you want the LAN page.
+   `MikAdminPassword` if you want the LAN page.
 
    `05-auto-route.rsc` is optional but recommended: it is what makes the router
    follow the node you pick in the panel, and it is the only thing that should
@@ -190,7 +192,7 @@ What is *not* verified is written down as such there and in `CHANGELOG.md`.
 4. Start the container and watch the log:
 
    ```
-   /container/start [find where name="xray-gw"]
+   /container/start [find where name="v2raymik"]
    /log print where topics~"container"
    ```
 
@@ -198,16 +200,40 @@ What is *not* verified is written down as such there and in `CHANGELOG.md`.
    server's address.
 
 6. Optional, the panel: open `http://<router-lan-ip>:8081/` from a LAN device,
-   sign in with `XrayAdminPassword`, paste a subscription URL (or a single
+   sign in with `MikAdminPassword`, paste a subscription URL (or a single
    link), press **Test all**, then **Connect** on the node you want. See
    "Admin page" below.
 
 Rollback is `99-uninstall.rsc`. It removes the route first, so traffic leaves the
 tunnel before anything else is touched.
 
+<!-- old-name-start -->
+## Moving from mikrotik-xray-gateway
+
+Versions before 1.0.0 used the names `xray-gw`, `Xray*` and `/usb2/xray-data`.
+1.0.0 renames all of them, so an existing install needs one migration:
+
+1. Run `/import file-name=90-migrate-from-xray.rsc` **before** the new scripts.
+   It stops and removes the old container, removes the old veth (and its
+   `172.17.0.1/24` address), the old mount, env list, firewall rules, routes and
+   scheduler, then copies `sub.txt` to the new data directory.
+2. It prints a `:global Mik*` block. Paste it into your own copy of
+   `00-vars.rsc` (the repository file keeps the shipped defaults), check the
+   lines it marked as guessed (WAN, LAN subnet), then import `00`–`05`
+   in one session.
+3. Start the container and open the panel once. `state.json` is not carried over,
+   so the selected node is rebuilt by one **Connect**.
+
+While the container is stopped, world traffic already leaves through your ISP
+(the documented fail-open behaviour) — that window is the length of the import.
+`/usb2/xray-gw` and `/usb2/xray-data` are left in place as the rollback path;
+the script prints the command that removes them when you are satisfied. 0.5.1
+stays published on its own tag, so rolling back is re-importing the old scripts.
+<!-- old-name-end -->
+
 ## Failure behaviour
 
-`XrayFailOpen` in `00-vars.rsc`:
+`MikFailOpen` in `00-vars.rsc`:
 
 - `true` (default): a direct route stays at distance 2, through the **ISP's own
   gateway**. When the tunnel dies, world traffic goes back out of the router's
@@ -226,7 +252,7 @@ country, which is exactly the thing you are paying for.
 
 `router/05-auto-route.rsc` adds a 30-second scheduler that asks the container's
 public `cgi-bin/health` endpoint (`selected=`, `up=`, `live=`). Only when all
-three are `1` does it keep `xray-world` enabled; otherwise it disables it and
+three are `1` does it keep `mik-world` enabled; otherwise it disables it and
 enables the route to the ISP gateway, disabling every other default route in the
 table (OpenVPN, WireGuard) on the way. The script owns the routing table while it
 runs: to use another tunnel as the exit, disable the scheduler and enable the
@@ -242,7 +268,7 @@ The same container serves a small panel on the LAN: subscriptions, per-config
 testing, and switching the active node.
 
 ```
-http://<router-lan-ip>:8081/        # XrayAdminLanPort
+http://<router-lan-ip>:8081/        # MikAdminLanPort
 ```
 
 - **Subscription**: paste a v2ray subscription URL (base64 or plain links) or a
@@ -261,7 +287,7 @@ Two things the panel refuses to do on its own, by design:
 - It will not connect a config whose port is outside the egress allowlist. Those
   rows say `port blocked` — add the port first (see `docs/security.md`).
 - It will not open itself to the WAN. The only exposure is the LAN `dst-nat` in
-  `router/04-admin.rsc`, and the panel is disabled while `XrayAdminPassword` is
+  `router/04-admin.rsc`, and the panel is disabled while `MikAdminPassword` is
   empty.
 
 ## Measured performance

@@ -1,9 +1,11 @@
-# mikrotik-xray-gateway
+# V2rayMik
+
+**sing-box** gateway for MikroTik RouterOS.
 
 A MikroTik **RouterOS** egress gateway in **one** Alpine container: sing-box with
 its native TUN inbound, driven by a small LAN admin page. It is built for routers,
 not for laptops — the router keeps its Iran/world split, and this image only
-carries the world half. (The name is historic: the engine was Xray until 0.4.x.)
+carries the world half.
 
 - **One container, one process to trust.** No tun2socks, no second container, no
   geodata files, no iptables inside the container. Image: ~40 MB, idle ~10–17 MiB
@@ -36,13 +38,13 @@ The container is only half of the setup; the routing, firewall and admin NAT liv
 in the repository's RouterOS scripts.
 
 1. Import the scripts from
-   [the repository](https://github.com/zebka/mikrotik-xray-gateway/tree/main/router)
+   [the repository](https://github.com/zebka/V2rayMik/tree/main/router)
    in one session (`00-vars.rsc` … `05-auto-route.rsc`), after editing
    `00-vars.rsc` for your WAN interface, LAN subnet and disk.
 2. Point the container at this image:
 
    ```
-   /container/set [find where name="xray-gw"] remote-image=azebka/mikrotik-xray-gateway:0.5.1
+   /container/set [find where name="v2raymik"] remote-image=azebka/v2raymik:1.0.0
    ```
 
    Pin a version so the image and the router scripts are a known pair, or use
@@ -56,8 +58,8 @@ in the repository's RouterOS scripts.
    `http://<router-lan-ip>:8081/`.
 
 Full guide, architecture, security notes and the uninstall script:
-**[github.com/zebka/mikrotik-xray-gateway](https://github.com/zebka/mikrotik-xray-gateway)**
-(Persian: [README.fa.md](https://github.com/zebka/mikrotik-xray-gateway/blob/main/README.fa.md)).
+**[github.com/zebka/V2rayMik](https://github.com/zebka/V2rayMik)**
+(Persian: [README.fa.md](https://github.com/zebka/V2rayMik/blob/main/README.fa.md)).
 
 ## Environment
 
@@ -96,8 +98,8 @@ the container. It carries no secrets and no labels.
 - MIT licensed.
 - Not a hosting service and not a proxy provider: you need your own server.
 - The container shares the RouterOS kernel. Read
-  [docs/security.md](https://github.com/zebka/mikrotik-xray-gateway/blob/main/docs/security.md)
+  [docs/security.md](https://github.com/zebka/V2rayMik/blob/main/docs/security.md)
   before deploying it on a device you do not own.
 - The image is also published to GHCR as
-  `ghcr.io/zebka/mikrotik-xray-gateway` for networks where Docker Hub is
+  `ghcr.io/zebka/v2raymik` for networks where Docker Hub is
   unreachable.

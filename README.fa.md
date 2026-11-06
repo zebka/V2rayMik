@@ -1,4 +1,6 @@
-# mikrotik-xray-gateway (فارسی)
+# V2rayMik (فارسی)
+
+دروازهٔ sing-box برای میکروتیک
 
 [English README](README.md)
 
@@ -7,7 +9,7 @@
 می‌کند بیرون می‌برد. بدون tun2socks، بدون کانتینر دوم، بدون فایل geosite، و همراه
 با یک پنل کوچک روی شبکهٔ محلی برای گرفتن سابسکریپشن و عوض‌کردن نود.
 
-> نام مخزن و ایمیج تاریخی است؛ از نسخهٔ **0.5.0 موتور sing-box** است (تا 0.4.x
+> از نسخهٔ **1.0.0** نام پروژه **V2rayMik** است و موتور آن sing-box (تا 0.4.x
 > Xray بود). همین است که یک دروازه می‌تواند نودهای **hysteria2**، tuic،
 > vless/REALITY، vmess، trojan و shadowsocks را با هم ببرد.
 
@@ -43,10 +45,10 @@
 نمی‌شود** و پنل هم همین را می‌گوید، نه اینکه بی‌صدا شکست بخورد.
 
 hysteria2 و tuic روی UDP کار می‌کنند و provider معمولاً پورت دلخواه خودش را
-انتخاب می‌کند. همان پورت را در `router/00-vars.rsc` به `XrayExtraWanPorts` اضافه کن:
+انتخاب می‌کند. همان پورت را در `router/00-vars.rsc` به `MikExtraWanPorts` اضافه کن:
 
 ```
-:global XrayExtraWanPorts "22001,8443"
+:global MikExtraWanPorts "22001,8443"
 ```
 
 اسکریپت‌ها از همین متغیر یک قاعدهٔ accept اضافه می‌سازند. بدون آن، دست‌دادن نود از
@@ -76,9 +78,9 @@ hysteria2 کار می‌کرد). لینکی که پین دارد و `insecure` �
 ۱. ایمیج را بگیر. مالتی‌آرک روی Docker Hub هست و روی GHCR هم:
 
 ```
-docker pull azebka/mikrotik-xray-gateway:latest # آخرین نسخهٔ منتشرشده
-docker pull azebka/mikrotik-xray-gateway:0.5.1 # نسخهٔ ثابت، هم‌ارز با همین مخزن
-docker pull ghcr.io/zebka/mikrotik-xray-gateway:latest
+docker pull azebka/v2raymik:latest # آخرین نسخهٔ منتشرشده
+docker pull azebka/v2raymik:1.0.0 # نسخهٔ ثابت، هم‌ارز با همین مخزن
+docker pull ghcr.io/zebka/v2raymik:latest
 ```
 
 تگ `latest` فقط با پوش‌شدن یک تگ ریلیز به‌روز می‌شود، پس همیشه با فایل `VERSION`
@@ -96,9 +98,9 @@ docker pull ghcr.io/zebka/mikrotik-xray-gateway:latest
 (`docs/install-side-load.md`).
 
 ۲. outbound را جایی بگذار که کانتینر بخواند: یا فایل کامل
-`<disk>/xray-gw/etc/sing-box/outbound.json`، یا لینک اشتراک در env با کلید
-`NODE_LINK` (نام قدیمی `XRAY_LINK` هم کار می‌کند). **هر دو را با هم نده.** پورت آن
-لینک باید در `XrayContainerToWanPorts` باشد؛ توضیحش در `docs/security.md`. برای
+`<disk>/v2raymik/etc/sing-box/outbound.json`، یا لینک اشتراک در env با کلید
+`NODE_LINK`. **هر دو را با هم نده.** پورت آن
+لینک باید در `MikContainerToWanPorts` باشد؛ توضیحش در `docs/security.md`. برای
 hysteria2 و tuic که UDP هستند هم همین قاعده است.
 
 ۳. اسکریپت‌ها را **در یک نشست** و به ترتیب ایمپورت کن:
@@ -113,7 +115,7 @@ hysteria2 و tuic که UDP هستند هم همین قاعده است.
 ```
 
 اول `00-vars.rsc` را ویرایش کن: اینترفیس WAN، سابنت LAN، نام دیسک و اگر پنل
-می‌خواهی `XrayAdminPassword`.
+می‌خواهی `MikAdminPassword`.
 
 `05-auto-route.rsc` اختیاری است ولی توصیه می‌شود: همان چیزی است که باعث می‌شود
 روتر نودی را که در پنل انتخاب می‌کنی دنبال کند.
@@ -121,22 +123,45 @@ hysteria2 و tuic که UDP هستند هم همین قاعده است.
 ۴. کانتینر را استارت کن و لاگ را ببین:
 
 ```
-/container/start [find where name="xray-gw"]
+/container/start [find where name="v2raymik"]
 /log print where topics~"container"
 ```
 
 ۵. از یک کلاینت LAN تست کن: `curl https://ifconfig.me` باید IP سرور را بدهد.
 
 ۶. پنل (اختیاری): از یک دستگاه LAN برو به `http://<router-lan-ip>:8081/`، با
-`XrayAdminPassword` وارد شو، آدرس سابسکریپشن را بده، **Test all** بزن و روی
+`MikAdminPassword` وارد شو، آدرس سابسکریپشن را بده، **Test all** بزن و روی
 نودی که می‌خواهی **Connect** کن.
 
 بازگشت عقب: `99-uninstall.rsc`. اول روت را برمی‌دارد تا ترافیک بلافاصله از تونل
 بیرون بیاید.
 
+<!-- old-name-start -->
+## مهاجرت از mikrotik-xray-gateway
+
+نسخه‌های پیش از 1.0.0 از نام‌های `xray-gw`، `Xray*` و `/usb2/xray-data` استفاده
+می‌کردند. در 1.0.0 همه عوض شده‌اند، پس نصب موجود یک بار مهاجرت می‌خواهد:
+
+۱. `90-migrate-from-xray.rsc` را **قبل** از اسکریپت‌های جدید import کن. کانتینر
+   قدیمی را stop و remove می‌کند، veth قدیمی را با آدرس `172.17.0.1/24` رویش
+   برمی‌دارد، و mount، env list، قواعد فایروال، روت‌ها و scheduler قبلی را پاک
+   می‌کند. بعد `sub.txt` را به دایرکتوری دادهٔ جدید کپی می‌کند.
+۲. یک بلوک `:global Mik*` چاپ می‌کند. همان را در کپی خودت از `00-vars.rsc` بگذار
+   (فایل مخزن پیش‌فرض‌های خودش را دارد)، خط‌هایی را که `guessed` علامت خورده‌اند
+   (WAN و سابنت LAN) چک کن، و بعد `00` تا `05` را در یک نشست import کن.
+۳. کانتینر را استارت کن و یک بار پنل را باز کن. `state.json` منتقل نمی‌شود، پس
+   نود انتخابی با یک بار **Connect** دوباره ساخته می‌شود.
+
+تا وقتی کانتینر خاموش است، ترافیک جهان از قبل با ISP بیرون می‌رود (همان رفتار
+fail-open که مستند شده)؛ این فاصله فقط به اندازهٔ همان import است. `/usb2/xray-gw`
+و `/usb2/xray-data` به عنوان مسیر بازگشت سر جایشان می‌مانند؛ اسکریپت همان دستوری
+را چاپ می‌کند که بعد از اطمینان از کار، آن‌ها را پاک می‌کند. نسخهٔ 0.5.1 روی تگ
+خودش منتشر می‌ماند، پس برگشتن یعنی import دوبارهٔ اسکریپت‌های قدیمی.
+<!-- old-name-end -->
+
 ## رفتار در قطعی
 
-`XrayFailOpen` در `00-vars.rsc`:
+`MikFailOpen` در `00-vars.rsc`:
 
 - `true` (پیش‌فرض): یک روت مستقیم از گیت‌وی ISP با distance 2 می‌ماند. وقتی تونل
   قطع شود، ترافیک دنیا با IP واقعی خود روتر و از همان کشور بیرون می‌رود. اینترنت
@@ -153,7 +178,7 @@ fallback بگذاری، مرگ نود Xray پنهان می‌ماند و کشو�
 ### دنبال‌کردن خودکار پنل
 
 `router/05-auto-route.rsc` هر ۳۰ ثانیه از `cgi-bin/health` می‌پرسد
-(`selected=`، `up=`، `live=`). فقط وقتی هر سه `1` باشند روت `xray-world` فعال
+(`selected=`، `up=`، `live=`). فقط وقتی هر سه `1` باشند روت `mik-world` فعال
 می‌ماند؛ وگرنه خاموش می‌شود و روت گیت‌وی ISP روشن می‌شود و بقیهٔ روت‌های پیش‌فرض
 (OpenVPN، WireGuard) خاموش می‌مانند. تا وقتی این scheduler روشن است، مالک جدول
 مسیریابی است: برای استفاده از یک تونل دیگر، اول scheduler را خاموش کن.
@@ -167,7 +192,7 @@ fallback بگذاری، مرگ نود Xray پنهان می‌ماند و کشو�
 عوض‌کردن نود فعال.
 
 ```
-http://<router-lan-ip>:8081/ # XrayAdminLanPort
+http://<router-lan-ip>:8081/ # MikAdminLanPort
 ```
 
 - **سابسکریپشن:** آدرس سابسکریپشن v2ray (base64 یا لینک خام) یا یک لینک تنها.
@@ -185,7 +210,7 @@ http://<router-lan-ip>:8081/ # XrayAdminLanPort
 - کانفیگی که پورتش بیرون از allowlist است وصل نمی‌شود؛ آن ردیف‌ها «port blocked»
   نشان می‌دهند.
 - خودش را به WAN باز نمی‌کند. تنها راه ورود، `dst-nat` مربوط به LAN در
-  `04-admin.rsc` است و تا `XrayAdminPassword` خالی باشد پنل خاموش است.
+  `04-admin.rsc` است و تا `MikAdminPassword` خالی باشد پنل خاموش است.
 
 ## کارایی
 

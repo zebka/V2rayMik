@@ -10,7 +10,7 @@ upload.
 make save PLATFORM=linux/arm64
 ```
 
-This writes `dist/mikrotik-xray-gateway-26.10.31.tar`. It must match the router's
+This writes `dist/v2raymik-26.10.31.tar`. It must match the router's
 architecture: `arm64` for hAP ax³, `arm` for older hEX, `amd64` for x86/CHR.
 
 BuildKit writes the archive with `blobs/sha256/…` paths. Some RouterOS versions
@@ -19,29 +19,29 @@ with a repository tag. Normalize it once (this is what was verified to import):
 
 ```sh
 docker run --rm -v "$PWD/dist:/w" quay.io/skopeo/stable copy \
-  docker-archive:/w/mikrotik-xray-gateway-26.10.31.tar \
-  docker-archive:/w/royal-xray-gateway.tar:royal-xray-gateway:latest
+  docker-archive:/w/v2raymik-26.10.31.tar \
+  docker-archive:/w/v2raymik.tar:v2raymik:latest
 ```
 
-The result has `RepoTags: ["docker.io/library/royal-xray-gateway:latest"]` and
+The result has `RepoTags: ["docker.io/library/v2raymik:latest"]` and
 layers named `<hash>.tar` — the shape RouterOS accepted on 7.25.1.
 
 ## 2. Upload
 
-Through SMB to the disk you configured as `sing-boxDisk` (e.g. `/usb2`), or drag the
+Through SMB to the disk you configured as `MikDisk` (e.g. `/usb2`), or drag the
 file into Winbox's Files panel. Put it at the path your install uses:
-`usb2/royal-xray-gateway.tar`.
+`usb2/v2raymik.tar`.
 
 ## 3. Point the container at the file
 
-`01-container.rsc` uses `sing-boxImageFile` when it is set, otherwise it pulls
-`sing-boxImage` from a registry:
+`01-container.rsc` uses `MikImageFile` when it is set, otherwise it pulls
+`MikImage` from a registry:
 
 ```
 /import file-name=00-vars.rsc
-:global sing-boxImageFile "usb2/royal-xray-gateway.tar"
+:global MikImageFile "usb2/v2raymik.tar"
 /import file-name=01-container.rsc
-/container/start [find where name="xray-gw"]
+/container/start [find where name="v2raymik"]
 ```
 
 ## Pulling through an Iranian mirror
@@ -53,8 +53,8 @@ Docker Hub mirror instead:
 
 ```
 /container/config/set registry-url=https://docker.arvancloud.ir
-/container/set [find where name="xray-gw"] check-certificate=no
-/container/repull [find where name="xray-gw"]
+/container/set [find where name="v2raymik"] check-certificate=no
+/container/repull [find where name="v2raymik"]
 ```
 
 Verified combinations on RouterOS 7.25.1:
@@ -76,8 +76,8 @@ subscription is lost — everything else survives).
 Export a new archive, upload it over the same name, then:
 
 ```
-/container/repull [find where name="xray-gw"]
-/container/start [find where name="xray-gw"]
+/container/repull [find where name="v2raymik"]
+/container/start [find where name="v2raymik"]
 ```
 
 `repull` re-extracts the file. The root-dir (and therefore your `outbound.json`)
@@ -87,5 +87,5 @@ Check that the new image is actually in use: the first log line from the
 entrypoint names the egress interface.
 
 ```
-/log print where topics~"container" and message~"xray-gw:"
+/log print where topics~"container" and message~"v2raymik:"
 ```

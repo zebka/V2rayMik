@@ -3,15 +3,15 @@
 Symptom → cause → fix. Start with the container log:
 
 ```
-/container/set [find where name="xray-gw"] logging=yes
+/container/set [find where name="v2raymik"] logging=yes
 /log print where topics~"container"
-/container/shell [find where name="xray-gw"]
+/container/shell [find where name="v2raymik"]
 ```
 
 ## The one that catches everyone: the port
 
-A transport whose port is not in `XrayContainerToWanPorts` (or, for a one-off port,
-`XrayExtraWanPorts`) produces **no error**.
+A transport whose port is not in `MikContainerToWanPorts` (or, for a one-off port,
+`MikExtraWanPorts`) produces **no error**.
 sing-box redials forever, the router logs nothing, and the symptom is "the tunnel is
 broken".
 
@@ -39,20 +39,20 @@ else, that port is the answer. Add it (see `docs/security.md`) and import
 | `:resolve <name>` returns `10.10.34.x` | router DNS is poisoned; the tunnel is fine | fix `/ip dns` or use DoH |
 | Small pages work, big downloads stall at 0 | MSS clamp missing on that path | `02-routing.rsc` clamps forward *and* output; check a fasttrack rule is not skipping mangle |
 | Router's own traffic exits direct, LAN is tunnelled | no output mark rule | `02-routing.rsc` adds one if none exists; check `iran-ips` is not empty |
-| LAN is tunnelled but the router is not | router-originated traffic not masqueraded towards the veth | `03-firewall.rsc` adds `masquerade out-interface=veth-xray` |
+| LAN is tunnelled but the router is not | router-originated traffic not masqueraded towards the veth | `03-firewall.rsc` adds `masquerade out-interface=veth-mik` |
 | Wrong exit IP from a LAN client | the container subnet got marked | the "never mark the container" rule must sit first and have counters |
 | DDNS name points at the exit | router traffic to IP-Cloud went through the tunnel | the installer keeps the `cloud.mikrotik.com*` names in `router-direct`; check it and `/ip cloud force-update` |
-| `filesystem not mounted` from `/container` | `tmpdir` or `root-dir` points at a missing disk | fix `sing-boxDisk`; `01-container.rsc` recreates `tmpdir` |
-| Container restarts in a loop | xray exits: bad UUID/key, unreachable server | lower `restart-max-count`, read one log entry |
+| `filesystem not mounted` from `/container` | `tmpdir` or `root-dir` points at a missing disk | fix `MikDisk`; `01-container.rsc` recreates `tmpdir` |
+| Container restarts in a loop | sing-box exits: bad UUID/key, unreachable server | lower `restart-max-count`, read one log entry |
 | Router cannot ping `172.17.0.2` | the veth is in a bridge (broken layout on 7.25.1) | keep the address directly on the veth, as the scripts do |
 
 ## Quick health check
 
 ```
-/container/print where name="xray-gw"                    # running, healthy
-/ip route print where comment="xray-world"               # active (A flag)
-/ip firewall mangle print stats where comment~"xray"     # counters moving
-/container/shell [find where name="xray-gw"] cmd="ip route"
+/container/print where name="v2raymik"                    # running, healthy
+/ip route print where comment="mik-world"               # active (A flag)
+/ip firewall mangle print stats where comment~"mik"     # counters moving
+/container/shell [find where name="v2raymik"] cmd="ip route"
 /tool fetch url="https://1.1.1.1/cdn-cgi/trace" output=user   # ip=… is the exit
 ```
 
@@ -60,7 +60,7 @@ Inside the container:
 
 ```
 ip route get 1.1.1.1        # must say dev tun0
-ip route get <endpoint-ip>  # must say via 172.17.0.1 dev veth-xray
+ip route get <endpoint-ip>  # must say via 172.17.0.1 dev veth-mik
 ip -4 addr show dev tun0    # 198.18.0.1
 ```
 
@@ -75,4 +75,4 @@ Two measurements that lie on this setup:
 
 `99-uninstall.rsc` removes the route first. If you cannot reach the router at all,
 use Winbox over MAC (`/tool mac-server` is usually still enabled) or the serial
-console, then remove the `xray-world` route before anything else.
+console, then remove the `mik-world` route before anything else.

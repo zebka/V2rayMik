@@ -14,7 +14,7 @@ Open a private advisory instead of a public issue for anything that is:
 - a secret leaking through logs, the health endpoint, or the image.
 
 Use **Security → Report a vulnerability** on
-[github.com/zebka/mikrotik-xray-gateway](https://github.com/zebka/mikrotik-xray-gateway/security/advisories/new).
+[github.com/zebka/V2rayMik](https://github.com/zebka/V2rayMik/security/advisories/new).
 
 Please include: RouterOS version, image tag, the sequence that triggers it, and
 what you expected instead. Do not include a working UUID, private key, or a live
@@ -24,7 +24,7 @@ subscription URL.
 
 - The admin panel is reachable from the LAN by design. It is not exposed to the
   WAN; if you add your own port forward to it, that is your change.
-- `XrayFailOpen: true` lets world traffic leave from the router's real address
+- `MikFailOpen: true` lets world traffic leave from the router's real address
   when the tunnel is down. That is the documented fail-open mode, not a bug. Use
   `false` if a leak matters more than an outage.
 - The container's root shares the RouterOS kernel. That is the architecture and
