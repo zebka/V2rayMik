@@ -3,6 +3,16 @@
 # Import after 01-container.rsc, in the same session.
 # Safe to import twice.
 
+# A global has to be declared in the file that reads it (see 01-container.rsc).
+:global XrayVeth
+:global XrayTable
+:global XraySubnet
+:global XrayContainerIp
+:global XrayContainerName
+:global XrayFailOpen
+:global XrayFallbackGw
+:global XrayRefreshRouterDirect
+
 :if ([:typeof $XrayVeth] = "nothing") do={
   :error "import 00-vars.rsc first in this session"
 }

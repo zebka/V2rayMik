@@ -7,6 +7,13 @@
 # It removes only the objects this project created (all of them carry an
 # xray- comment or a known name) and never touches lists it does not own.
 
+# A global has to be declared in the file that reads it (see 01-container.rsc).
+:global XrayVeth
+:global XrayBridge
+:global XrayContainerName
+:global XrayGatewayIp
+:global XrayRestoreRoute
+
 :if ([:typeof $XrayVeth] = "nothing") do={
   :error "import 00-vars.rsc first in this session"
 }

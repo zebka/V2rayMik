@@ -2,6 +2,12 @@
 #
 # Import after 03-firewall.rsc. Safe to import twice.
 
+# A global has to be declared in the file that reads it (see 01-container.rsc).
+:global XrayVeth
+:global XrayContainerIp
+:global XrayAdminPort
+:global XrayAdminLanPort
+
 :if ([:typeof $XrayVeth] = "nothing") do={
   :error "import 00-vars.rsc first in this session"
 }

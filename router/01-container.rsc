@@ -6,6 +6,20 @@
 #
 # Safe to import twice: every object is created only when it is missing.
 
+# RouterOS scopes globals per script: a global must be declared in the same file
+# that reads it, or `$XrayVeth` is simply "nothing" even after 00-vars.rsc ran.
+:global XrayVeth
+:global XrayDisk
+:global XrayContainerIp
+:global XrayGatewayIp
+:global XrayContainerName
+:global XrayImage
+:global XrayImageFile
+:global XrayCheckCertificate
+:global XrayAdminPassword
+:global XrayContainerToWanPorts
+:global XrayExtraWanPorts
+
 :if ([:typeof $XrayVeth] = "nothing") do={
   :error "import 00-vars.rsc first in this session"
 }

@@ -26,6 +26,9 @@ for f in "$dir"/*.rsc; do
 
   for g in $(grep -o '\$Xray[A-Za-z0-9_]*' "$f" | tr -d '$' | sort -u); do
     printf '%s\n' "$declared" | grep -qx "$g" || err "$f: undeclared global \$$g"
+    # RouterOS scopes globals per script: a value set by 00-vars.rsc is invisible
+    # in another file unless that file declares `:global name` itself.
+    grep -q "^:global $g" "$f" || err "$f: reads \$$g without a \":global $g\" line (other imported files do not share scope)"
   done
 
   # every `add` needs a guard (someone imports this twice)

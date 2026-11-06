@@ -18,6 +18,10 @@
 # `/tool fetch` needs the `ftp` policy; without it the fetch fails silently and
 # the scheduler looks like it does nothing.
 
+# RouterOS scopes globals per script: reading $XrayVeth without declaring it here
+# yields "nothing", even when 00-vars.rsc already set it.
+:global XrayVeth
+
 :if ([:typeof $XrayVeth] = "nothing") do={
   :error "import 00-vars.rsc first in this session"
 }
