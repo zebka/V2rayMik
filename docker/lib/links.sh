@@ -77,7 +77,8 @@ split_userinfo() {
 
 stream_settings() {
   # $1 network, $2 security, $3 sni, $4 fingerprint, $5 publicKey,
-  # $6 shortId, $7 path, $8 host header, $9 serviceName, $10 spiderX
+  # $6 shortId, $7 path, $8 host header, $9 serviceName, $10 spiderX,
+  # $11 alpn (comma list), $12 xhttp mode, $13 xhttp extra (raw JSON)
   jq -n \
     --arg net "${1:-tcp}" \
     --arg sec "${2:-none}" \
@@ -89,21 +90,38 @@ stream_settings() {
     --arg hosthdr "$8" \
     --arg svc "$9" \
     --arg spx "${10:-}" \
+    --arg alpn "${11:-}" \
+    --arg xmode "${12:-}" \
+    --arg xextra "${13:-}" \
     '({network:$net}
       + (if $sec == "tls" then
            {security:"tls",
             tlsSettings:({serverName:$sni}
-                         + (if $fp != "" then {fingerprint:$fp} else {} end))}
+                         + (if $fp != "" then {fingerprint:$fp} else {} end)
+                         + (if $alpn != "" then
+                              {alpn:($alpn | split(",") | map(gsub("^\\s+|\\s+$";"")))}
+                            else {} end))}
          else {} end)
       + (if $sec == "reality" then
            {security:"reality",
             realitySettings:({serverName:$sni, publicKey:$pbk,
                               shortId:$sid, fingerprint:$fp}
-                             + (if $spx != "" then {spiderX:$spx} else {} end))}
+                             + (if $spx != "" then {spiderX:$spx} else {} end)
+                             + (if $alpn != "" then
+                                  {alpn:($alpn | split(",") | map(gsub("^\\s+|\\s+$";"")))}
+                                else {} end))}
          else {} end)
       + (if $net == "ws" then
            {wsSettings:({path:(if $path == "" then "/" else $path end)}
                         + (if $hosthdr != "" then {headers:{Host:$hosthdr}} else {} end))}
+         else {} end)
+      + (if $net == "xhttp" then
+           {xhttpSettings:({path:(if $path == "" then "/" else $path end),
+                            mode:(if $xmode == "" then "auto" else $xmode end)}
+                           + (if $hosthdr != "" then {host:$hosthdr} else {} end)
+                           + (if $xextra != "" then
+                                {extra:(try ($xextra | fromjson) catch {})}
+                              else {} end))}
          else {} end)
       + (if $net == "grpc" then {grpcSettings:{serviceName:$svc}} else {} end))'
 }
@@ -119,7 +137,8 @@ link_vless() {
     --arg enc "${enc:-none}" --arg flow "$flow" \
     --argjson stream "$(stream_settings "$(qs "$2" type)" "$(qs "$2" security)" \
         "$(qs "$2" sni)" "$(qs "$2" fp)" "$(qs "$2" pbk)" "$(qs "$2" sid)" \
-        "$(qs "$2" path)" "$(qs "$2" host)" "$(qs "$2" serviceName)" "$(qs "$2" spx)")" \
+        "$(qs "$2" path)" "$(qs "$2" host)" "$(qs "$2" serviceName)" "$(qs "$2" spx)" \
+        "$(qs "$2" alpn)" "$(qs "$2" mode)" "$(qs "$2" extra)")" \
     '{protocol:"vless",
       settings:{vnext:[{address:$addr, port:$port,
                         users:[({id:$id, encryption:$enc}
@@ -135,7 +154,8 @@ link_trojan() {
     --arg addr "$HOST" --argjson port "$PORT" --arg pass "$pass" \
     --argjson stream "$(stream_settings "$(qs "$2" type)" "$(qs "$2" security)" \
         "$(qs "$2" sni)" "$(qs "$2" fp)" "" "" \
-        "$(qs "$2" path)" "$(qs "$2" host)" "$(qs "$2" serviceName)" "$(qs "$2" spx)")" \
+        "$(qs "$2" path)" "$(qs "$2" host)" "$(qs "$2" serviceName)" "$(qs "$2" spx)" \
+        "$(qs "$2" alpn)")" \
     '{protocol:"trojan",
       settings:{servers:[{address:$addr, port:$port, password:$pass}]},
       streamSettings:$stream}'

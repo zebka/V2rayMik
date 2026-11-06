@@ -45,6 +45,26 @@ assert_eq "$(printf '%s' "$out" | jq -r '.streamSettings.realitySettings.spiderX
 out=$(link_to_outbound 'vless://u@203.0.113.9:443?security=reality&sni=x.test&pbk=P&sid=ab&type=tcp')
 assert_eq "$(printf '%s' "$out" | jq -r '.streamSettings.realitySettings | has("spiderX")')" "false" "no spiderX when unset"
 
+# --- Task 7 additions: xhttp and alpn ---------------------------------------
+x='vless://u@203.0.113.9:6161?security=reality&sni=a.test&pbk=P&sid=ab&type=xhttp&path=%2Fapi&host=h.test&mode=auto&alpn=h2%2Chttp%2F1.1'
+out=$(link_to_outbound "$x")
+assert_eq "$(printf '%s' "$out" | jq -r '.streamSettings.network')" "xhttp" "xhttp network"
+assert_eq "$(printf '%s' "$out" | jq -r '.streamSettings.xhttpSettings.path')" "/api" "xhttp path"
+assert_eq "$(printf '%s' "$out" | jq -r '.streamSettings.xhttpSettings.host')" "h.test" "xhttp host"
+assert_eq "$(printf '%s' "$out" | jq -r '.streamSettings.xhttpSettings.mode')" "auto" "xhttp mode"
+assert_eq "$(printf '%s' "$out" | jq -r '.streamSettings.realitySettings.alpn | join(",")')" "h2,http/1.1" "alpn list"
+
+# a link with extra JSON keeps it as an object
+x='vless://u@203.0.113.9:6161?security=tls&sni=a.test&type=xhttp&path=%2F&extra=%7B%22xPaddingBytes%22%3A%22100-1000%22%7D'
+out=$(link_to_outbound "$x")
+assert_eq "$(printf '%s' "$out" | jq -r '.streamSettings.xhttpSettings.extra.xPaddingBytes')" "100-1000" "xhttp extra"
+
+# the rendered config must satisfy xray itself
+link_to_outbound "$x" > /tmp/one.json
+jq -c '{log:{loglevel:"warning"},inbounds:[{tag:"socks-in",protocol:"socks",listen:"127.0.0.1",port:10999,settings:{}}],outbounds:[.]}' \
+  /tmp/one.json > /tmp/one3.json
+xray run -test -c /tmp/one3.json >/dev/null 2>&1 || fail "xray rejected the xhttp outbound"
+
 # --- Task 4: vmess and named rejections -------------------------------------
 j='{"v":"2","ps":"n","add":"203.0.113.9","port":"443","id":"11111111-1111-4111-8111-111111111111","net":"ws","path":"/x","tls":"tls","sni":"x.test","scy":"auto"}'
 vm="vmess://$(printf '%s' "$j" | base64 | tr -d '\n')"

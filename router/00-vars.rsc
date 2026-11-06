@@ -69,5 +69,10 @@
 # DNS. A provider on a non-standard port must be added here.
 :global XrayContainerToWanPorts "443,80,8080,8880,2052,2053,2082,2083,2086,2087,2095,2096,8443,53"
 
+# A second list, because RouterOS accepts at most 15 ports per rule and a
+# subscription can easily use more. Empty means "no second rule". Example:
+#   "6161,8089,7443,8999,15851,2419,3263,4676"
+:global XrayExtraWanPorts ""
+
 # Allow the container into the LAN. Leave false unless you know why.
 :global XrayAllowContainerToLan false

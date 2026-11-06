@@ -60,6 +60,16 @@ xtest_run() {
     return 0
   }
 
+  # Pin the resolved address into the test outbound. Dialing the hostname would
+  # re-resolve inside xray and could pick a different A record than the /32
+  # bypass below covers — on a CDN endpoint that is a guaranteed timeout.
+  if ! is_ipv4 "$host"; then
+    ob=$(printf '%s' "$ob" | jq --arg ip "$ip" '(.settings.vnext // .settings.servers)[0].address = $ip') || {
+      printf '{"code":0,"ms":0,"mbps":0,"error":"bad outbound"}'
+      return 0
+    }
+  fi
+
   eth=$(detect_egress)
   gw=$(detect_gateway)
   if [ -n "$gw" ]; then

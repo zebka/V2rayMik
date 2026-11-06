@@ -44,6 +44,42 @@
   /ip firewall filter set $r dst-port=$XrayContainerToWanPorts
 }
 
+# --- a second rule for extra ports (RouterOS caps one list at 15) ------------
+:if ([:len $XrayExtraWanPorts] > 0) do={
+  :if ([:len [/ip firewall filter find where comment="xray: container tcp transport (extra)"]] = 0) do={
+    :if ([:len $firstFwdDrop] > 0) do={
+      /ip firewall filter add chain=forward action=accept src-address=$XraySubnet \
+        out-interface=$XrayWan protocol=tcp dst-port=$XrayExtraWanPorts \
+        comment="xray: container tcp transport (extra)" place-before=$firstFwdDrop
+    } else={
+      /ip firewall filter add chain=forward action=accept src-address=$XraySubnet \
+        out-interface=$XrayWan protocol=tcp dst-port=$XrayExtraWanPorts \
+        comment="xray: container tcp transport (extra)"
+    }
+  } else={
+    /ip firewall filter set [find where comment="xray: container tcp transport (extra)"] \
+      dst-port=$XrayExtraWanPorts
+  }
+  :if ([:len [/ip firewall filter find where comment="xray: container udp transport (extra)"]] = 0) do={
+    :if ([:len $firstFwdDrop] > 0) do={
+      /ip firewall filter add chain=forward action=accept src-address=$XraySubnet \
+        out-interface=$XrayWan protocol=udp dst-port=$XrayExtraWanPorts \
+        comment="xray: container udp transport (extra)" place-before=$firstFwdDrop
+    } else={
+      /ip firewall filter add chain=forward action=accept src-address=$XraySubnet \
+        out-interface=$XrayWan protocol=udp dst-port=$XrayExtraWanPorts \
+        comment="xray: container udp transport (extra)"
+    }
+  } else={
+    /ip firewall filter set [find where comment="xray: container udp transport (extra)"] \
+      dst-port=$XrayExtraWanPorts
+  }
+} else={
+  :if ([:len [/ip firewall filter find where comment~"container (tcp|udp) transport \\(extra\\)"]] > 0) do={
+    /ip firewall filter remove [find where comment~"container (tcp|udp) transport \\(extra\\)"]
+  }
+}
+
 # --- optional: let the container reach the LAN (off by default) ---------------
 :if ($XrayAllowContainerToLan = true) do={
   :if ([:len [/ip firewall filter find where comment="xray: container to LAN (opt-in)"]] = 0) do={

@@ -68,6 +68,7 @@ if have 03-firewall.rsc; then
   grep -q 'action=drop' "$dir/03-firewall.rsc" || err "03-firewall.rsc: no default deny"
   grep -q 'out-interface=\$XrayWan' "$dir/03-firewall.rsc" || err "03-firewall.rsc: no container→WAN masquerade"
   grep -q 'dst-port=\$XrayContainerToWanPorts' "$dir/03-firewall.rsc" || err "03-firewall.rsc: transport port list is hard-coded"
+  grep -q 'dst-port=\$XrayExtraWanPorts' "$dir/03-firewall.rsc" || err "03-firewall.rsc: no second allowlist rule for extra ports"
   grep -q 'comment="xray: masquerade to container"' "$dir/03-firewall.rsc" || err "03-firewall.rsc: no general masquerade towards the container (router traffic is dropped without it)"
   grep -q 'dst-address=\$XrayContainerIp' "$dir/03-firewall.rsc" && err "03-firewall.rsc: masquerade matches the destination, which is never the container"
 fi

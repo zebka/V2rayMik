@@ -44,8 +44,15 @@ echo "$out" | jq -e '.entries[0].label == "Good"' >/dev/null || fail "first labe
 echo "$out" | jq -e '.entries[0].port_ok == true' >/dev/null || fail "443 must be allowed"
 echo "$out" | jq -e '.entries[1].port_ok == false' >/dev/null || fail "3001 must be blocked"
 echo "$out" | jq -e '.entries[0].host == "203.0.113.9"' >/dev/null || fail "host"
+# the index is the raw line number, so /cgi-bin/test's sed lands on the same line
+echo "$out" | jq -e '.entries[1].i == 2' >/dev/null || fail "index must be the raw line number"
 # no secrets in the list
 echo "$out" | grep -q '11111111' && fail "list leaked a UUID"
+
+# a subscription often carries placeholder rows that point at localhost
+printf '%s\n' 'ss://YWVzLTI1Ni1nY206cGFzcw==@127.0.0.1:1080#stats' > "$D/placeholder.txt"
+assert_eq "$(subs_list "$D/placeholder.txt" "1080" | jq '.entries | length')" "0" "loopback placeholder dropped"
+assert_eq "$(subs_count "$D/placeholder.txt")" "0" "loopback placeholder not counted"
 
 assert_eq "$(subs_count "$D/plain.txt")" "2" "count counts usable links"
 assert_eq "$(subs_count "$D/missing.txt")" "0" "missing file counts zero"

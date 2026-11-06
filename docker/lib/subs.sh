@@ -40,41 +40,56 @@ port_allowed() {
   esac
 }
 
-# subs_list <raw-file> <allowed-ports> <gen>
-# Emits {"count":N,"rejected":M,"entries":[{i,label,proto,host,port,port_ok}]}
+# subs_usable <link> — parseable and not a placeholder pointing at this host.
+subs_usable() {
+  row=$(subs_entry "$1" 2>/dev/null) || return 1
+  host=${row#*|}; host=${host#*|}; host=${host%%|*}
+  case "$host" in
+    ""|127.*|0.0.0.0|localhost) return 1 ;;
+  esac
+  return 0
+}
+
+# subs_list <raw-file> <allowed-ports>
+# Emits {"entries":[{i,label,proto,host,port,port_ok}]}. `i` is the raw line
+# index in the decoded payload — the same number /cgi-bin/test and /connect use
+# with sed. Anything else drifts the moment one line fails to parse.
 subs_list() {
   raw=$1
   allowed=${2:-}
-  i=0
-  rejected=0
-  first=1
   printf '{"entries":['
-  subs_decode "$raw" | while IFS= read -r link; do
-    if row=$(subs_entry "$link"); then
-      label=${row%%|*}; rest=${row#*|}
-      proto=${rest%%|*}; rest=${rest#*|}
-      host=${rest%%|*}; port=${rest#*|}
-      ok=false
-      port_allowed "$port" "$allowed" && ok=true
-      [ "$first" -eq 1 ] || printf ','
-      first=0
-      printf '{"i":%s,"label":"%s","proto":"%s","host":"%s","port":"%s","port_ok":%s}' \
-        "$i" "$(json_escape "$label")" "$(json_escape "$proto")" \
-        "$(json_escape "$host")" "$(json_escape "$port")" "$ok"
-      i=$((i + 1))
-    fi
-  done
+  first=1
+  n=0
+  tmp=$(mktemp)
+  subs_decode "$raw" > "$tmp" 2>/dev/null || true
+  while IFS= read -r link; do
+    idx=$n
+    n=$((n + 1))
+    subs_usable "$link" || continue
+    row=$(subs_entry "$link")
+    label=${row%%|*}; rest=${row#*|}
+    proto=${rest%%|*}; rest=${rest#*|}
+    host=${rest%%|*}; port=${rest#*|}
+    ok=false
+    port_allowed "$port" "$allowed" && ok=true
+    [ "$first" -eq 1 ] || printf ','
+    first=0
+    printf '{"i":%s,"label":"%s","proto":"%s","host":"%s","port":"%s","port_ok":%s}' \
+      "$idx" "$(json_escape "$label")" "$(json_escape "$proto")" \
+      "$(json_escape "$host")" "$(json_escape "$port")" "$ok"
+  done < "$tmp"
+  rm -f "$tmp"
   printf ']}'
 }
 
-# subs_count <raw-file> — how many *usable* links, robust to a missing file.
+# subs_count <raw-file> — how many usable links, robust to a missing file.
 subs_count() {
   [ -f "$1" ] || { printf '0'; return 0; }
   tmp=$(mktemp)
   subs_decode "$1" > "$tmp"
   n=0
   while IFS= read -r link; do
-    subs_entry "$link" >/dev/null 2>&1 && n=$((n + 1))
+    subs_usable "$link" && n=$((n + 1))
   done < "$tmp"
   rm -f "$tmp"
   printf '%s' "$n"

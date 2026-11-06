@@ -48,9 +48,19 @@
 }
 
 # The UI marks configs whose port is outside this list as blocked, so it must
-# match the firewall allowlist exactly.
+# match the firewall allowlist exactly — both rules.
 :if ([:len [/container envs find where list=$XrayContainerName and key="ALLOWED_PORTS"]] = 0) do={
-  /container envs add list=$XrayContainerName key=ALLOWED_PORTS value=$XrayContainerToWanPorts
+  :local allowed $XrayContainerToWanPorts
+  :if ([:len $XrayExtraWanPorts] > 0) do={
+    :set allowed ($allowed . "," . $XrayExtraWanPorts)
+  }
+  /container envs add list=$XrayContainerName key=ALLOWED_PORTS value=$allowed
+} else={
+  :local allowed $XrayContainerToWanPorts
+  :if ([:len $XrayExtraWanPorts] > 0) do={
+    :set allowed ($allowed . "," . $XrayExtraWanPorts)
+  }
+  /container envs set [find where list=$XrayContainerName and key="ALLOWED_PORTS"] value=$allowed
 }
 
 # --- container ---------------------------------------------------------------
