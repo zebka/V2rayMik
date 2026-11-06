@@ -72,6 +72,10 @@ xtest_run() {
 
   eth=$(detect_egress)
   gw=$(detect_gateway)
+  # If this address already has a bypass, it belongs to the live config: do not
+  # delete it after the test, or the tunnel that is carrying traffic loses its
+  # own route and starts looping into itself.
+  had_route=$(ip route show "$ip/32" 2>/dev/null || true)
   if [ -n "$gw" ]; then
     ip route replace "$ip/32" via "$gw" dev "$eth" 2>/dev/null || true
   else
@@ -88,7 +92,9 @@ xtest_run() {
   cleanup() {
     kill -TERM "$xpid" 2>/dev/null || true
     wait "$xpid" 2>/dev/null || true
-    ip route del "$ip/32" 2>/dev/null || true
+    if [ -z "$had_route" ]; then
+      ip route del "$ip/32" 2>/dev/null || true
+    fi
     rm -f "$cfg"
   }
 
