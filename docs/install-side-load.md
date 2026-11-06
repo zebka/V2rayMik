@@ -44,6 +44,33 @@ file into Winbox's Files panel. Put it at the path your install uses:
 /container/start [find where name="xray-gw"]
 ```
 
+## Pulling through an Iranian mirror
+
+`ghcr.io` and `docker.io` are usually unreachable from Iran, so the image cannot
+be pulled directly. Publish it to Docker Hub (the CI does this when
+`DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` secrets exist) and point RouterOS at a
+Docker Hub mirror instead:
+
+```
+/container/config/set registry-url=https://docker.arvancloud.ir
+/container/set [find where name="xray-gw"] check-certificate=no
+/container/repull [find where name="xray-gw"]
+```
+
+Verified combinations on RouterOS 7.25.1:
+
+| Mirror | Works | Note |
+| --- | --- | --- |
+| `docker.arvancloud.ir` | yes | needs `check-certificate=no` (CA not in RouterOS) |
+| `focker.ir` | registry reachable | not pull-tested here |
+| `docker.iranserver.com` | registry reachable | not pull-tested here |
+| `ghcr.repo.mirrory.ir` | no | returns 504 on our 15 MB layer |
+
+The container must be created with `remote-image=`, not `file=`; RouterOS will not
+switch an existing file-based container to a registry. Recreate it, keeping the
+same `root-dir` (its `/data` is wiped by the removal, so the panel's saved
+subscription is lost — everything else survives).
+
 ## 4. Update later
 
 Export a new archive, upload it over the same name, then:

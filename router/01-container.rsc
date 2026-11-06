@@ -1,4 +1,4 @@
-# 01-container.rsc — veth, container bridge, storage and the container entry.
+﻿# 01-container.rsc — veth, container bridge, storage and the container entry.
 #
 # Import 00-vars.rsc first, in the same terminal session:
 #   /import file-name=00-vars.rsc
@@ -72,14 +72,14 @@
     /container add name=$XrayContainerName file=$XrayImageFile interface=$XrayVeth \
       root-dir=($XrayDisk . "/" . $XrayContainerName) dns=1.1.1.1 \
       envlist=$XrayContainerName start-on-boot=yes restart-policy=always \
-      memory-high=100663296 logging=yes
+      check-certificate=$XrayCheckCertificate memory-high=100663296 logging=yes
   }
 } else={
   :if ([:len [/container find where name=$XrayContainerName]] = 0) do={
     /container add name=$XrayContainerName remote-image=$XrayImage interface=$XrayVeth \
       root-dir=($XrayDisk . "/" . $XrayContainerName) dns=1.1.1.1 \
       envlist=$XrayContainerName start-on-boot=yes restart-policy=always \
-      memory-high=100663296 logging=yes
+      check-certificate=$XrayCheckCertificate memory-high=100663296 logging=yes
   }
 }
 

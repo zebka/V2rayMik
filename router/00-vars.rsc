@@ -23,7 +23,11 @@
 
 # Image to pull. The published multi-arch image lives here; replace the owner
 # only if you fork or host your own.
-:global XrayImage "ghcr.io/zebka/mikrotik-xray-gateway:latest"
+:global XrayImage "azebka/mikrotik-xray-gateway:latest"
+
+# Set to "no" only when pulling through a mirror whose CA the router does not
+# trust (docker.arvancloud.ir needs this on RouterOS 7.25.1).
+:global XrayCheckCertificate "yes"
 
 # Side-loaded docker-archive tar on the disk (wins over XrayImage when set),
 # for example "usb2/royal-xray-gateway.tar".

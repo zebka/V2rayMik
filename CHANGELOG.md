@@ -1,6 +1,41 @@
 # Changelog
 
-## 0.2.0 — unreleased
+## 0.2.3 — unreleased
+
+### Added
+
+- The image is published to Docker Hub as well as GHCR (CI runs both when the
+  `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` secrets are set), so it can be pulled
+  through an Iranian Docker Hub mirror.
+- `XrayCheckCertificate` in `00-vars.rsc`, because `docker.arvancloud.ir` needs
+  `check-certificate=no` on RouterOS.
+- `docs/install-side-load.md` documents the mirror route and which mirrors were
+  actually tested.
+
+### Verified
+
+`azebka/mikrotik-xray-gateway:latest` pulls on a hAP ax³ from
+`docker.arvancloud.ir` (`arch=arm64`, ~90 s), container starts, panel answers.
+
+## 0.2.2 — unreleased
+
+CI fix: Docker Hub secrets are mapped to `env` (GitHub does not allow `secrets`
+in `if:`).
+
+## 0.2.1 — 2026-11-06
+
+Fixes found by running a real subscription through the panel:
+
+- Config indices are the raw payload line numbers; one unparseable link no longer
+  shifts every row onto the wrong node.
+- The test pins the resolved endpoint address, so a CDN endpoint cannot rotate to
+  an address the `/32` bypass does not cover.
+- `xhttp` (path/host/mode/extra) and `alpn` are parsed instead of dropped.
+- Placeholder rows that point at `127.0.0.1` are filtered out of the list.
+- `XrayExtraWanPorts`: a second allowlist rule, because RouterOS caps one
+  `dst-port` list at 15 entries and a subscription easily uses more.
+
+## 0.2.0 — 2026-11-06
 
 ### Added
 
