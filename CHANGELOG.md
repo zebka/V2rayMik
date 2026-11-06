@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.4.1 — 2026-11-06
+
+### Changed
+
+- The Docker Hub page is now generated from `docs/dockerhub.md` by CI on every
+  release, so the two never drift.
+- Every tag creates a GitHub release automatically.
+- README (both languages) rewritten for people who are not the author: pinned
+  image tags and the Iranian mirror, the optional `05-auto-route.rsc` step, the
+  panel, the ISP fallback, honest performance numbers with their methods, and a
+  "getting help" section.
+
+### Fixed
+
+- Removed a stray browser session file (`cookies.txt`) that had been committed by
+  accident, and added it to `.gitignore`.
+- Internal planning notes moved out of the published tree; the admin UI design
+  record now lives in `docs/design/admin-ui.md`.
+
 ## 0.4.0 — 2026-11-06
 
 ### Changed

@@ -88,3 +88,34 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # Keep the Docker Hub page in step with the repository: the long
+      # description lives in docs/dockerhub.md and is published from here.
+      - name: Docker Hub overview
+        if: env.DH_USER != ''
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ env.DH_USER }}
+          password: ${{ env.DH_TOKEN }}
+          repository: ${{ env.DH_USER }}/mikrotik-xray-gateway
+          short-description: "MikroTik RouterOS -> Xray egress gateway: one Alpine container, native TUN, LAN admin page"
+          readme-filepath: ./docs/dockerhub.md
+
+  release:
+    needs: publish
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          body: |
+            Image: `azebka/mikrotik-xray-gateway:${{ github.ref_name }}` (Docker Hub)
+            and `ghcr.io/${{ github.repository }}:${{ github.ref_name }}` (GHCR).
+
+            Details for this release are in
+            [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md).
+

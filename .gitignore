@@ -6,6 +6,11 @@ dist/
 # Local scratch and the execution ledger
 .superpowers/
 
+# Local scratch, editor state, and anything that came out of a browser session
+.cookies
+cookies.txt
+*.cookie
+
 # Editors / OS
 .DS_Store
 Thumbs.db

@@ -1,11 +1,18 @@
 ﻿# mikrotik-xray-gateway
 
+[![build](https://github.com/zebka/mikrotik-xray-gateway/actions/workflows/build.yml/badge.svg)](https://github.com/zebka/mikrotik-xray-gateway/actions/workflows/build.yml)
+[![Docker Hub](https://img.shields.io/docker/pulls/azebka/mikrotik-xray-gateway)](https://hub.docker.com/r/azebka/mikrotik-xray-gateway)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![فارسی](https://img.shields.io/badge/readme-%D9%81%D8%A7%D8%B1%D8%B3%DB%8C-0a7)](README.fa.md)
+
 Put a MikroTik RouterOS device's world-bound traffic through **one** Alpine
 container running [Xray-core](https://github.com/XTLS/Xray-core) with its native
 TUN inbound. No tun2socks, no second container, no geodata files.
 
 RouterOS has no VLESS/REALITY support. This closes that gap without asking you to
-give up the router as the place where traffic is split.
+give up the router as the place where traffic is split. It also serves a small
+LAN page for subscriptions and node switching, so you do not need Winbox to
+change the exit.
 
 ```
 LAN clients ─┐
@@ -57,24 +64,41 @@ On a hAP ax³ (arm64, 1 GB) with RouterOS 7.25.1 and USB storage:
 - Exit was confirmed in three countries with three transports (VLESS+REALITY,
   VLESS over WebSocket, plain VLESS), plus a Shadowsocks config that carried TCP
   but not UDP.
-- ~13 Mbps single-stream through the tunnel from the router itself; the container
-  idles at 10–17 MiB RSS. Details and commands in `docs/benchmarks.md`.
+- The panel loads a subscription, tests each node (real delay, exit country,
+  Mbps) and switches the world route in ~3 seconds.
+- With the selected node stopped, the scheduler moved world traffic back to the
+  ISP in under 30 seconds (`loc=IR`, the router's own address) and returned to
+  the node when it came back — with the OpenVPN route never enabled.
+- The container idles at 10–22 MiB RSS. Details and commands in
+  `docs/benchmarks.md`.
 
 What is *not* verified is written down as such there and in `CHANGELOG.md`.
 
 ## Quick start
 
-1. Build or pull the image:
+0. **Get the image.** Multi-arch on Docker Hub (use this through a mirror if
+   `ghcr.io` is unreachable from your network):
 
-   ```sh
-   make image            # or: docker pull ghcr.io/zebka/mikrotik-xray-gateway
+   ```
+   docker pull azebka/mikrotik-xray-gateway:latest   # or :0.4.0 to pin
+   docker pull ghcr.io/zebka/mikrotik-xray-gateway:latest
    ```
 
-2. Get the image onto the router — either let the router pull it
+   On RouterOS, `01-container.rsc` sets `remote-image=`; in Iran a mirror works
+   better, for example:
+
+   ```
+   /container/config/set registry-url=https://docker.iranserver.com check-certificate=no
+   ```
+
+   `make image` builds it locally instead, and `make save` produces a tarball for
+   side-loading (`docs/install-side-load.md`).
+
+1. Get the image onto the router — either let the router pull it
    (`remote-image=` in `router/01-container.rsc`) or side-load the tarball
    (`make save`, then upload `dist/*.tar`; see `docs/install-side-load.md`).
 
-3. Put your outbound where the container can read it. Either a full outbound
+2. Put your outbound where the container can read it. Either a full outbound
    object:
 
    ```
@@ -97,7 +121,7 @@ What is *not* verified is written down as such there and in `CHANGELOG.md`.
    one line changed — see "The container's egress allowlist" in
    `docs/security.md` for why it is an allowlist and how to extend it.
 
-4. Import the RouterOS scripts **in one session**, in order:
+3. Import the RouterOS scripts **in one session**, in order:
 
    ```
    /import file-name=00-vars.rsc
@@ -105,22 +129,27 @@ What is *not* verified is written down as such there and in `CHANGELOG.md`.
    /import file-name=02-routing.rsc
    /import file-name=03-firewall.rsc
    /import file-name=04-admin.rsc
+   /import file-name=05-auto-route.rsc
    ```
 
    Edit `00-vars.rsc` first: WAN interface, LAN subnet, disk, and
    `XrayAdminPassword` if you want the LAN page.
 
-5. Start the container and watch the log:
+   `05-auto-route.rsc` is optional but recommended: it is what makes the router
+   follow the node you pick in the panel, and it is the only thing that should
+   toggle the world route afterwards.
+
+4. Start the container and watch the log:
 
    ```
    /container/start [find where name="xray-gw"]
    /log print where topics~"container"
    ```
 
-6. Verify from a LAN client: `curl https://ifconfig.me` should print your
+5. Verify from a LAN client: `curl https://ifconfig.me` should print your
    server's address.
 
-7. Optional, the panel: open `http://<router-lan-ip>:8081/` from a LAN device,
+6. Optional, the panel: open `http://<router-lan-ip>:8081/` from a LAN device,
    sign in with `XrayAdminPassword`, paste a subscription URL (or a single
    link), press **Test all**, then **Connect** on the node you want. See
    "Admin page" below.
@@ -189,24 +218,33 @@ Two things the panel refuses to do on its own, by design:
 
 ## Measured performance
 
-Single-stream download through the tunnel, from the router itself: **9.5 MiB in
-6 s ≈ 13 Mbps**, on a hAP ax³. The same box ran OpenVPN/TCP at ~14 Mbps, so the
-container costs roughly nothing — the path is the limit. Full table, commands and
-the not-yet-measured cells are in `docs/benchmarks.md`.
+Two different measurements, both from the router itself, both small samples on
+consumer links — read them as orders of magnitude, not as a spec:
+
+| Test | Result |
+| --- | --- |
+| `tool fetch` of 9.5 MiB, single stream (early build, TR node) | **≈ 13 Mbps** |
+| The panel's own 10 MB test, three nodes on the same box | **30–38 Mbps** |
+| OpenVPN/TCP on the same box, for comparison (`iperf3`) | ~14 Mbps down / ~15.8 Mbps up |
+
+The container is not the limit here: the same hardware carried OpenVPN at 14 and
+Xray at 30–38 over different paths. Full table, commands and the not-yet-measured
+cells are in `docs/benchmarks.md`.
 
 ## Roadmap
 
-- A one-page local UI (served by the router) to paste a config, validate it and
-  restart the container without Winbox.
-- Upload/tests for upload throughput, multi-stream and reboot recovery.
+- Upload throughput, multi-stream and reboot-recovery tests.
 - Optional XHTTP-first examples, since WebSocket is deprecated in Xray.
+- Per-node "last worked at" memory, so the panel can rank nodes by history.
 
 ## Layout
 
 ```
-docker/           image, entrypoint, link and route helpers
-router/           00-vars, 01-container, 02-routing, 03-firewall, 99-uninstall
-docs/             architecture, security, troubleshooting, benchmarks, side-load
+docker/           image, entrypoint, link and route helpers, admin CGI
+router/           00-vars, 01-container, 02-routing, 03-firewall, 04-admin,
+                  05-auto-route, 99-uninstall
+docs/             architecture, security, troubleshooting, benchmarks, side-load,
+                  dockerhub (the Docker Hub page), design/ (the admin UI record)
 server/           reference REALITY server config (out of scope)
 tests/            unit tests (POSIX sh) and RouterOS lint
 ```
@@ -216,9 +254,21 @@ tests/            unit tests (POSIX sh) and RouterOS lint
 - Container networking on this class of hardware is CPU-bound; do not expect the
   server's line rate.
 - No IPv6 (the reference deployment has it disabled).
-- No subscription-URL fetching, no web UI, no per-user accounting.
+- One router, one active node. No per-user accounting and no multi-tenant panel.
 - The container's root shares RouterOS's kernel. See `docs/security.md` before
   deploying this on a device you do not control.
+
+## Getting help
+
+- Read `docs/troubleshooting.md` first; it starts with the three commands that
+  answer most questions.
+- Open an issue with the output of:
+  `/container/print`, `/log print where topics~"container"` (last 50 lines),
+  `/ip route print where routing-table=to-world`, and the panel's `state` reply.
+- Never paste a working config, a subscription URL, or the panel password into an
+  issue.
+- Anything that looks like a security problem goes to `SECURITY.md` (private
+  advisory), not to a public issue.
 
 ## License
 

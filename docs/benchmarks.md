@@ -21,7 +21,8 @@ measured and must not be quoted as a result.
 | --- | --- |
 | Image, compressed | 17.5 MB (amd64 build; arm64 measured in Task 12) |
 | Image, uncompressed layers | 64.6 MB (amd64 build) |
-| Container RSS at idle | TBD |
+| Container RSS at idle | 10–17 MiB fresh, 21.3 MiB after a day of traffic |
+| Container size on disk (root-dir) | ~46 MiB |
 | Boot to first tunnelled packet | TBD |
 
 ## Throughput
@@ -32,16 +33,34 @@ and four-stream. Record the CPU percentage during the run
 
 | Test | Result |
 | --- | --- |
-| Download, 1 stream, from the router | 9.5 MiB in 6 s ≈ **13 Mbps** |
+| Download, 1 stream, from the router (`tool fetch`, 9.5 MiB) | **≈ 13 Mbps** |
+| Download, 10 MB through the panel's own test (three nodes, TR) | **30–38 Mbps** |
 | Download, 4 streams | TBD |
 | Upload, 1 stream | TBD |
 | Upload, 4 streams | TBD |
 | CPU during download | TBD |
 
 The first figure is a `tool fetch` of a 10 MB file through the tunnel, from the
-router itself, on 7.25.1. For comparison, OpenVPN/TCP on the same box measured
-~14 Mbps down / ~15.8 Mbps up, so the container eats roughly none of the link —
-the path is the limit. Four-stream and upload numbers are still to be taken.
+router itself, on 7.25.1, on one early node. The second is the panel's speed test
+on three later nodes (`/cgi-bin/test`: a short-lived Xray, a `generate_204`, then
+a 10 MB download), which is a different method and a different path — treat both
+as order-of-magnitude results, not as a spec. The container eats roughly none of
+the link: the path is the limit.
+
+### Reference: OpenVPN/TCP on the same box
+
+Before Xray, the same device ran OpenVPN over **TCP 9443** to a Turkish server
+(the ISP drops outbound UDP, so WireGuard and L2TP never connected):
+
+| Test | Result |
+| --- | --- |
+| Download, `iperf3`, 1 stream | ~14 Mbps |
+| Upload, `iperf3`, 1 stream | ~15.8 Mbps |
+| Exit | `loc=TR`, verified with `cdn-cgi/trace` |
+
+So 13–14 Mbps was the ceiling of that path at the time; the later Xray nodes
+reached 30–38 on better paths. Upload and four-stream numbers are still to be
+taken on either setup.
 
 ## Latency
 

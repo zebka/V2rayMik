@@ -1,8 +1,7 @@
-﻿# Admin UI: subscriptions, testing, selecting a config — design
+﻿# Admin UI: subscriptions, testing, selecting a config
 
-Date: 2026-11-06
-Status: draft for builder check
-Builds on: the released `mikrotik-xray-gateway` 0.1.0 (single container, native TUN)
+Status: implemented (0.2.0–0.4.0). Kept as the design record; the current
+behaviour is described in the README and `CHANGELOG.md`.
 
 ## 1. Intent
 
