@@ -24,7 +24,7 @@
     :local body ""
     :do {
       :local r [/tool fetch url="http://172.17.0.2:8080/cgi-bin/health" output=user as-value duration=8s]
-      :set body ($r->0->"data")
+      :set body ($r->"data")
     } on-error={ :set body "" }
 
     :local want 0

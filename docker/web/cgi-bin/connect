@@ -1,4 +1,4 @@
-#!/bin/sh
+﻿#!/bin/sh
 . /app/web/cgi-bin/_common
 . /app/lib/xtest.sh
 
@@ -60,7 +60,7 @@ done
 
 # End-to-end: the router's next world request must actually reach the check URL.
 if [ "$up" = true ]; then
-  code=$(curl -s -o /dev/null --max-time 8 -w '%{http_code}' "$CHECK_URL" 2>/dev/null || echo 0)
+  code=$(curl -s -o /dev/null --interface "${TUN_ADDR:-198.18.0.1}" --max-time 8 -w '%{http_code}' "$CHECK_URL" 2>/dev/null || echo 0)
   [ "$code" = "204" ] || up=false
 fi
 

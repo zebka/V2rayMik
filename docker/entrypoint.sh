@@ -166,13 +166,21 @@ install_routes() {
   done
   ip link set dev "$TUN_NAME" up 2>/dev/null || true
 
-  # Admin plane: the subscription fetch and the container's own resolver must
-  # work even when the active node is dead, so they get their own bypass.
-  for r in ${ADMIN_DNS:-1.1.1.1 8.8.8.8}; do
-    if [ -n "$GW" ]; then
-      ip route replace "$r/32" via "$GW" dev "$ETH" 2>/dev/null || true
-    fi
-  done
+  # Admin plane: the subscription fetch and the container's own DNS must work
+  # even when the active node is dead. That has to be scoped to traffic the
+  # container itself originates — a plain `/32` bypass also captures packets
+  # forwarded *from the router*, which then bounce back out of the veth and loop
+  # (measured: an `ip route get` for the bypass address said `dev veth-xray` on
+  # the router, and every fetch to 1.1.1.1 timed out).
+  cip=${XrayContainerIp:-}
+  if [ -z "$cip" ]; then
+    cip=$(ip -4 addr show dev "$ETH" 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1 | head -n 1)
+  fi
+  if [ -n "$cip" ] && [ -n "$GW" ]; then
+    ip rule del from "$cip" lookup 100 2>/dev/null || true
+    ip rule add from "$cip" lookup 100 priority 1000 2>/dev/null || true
+    ip route replace default via "$GW" dev "$ETH" table 100 2>/dev/null || true
+  fi
 
   verify_routes "$TUN_NAME"
 }
