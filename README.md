@@ -132,12 +132,32 @@ tunnel before anything else is touched.
 
 `XrayFailOpen` in `00-vars.rsc`:
 
-- `true` (default): a direct route stays at distance 2. The internet keeps
-  working when the tunnel dies — **and the real IP leaks silently**.
+- `true` (default): a direct route stays at distance 2, through the **ISP's own
+  gateway**. When the tunnel dies, world traffic goes back out of the router's
+  real address: the internet keeps working, in the country the router is in —
+  and that is visible to every destination.
 - `false`: no fallback. Nothing leaks; marked destinations are down while the
   tunnel is down.
 
 Both are shipped on purpose; pick deliberately and read `docs/security.md`.
+
+A fallback is deliberately **never another tunnel**. Pointing it at OpenVPN or
+WireGuard looks safer but hides a dead Xray node and quietly changes the exit
+country, which is exactly the thing you are paying for.
+
+### Follow the panel automatically
+
+`router/05-auto-route.rsc` adds a 30-second scheduler that asks the container's
+public `cgi-bin/health` endpoint (`selected=`, `up=`, `live=`). Only when all
+three are `1` does it keep `xray-world` enabled; otherwise it disables it and
+enables the route to the ISP gateway, disabling every other default route in the
+table (OpenVPN, WireGuard) on the way. The script owns the routing table while it
+runs: to use another tunnel as the exit, disable the scheduler and enable the
+route by hand.
+
+The ISP gateway is read from the main table on every run, so a DHCP or PPPoE
+change needs no edit.
+
 
 ## Admin page
 

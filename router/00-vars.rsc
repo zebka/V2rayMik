@@ -48,8 +48,9 @@
 # Routing table that carries world-bound traffic.
 :global XrayTable "to-world"
 
-# fail-open (true): keep a direct fallback route at distance 2 when the tunnel is
-#   down — the internet keeps working, but the real IP leaks.
+# fail-open (true): when the tunnel is down, world traffic falls back to the ISP
+#   directly — the router's own address, the country you are in. The internet
+#   keeps working, but the real IP is exposed.
 # fail-closed (false): no fallback; marked traffic is dropped while the tunnel is
 #   down. No leak, but the network is down for those destinations.
 :global XrayFailOpen true

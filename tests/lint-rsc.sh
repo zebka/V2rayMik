@@ -85,6 +85,9 @@ if have 05-auto-route.rsc; then
   grep -q 'selected=1' "$dir/05-auto-route.rsc" || err "05-auto-route.rsc: no selection check"
   grep -q 'live=1' "$dir/05-auto-route.rsc" || err "05-auto-route.rsc: does not require a live tunnel"
   grep -q 'comment="xray-world"' "$dir/05-auto-route.rsc" || err "05-auto-route.rsc: does not move the world route"
+  grep -q 'wanGw' "$dir/05-auto-route.rsc" || err "05-auto-route.rsc: fallback does not identify the ISP gateway"
+  grep -q 'routing-table=main' "$dir/05-auto-route.rsc" || err "05-auto-route.rsc: the ISP gateway is not read from the main table"
+  grep -q 'World -> OpenVPN' "$dir/05-auto-route.rsc" && err "05-auto-route.rsc: names a tunnel as fallback; the fallback must be the ISP"
 fi
 
 if have 04-admin.rsc; then

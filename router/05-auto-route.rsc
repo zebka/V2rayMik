@@ -1,5 +1,4 @@
-# 05-auto-route.rsc — move the world route to Xray when the panel has a live node,
-# and back to the fallback route(s) when it does not.
+# 05-auto-route.rsc — follow the panel's active node, and fall back to the ISP.
 #
 # The panel cannot touch RouterOS itself, so a scheduler asks the container's
 # public health endpoint every 30 s. That endpoint answers plain text:
@@ -8,8 +7,14 @@
 #   up=1         the tunnel started and tun0 exists
 #   live=1       a 204 came back through the tunnel recently
 #
-# Only `selected=1 up=1 live=1` moves the route, so a dead node never takes the
-# world route away from the fallback.
+# Only `selected=1 up=1 live=1` keeps the world route on Xray. Anything else is
+# a fallback to the **ISP directly** (traffic leaves Iran from the router's own
+# address), never to another tunnel: another VPN would hide a dead Xray node and
+# silently change the exit country. Other default routes in the table (OpenVPN,
+# WireGuard) are left disabled while this scheduler runs.
+#
+# If you want to use a tunnel as the fallback instead, disable this scheduler and
+# enable the route by hand: `xray-auto-route` owns the table while it runs.
 #
 # NOTE: RouterOS scripts do not inherit the importing session's variables, so the
 # values below are literals. If you changed XrayContainerIp, XrayAdminPort or
@@ -44,26 +49,50 @@
     :local xwid [:pick $xw 0]
     :local xon ([/ip route get $xwid disabled] = false)
 
-    # Every other default route in the table is a fallback (WireGuard, OpenVPN,
-    # direct WAN at a higher distance...). Naming them here would tie this script
-    # to one setup, so they are found by shape instead: same destination, not the
-    # xray route, and not the route that reaches the container itself.
-    :local fb [:toarray ""]
-    :foreach r in=[/ip route find where routing-table="to-world" and dst-address="0.0.0.0/0"] do={
-      :if ($r != $xwid and [/ip route get $r gateway] != "172.17.0.2") do={
-        :set fb ($fb, $r)
-      }
-    }
+    # The ISP's own gateway, read from the main table at every run, is what makes
+    # a fallback "go home to Iran" instead of "go into another tunnel". A DHCP or
+    # PPPoE change is picked up automatically.
+    :local wanGw ""
+    :local mainRt [/ip route find where dst-address="0.0.0.0/0" and routing-table=main]
+    :if ([:len $mainRt] > 0) do={ :set wanGw [/ip route get [:pick $mainRt 0] gateway] }
 
-    :if ($want = 1 and $xon = false) do={
-      :foreach r in=$fb do={ /ip route disable $r }
-      /ip route enable $xwid
-      :log info "xray-auto: world traffic -> xray"
-    }
-    :if ($want = 0 and $xon = true) do={
-      /ip route disable $xwid
-      :foreach r in=$fb do={ /ip route enable $r }
-      :log info "xray-auto: world traffic -> fallback (node not live)"
+    :local worlds [/ip route find where routing-table="to-world" and dst-address="0.0.0.0/0"]
+
+    :if ($want = 1) do={
+      # Xray is live: it is the only default route that may be enabled.
+      :foreach r in=$worlds do={
+        :if ($r != $xwid and [/ip route get $r disabled] = false) do={ /ip route disable $r }
+      }
+      :if ($xon = false) do={
+        /ip route enable $xwid
+        :log info "xray-auto: world traffic -> xray"
+      }
+    } else={
+      # No live node: every 0.0.0.0/0 that leaves through the ISP gateway is
+      # enabled, everything else (OpenVPN, WireGuard) stays disabled.
+      :local direct 0
+      :foreach r in=$worlds do={
+        :if ($r != $xwid) do={
+          :local toIsp false
+          :if ([:len $wanGw] > 0) do={
+            :if ([/ip route get $r gateway] = $wanGw) do={ :set toIsp true }
+          }
+          :if ($toIsp = true) do={
+            :set direct ($direct + 1)
+            :if ([/ip route get $r disabled] = true) do={ /ip route enable $r }
+          } else={
+            :if ([/ip route get $r disabled] = false) do={ /ip route disable $r }
+          }
+        }
+      }
+      :if ($xon = true) do={
+        /ip route disable $xwid
+        :if ($direct > 0) do={
+          :log info "xray-auto: world traffic -> direct to the ISP (node not live)"
+        } else={
+          :log warning "xray-auto: node not live and no route through the ISP gateway; world traffic is dropped"
+        }
+      }
     }
   }
 }

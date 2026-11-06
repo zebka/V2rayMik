@@ -28,8 +28,11 @@
     distance=1 comment="xray-world"
 }
 
-# fail-open keeps a direct route at distance 2, so the internet survives an
-# outage at the cost of leaking the real IP. fail-closed removes it.
+# fail-open keeps a direct route through the ISP at distance 2: when the tunnel
+# is down, marked traffic leaves from the router's own address — the old, direct
+# path — instead of dying. It never points at another tunnel: a VPN fallback would
+# hide a dead node and silently change the exit country. fail-closed removes the
+# route, so marked traffic is dropped instead.
 :if ($XrayFailOpen = true) do={
   :local fbGw $XrayFallbackGw
   :if ([:len $fbGw] = 0) do={
@@ -37,13 +40,16 @@
     :if ([:len $mainRoute] > 0) do={ :set fbGw [/ip route get [:pick $mainRoute 0] gateway] }
   }
   :if ([:len $fbGw] > 0) do={
-    # Reuse a fallback that is already there: a second route to the same gateway
-    # at the same distance is just noise.
-    :local existing 0
-    :foreach r in=[/ip route find where routing-table=$XrayTable] do={
-      :if ([/ip route get $r distance] > 1) do={ :set existing ($existing + 1) }
+    # One direct route is enough. Reuse whatever already points at the ISP (many
+    # devices have their own "backup if the VPN dies" row); only add ours when
+    # nothing else does the job.
+    :local direct 0
+    :foreach r in=[/ip route find where routing-table=$XrayTable and dst-address="0.0.0.0/0"] do={
+      :if ([/ip route get $r gateway] = $fbGw) do={
+        :if ([/ip route get $r comment] != "xray-world") do={ :set direct ($direct + 1) }
+      }
     }
-    :if ([:len [/ip route find where comment="xray-fallback"]] = 0 and $existing = 0) do={
+    :if ([:len [/ip route find where comment="xray-fallback"]] = 0 and $direct = 0) do={
       /ip route add dst-address=0.0.0.0/0 gateway=$fbGw routing-table=$XrayTable \
         distance=2 comment="xray-fallback"
     }

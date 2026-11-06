@@ -124,9 +124,15 @@ dial would enter the live TUN and the measurement would describe the wrong node.
 - `restart-policy=always` handles a crashed process.
 - `healthcheck-cmd` (RouterOS 7.23+) checks that `tun0` exists; `stop-on-unhealthy`
   stops a container that is "running" with no tunnel.
-- Fail-open adds a distance-2 route to the WAN, so a stopped container leaves the
-  internet reachable. Fail-closed does not: a missing next hop drops marked
-  traffic.
+- Fail-open adds a distance-2 route through the ISP gateway, so a stopped
+  container leaves the internet reachable from the router's own address.
+  Fail-closed does not: a missing next hop drops marked traffic. The fallback is
+  the ISP, never another tunnel, so a dead node cannot hide behind a VPN that
+  changes the exit country.
+- `05-auto-route.rsc` is the only thing that should toggle those routes. It keeps
+  `xray-world` enabled only while the panel reports a selected, up and live node,
+  and otherwise enables the ISP route and disables every other default route in
+  the table.
 
 There is deliberately no `check-gateway=ping` on the world route. On the reference
 device the container did not answer ICMP reliably, which silently deactivated the

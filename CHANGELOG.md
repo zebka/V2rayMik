@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.4.0 — 2026-11-06
+
+### Changed
+
+- **The fallback is the ISP, not another tunnel.** When the panel's node is not
+  live, `05-auto-route.rsc` enables the default route through the ISP gateway
+  (traffic leaves from the router's own address, in its own country) and keeps
+  every other default route in the table — OpenVPN, WireGuard — disabled. A VPN
+  fallback hid a dead node and silently changed the exit country.
+- `02-routing.rsc` only adds `xray-fallback` when nothing else in the table
+  already points at the ISP gateway, instead of skipping it whenever any
+  distance-2 route exists.
+
+## 0.3.3 — 2026-11-06
+
+### Fixed
+
+- Every imported `.rsc` file now declares the globals it reads. RouterOS scopes
+  globals per script, so `01`…`99` saw `nothing` and refused to run when imported
+  one file at a time, even after `00-vars.rsc`. `tests/lint-rsc.sh` enforces it.
+
+## 0.3.2 — 2026-11-06
+
+### Fixed
+
+- An empty RouterOS array is `[:toarray ""]`, not `{}`; the auto-route script
+  failed to import because of it.
+
+## 0.3.1 — 2026-11-06
+
+### Fixed
+
+- `05-auto-route.rsc`: `/tool fetch` needs the `ftp` policy, otherwise the
+  scheduler polls the health endpoint and silently gets nothing.
+- The fallback route is found by shape (every other default route in the table)
+  instead of by this project's device-specific comment.
+
 ## 0.3.0 — 2026-11-06
 
 ### Fixed
