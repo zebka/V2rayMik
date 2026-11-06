@@ -20,7 +20,7 @@ if [ -n "$url" ]; then
     http://*|https://*) ;;
     *) fail_json "400 Bad Request" "url must be http or https" ;;
   esac
-  if ! curl -fsSL --proto '=http,https' --max-time 25 -A "xray-gw-admin" "$url" -o "$tmp" 2>/dev/null; then
+  if ! curl -fsSL --proto '=http,https' --max-time 25 -A "v2raymik-admin" "$url" -o "$tmp" 2>/dev/null; then
     rm -f "$tmp"
     fail_json "502 Bad Gateway" "could not fetch the subscription"
   fi

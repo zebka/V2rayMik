@@ -28,6 +28,7 @@ COPY web/ /app/web/
 COPY --chmod=755 web/cgi-bin/ /app/web/cgi-bin/
 RUN printf '%s\n' "$VERSION" > /app/VERSION
 LABEL org.opencontainers.image.version=$VERSION
+LABEL org.opencontainers.image.title=v2raymik
 
 WORKDIR /app
 ENTRYPOINT ["/app/entrypoint.sh"]

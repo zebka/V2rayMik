@@ -1,6 +1,6 @@
 # Testing a candidate config without touching the live tunnel.
 #
-# Each test runs its own Xray with a SOCKS inbound on localhost. The candidate's
+# Each test runs its own sing-box with a SOCKS inbound on localhost. The candidate's
 # endpoint gets a /32 bypass for the duration, because inside this container the
 # half-default routes point at tun0 — without the bypass the test of node B would
 # travel through node A and measure the wrong thing.

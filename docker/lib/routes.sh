@@ -1,8 +1,8 @@
 # Route planning and container bring-up. Sourced by entrypoint.sh.
 
 # detect_egress — the container's real interface name. RouterOS names the
-# container's NIC after the veth (veth-xray), not eth0, so this must never be
-# hard-coded. It must also skip `tun0`: once xray is up, a `default dev tun0`
+# container's NIC after the veth (veth-mik), not eth0, so this must never be
+# hard-coded. It must also skip `tun0`: once the engine is up, a `default dev tun0`
 # can appear before the real one, and a /32 bypass installed through the tunnel
 # is a loop.
 detect_egress() {
@@ -92,7 +92,7 @@ resolve_endpoint() {
   exit 3
 }
 
-# wait_for_tun <name> <pid> — waits up to 10s for the interface xray creates.
+# wait_for_tun <name> <pid> — waits up to 10s for the interface the engine creates.
 wait_for_tun() {
   name=$1
   pid=$2
@@ -133,7 +133,7 @@ reapply_endpoint_route() {
       ip route replace "$ip/32" dev "$eth" || continue
     fi
     last=$ip
-    echo "xray-gw: endpoint ${host} -> ${ip}" >&2
+    echo "v2raymik: endpoint ${host} -> ${ip}" >&2
   done
 }
 

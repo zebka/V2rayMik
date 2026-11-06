@@ -3,7 +3,7 @@
 #
 # The engine is sing-box (it speaks vless, vmess, trojan, shadowsocks, hysteria2
 # and tuic); an outbound is a flat object with `type`, `server`, `server_port`
-# and protocol-specific fields. There is no Xray-shaped nesting here on purpose:
+# and protocol-specific fields. There is no engine-shaped nesting here on purpose:
 # one shape, one renderer, one place to look.
 
 urldecode() {
@@ -151,7 +151,7 @@ link_vless() {
   enc=$(qs "$2" encryption)
   case "$enc" in
     ""|none) ;;
-    *) link_fail "unsupported-link: vless encryption=$enc (xray extension)" ;;
+    *) link_fail "unsupported-link: vless encryption=$enc (vless extension)" ;;
   esac
 
   sec=$(qs "$2" security)

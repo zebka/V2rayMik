@@ -1,5 +1,5 @@
 #!/bin/sh
-# xray-mikrotik-gateway entrypoint. The engine is sing-box.
+# v2raymik entrypoint. The engine is sing-box.
 #
 #   entrypoint.sh render [-]   print the rendered config (or write it)
 #   entrypoint.sh routes       print the ip route commands for the endpoint
@@ -11,10 +11,10 @@
 set -eu
 
 SINGBOX_CONFIG=${SINGBOX_CONFIG:-/etc/sing-box/config.json}
-NODE_OUTBOUND_FILE=${NODE_OUTBOUND_FILE:-${XRAY_OUTBOUND_FILE:-/etc/sing-box/outbound.json}}
-NODE_OUTBOUND_JSON=${NODE_OUTBOUND_JSON:-${XRAY_OUTBOUND_JSON:-}}
-NODE_LINK=${NODE_LINK:-${XRAY_LINK:-}}
-LOG_LEVEL=${SINGBOX_LOG_LEVEL:-${XRAY_LOG_LEVEL:-warn}}
+NODE_OUTBOUND_FILE=${NODE_OUTBOUND_FILE:-/etc/sing-box/outbound.json}
+NODE_OUTBOUND_JSON=${NODE_OUTBOUND_JSON:-}
+NODE_LINK=${NODE_LINK:-}
+LOG_LEVEL=${SINGBOX_LOG_LEVEL:-warn}
 TUN_NAME=${TUN_NAME:-tun0}
 TUN_MTU=${TUN_MTU:-1500}
 TUN_GATEWAY=${TUN_GATEWAY:-198.18.0.1/15}
@@ -36,7 +36,7 @@ for f in /app/lib/*.sh; do
   . "$f"
 done
 
-log() { echo "xray-gw: $*" >&2; }
+log() { echo "v2raymik: $*" >&2; }
 die() { echo "$1" >&2; exit 2; }
 
 # load_outbound — prints one sing-box outbound object.
@@ -174,12 +174,9 @@ install_routes() {
   # even when the active node is dead. That has to be scoped to traffic the
   # container itself originates — a plain `/32` bypass also captures packets
   # forwarded *from the router*, which then bounce back out of the veth and loop
-  # (measured: an `ip route get` for the bypass address said `dev veth-xray` on
+  # (measured: an `ip route get` for the bypass address said `dev veth-mik` on
   # the router, and every fetch to 1.1.1.1 timed out).
-  cip=${XrayContainerIp:-}
-  if [ -z "$cip" ]; then
-    cip=$(ip -4 addr show dev "$ETH" 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1 | head -n 1)
-  fi
+  cip=$(ip -4 addr show dev "$ETH" 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1 | head -n 1)
   if [ -n "$cip" ] && [ -n "$GW" ]; then
     ip rule del from "$cip" lookup 100 2>/dev/null || true
     ip rule add from "$cip" lookup 100 priority 1000 2>/dev/null || true

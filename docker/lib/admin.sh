@@ -12,7 +12,7 @@ ADMIN_PORT=${ADMIN_PORT:-8080}
 ADMIN_SESSION_TTL=${ADMIN_SESSION_TTL:-7200}
 ADMIN_LOCK_TTL=${ADMIN_LOCK_TTL:-120}
 
-admin_log() { echo "xray-gw: $*" >&2; }
+admin_log() { echo "v2raymik: $*" >&2; }
 
 # start_admin — serve the page, or explain why not and keep running.
 start_admin() {
