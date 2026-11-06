@@ -45,15 +45,21 @@
   }
 }
 
-# --- 4. NAT ------------------------------------------------------------------
+# --- 4. NAT and the auto-route follower --------------------------------------
 :foreach c in={"xray: container egress";"xray: masquerade to container";"xray: LAN to container";"xray: admin ui"} do={
   :if ([:len [/ip firewall nat find where comment=$c]] > 0) do={
     /ip firewall nat remove [find where comment=$c]
   }
 }
 
-# --- 5. container and its plumbing -------------------------------------------
-:if ([:len [/container find where name=$XrayContainerName]] > 0) do={
+:if ([:len [/system scheduler find where name="xray-auto-route"]] > 0) do={
+  /system scheduler remove [find where name="xray-auto-route"]
+}
+:if ([:len [/system script find where name="xray-auto-route"]] > 0) do={
+  /system script remove [find where name="xray-auto-route"]
+}
+
+# --- 5. container and its plumbing -------------------------------------------:if ([:len [/container find where name=$XrayContainerName]] > 0) do={
   /container stop [find where name=$XrayContainerName]
   :delay 3s
   /container remove [find where name=$XrayContainerName]

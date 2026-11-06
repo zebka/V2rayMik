@@ -1,6 +1,27 @@
 # Changelog
 
-## 0.2.3 — unreleased
+## 0.2.6 — unreleased
+
+### Added
+
+- `cgi-bin/health`: an unauthenticated plain-text endpoint (`selected=`, `up=`,
+  `live=`) so RouterOS can follow the panel's choice without credentials.
+- `router/05-auto-route.rsc`: a 30-second scheduler that moves the world route to
+  Xray only while the panel reports a selected, up and live node, and back to the
+  OpenVPN route otherwise. This is what makes "Connect" actually move traffic.
+
+### Changed
+
+- The panel's first column is **real delay** (✓ ms / ✗ timeout) and a **country**
+  column shows the exit country reported by Cloudflare's trace through that node.
+
+## 0.2.5 — 2026-11-06
+
+Connect works again: `verify_routes` probed `1.1.1.1`, which the admin plane
+deliberately bypasses, so every restart looked broken and rolled back. It now
+probes a neutral address. Tests also report the exit country.
+
+## 0.2.4 — 2026-11-06
 
 ### Added
 

@@ -75,6 +75,14 @@ if have 03-firewall.rsc; then
 fi
 
 have 04-admin.rsc || err "04-admin.rsc: missing"
+have 05-auto-route.rsc || err "05-auto-route.rsc: missing"
+
+if have 05-auto-route.rsc; then
+  grep -q 'cgi-bin/health' "$dir/05-auto-route.rsc" || err "05-auto-route.rsc: does not poll the health endpoint"
+  grep -q 'selected=1' "$dir/05-auto-route.rsc" || err "05-auto-route.rsc: no selection check"
+  grep -q 'live=1' "$dir/05-auto-route.rsc" || err "05-auto-route.rsc: does not require a live tunnel"
+  grep -q 'comment="xray-world"' "$dir/05-auto-route.rsc" || err "05-auto-route.rsc: does not move the world route"
+fi
 
 if have 04-admin.rsc; then
   grep -q 'comment="xray: admin ui"' "$dir/04-admin.rsc" || err "04-admin.rsc: no admin dst-nat"

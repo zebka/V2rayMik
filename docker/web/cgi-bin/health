@@ -1,0 +1,52 @@
+#!/bin/sh
+# Public (unauthenticated) health endpoint, for the router's auto-route
+# scheduler. It answers three booleans as plain text so RouterOS does not have to
+# parse JSON:
+#
+#   selected=1   a node was chosen in the panel (state.json exists)
+#   up=1         the supervisor says the tunnel started and tun0 is present
+#   live=1       a 204 really came back through the tunnel (cached 20 s)
+#
+# No secrets, no labels: only what the router needs to move a route.
+DATA_DIR=${DATA_DIR:-/data}
+STATE_FILE=${STATE_FILE:-$DATA_DIR/state.json}
+STATUS_FILE=${STATUS_FILE:-$DATA_DIR/status.json}
+CACHE_FILE=${CACHE_FILE:-$DATA_DIR/live.cache}
+CHECK_URL=${CHECK_URL:-http://connectivitycheck.gstatic.com/generate_204}
+
+printf 'Content-Type: text/plain\r\nCache-Control: no-store\r\n\r\n'
+
+selected=0
+if [ -f "$STATE_FILE" ] && jq -e '.outbound != null' "$STATE_FILE" >/dev/null 2>&1; then
+  selected=1
+fi
+
+up=0
+if [ -d /sys/class/net/tun0 ] && jq -e '.up == true' "$STATUS_FILE" >/dev/null 2>&1; then
+  up=1
+fi
+
+live=0
+if [ "$up" = "1" ]; then
+  now=$(date +%s)
+  if [ -f "$CACHE_FILE" ]; then
+    ts=$(cut -d' ' -f1 "$CACHE_FILE" 2>/dev/null)
+    val=$(cut -d' ' -f2 "$CACHE_FILE" 2>/dev/null)
+    case "$ts" in ''|*[!0-9]*) ts=0 ;; esac
+    if [ "$val" = "1" ] && [ $((now - ts)) -lt 20 ]; then
+      live=1
+    elif [ "$val" = "0" ] && [ $((now - ts)) -lt 20 ]; then
+      live=0
+    else
+      code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 4 "$CHECK_URL" 2>/dev/null || echo 0)
+      [ "$code" = "204" ] && live=1
+      printf '%s %s\n' "$now" "$live" > "$CACHE_FILE"
+    fi
+  else
+    code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 4 "$CHECK_URL" 2>/dev/null || echo 0)
+    [ "$code" = "204" ] && live=1
+    printf '%s %s\n' "$now" "$live" > "$CACHE_FILE"
+  fi
+fi
+
+printf 'selected=%s up=%s live=%s\n' "$selected" "$up" "$live"
