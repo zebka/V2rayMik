@@ -7,32 +7,32 @@
 #   up=1         the tunnel started and tun0 exists
 #   live=1       a 204 came back through the tunnel recently
 #
-# Only `selected=1 up=1 live=1` keeps the world route on Xray. Anything else is
+# Only `selected=1 up=1 live=1` keeps the world route on the tunnel. Anything else is
 # a fallback to the **ISP directly** (traffic leaves Iran from the router's own
-# address), never to another tunnel: another VPN would hide a dead Xray node and
+# address), never to another tunnel: another VPN would hide a dead node and
 # silently change the exit country. Other default routes in the table (OpenVPN,
 # WireGuard) are left disabled while this scheduler runs.
 #
 # If you want to use a tunnel as the fallback instead, disable this scheduler and
-# enable the route by hand: `xray-auto-route` owns the table while it runs.
+# enable the route by hand: `mik-auto-route` owns the table while it runs.
 #
 # NOTE: RouterOS scripts do not inherit the importing session's variables, so the
-# values below are literals. If you changed XrayContainerIp, XrayAdminPort or
-# XrayTable from their defaults (172.17.0.2 / 8080 / to-world), edit them here.
+# values below are literals. If you changed MikContainerIp, MikAdminPort or
+# MikTable from their defaults (172.17.0.2 / 8080 / to-world), edit them here.
 #
 # `/tool fetch` needs the `ftp` policy; without it the fetch fails silently and
 # the scheduler looks like it does nothing.
 
-# RouterOS scopes globals per script: reading $XrayVeth without declaring it here
+# RouterOS scopes globals per script: reading $MikVeth without declaring it here
 # yields "nothing", even when 00-vars.rsc already set it.
-:global XrayVeth
+:global MikVeth
 
-:if ([:typeof $XrayVeth] = "nothing") do={
+:if ([:typeof $MikVeth] = "nothing") do={
   :error "import 00-vars.rsc first in this session"
 }
 
-:if ([:len [/system script find where name="xray-auto-route"]] = 0) do={
-  /system script add name=xray-auto-route policy=ftp,read,write,policy,test source={
+:if ([:len [/system script find where name="mik-auto-route"]] = 0) do={
+  /system script add name=mik-auto-route policy=ftp,read,write,policy,test source={
     :local body ""
     :do {
       :local r [/tool fetch url="http://172.17.0.2:8080/cgi-bin/health" output=user as-value duration=8s]
@@ -44,8 +44,8 @@
          [:len [:find $body "up=1"]] > 0 and \
          [:len [:find $body "live=1"]] > 0) do={ :set want 1 }
 
-    :local xw [/ip route find where comment="xray-world"]
-    :if ([:len $xw] = 0) do={ :log warning "xray-auto: no xray-world route"; :return }
+    :local xw [/ip route find where comment="mik-world"]
+    :if ([:len $xw] = 0) do={ :log warning "mik-auto: no mik-world route"; :return }
     :local xwid [:pick $xw 0]
     :local xon ([/ip route get $xwid disabled] = false)
 
@@ -59,13 +59,13 @@
     :local worlds [/ip route find where routing-table="to-world" and dst-address="0.0.0.0/0"]
 
     :if ($want = 1) do={
-      # Xray is live: it is the only default route that may be enabled.
+      # The node is live: it is the only default route that may be enabled.
       :foreach r in=$worlds do={
         :if ($r != $xwid and [/ip route get $r disabled] = false) do={ /ip route disable $r }
       }
       :if ($xon = false) do={
         /ip route enable $xwid
-        :log info "xray-auto: world traffic -> xray"
+        :log info "mik-auto: world traffic -> the tunnel"
       }
     } else={
       # No live node: every 0.0.0.0/0 that leaves through the ISP gateway is
@@ -88,18 +88,18 @@
       :if ($xon = true) do={
         /ip route disable $xwid
         :if ($direct > 0) do={
-          :log info "xray-auto: world traffic -> direct to the ISP (node not live)"
+          :log info "mik-auto: world traffic -> direct to the ISP (node not live)"
         } else={
-          :log warning "xray-auto: node not live and no route through the ISP gateway; world traffic is dropped"
+          :log warning "mik-auto: node not live and no route through the ISP gateway; world traffic is dropped"
         }
       }
     }
   }
 }
 
-:if ([:len [/system scheduler find where name="xray-auto-route"]] = 0) do={
-  /system scheduler add name=xray-auto-route interval=30s on-event=xray-auto-route \
-    policy=ftp,read,write,policy,test comment="xray: follow the panel's active node"
+:if ([:len [/system scheduler find where name="mik-auto-route"]] = 0) do={
+  /system scheduler add name=mik-auto-route interval=30s on-event=mik-auto-route \
+    policy=ftp,read,write,policy,test comment="mik: follow the panel's active node"
 }
 
 :log info "05-auto-route: scheduler ready (30s)"

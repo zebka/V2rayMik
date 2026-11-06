@@ -1,5 +1,5 @@
 #!/bin/sh
-# Test runner for xray-mikrotik-gateway.
+# Test runner for v2raymik.
 # Every tests/unit/*.t.sh is a standalone POSIX sh script: exit 0 = pass.
 set -u
 
