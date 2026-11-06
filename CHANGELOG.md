@@ -12,6 +12,16 @@
   appears, and is parsed by one small function that has its own test — a
   non-trace answer can no longer turn into a bogus country.
 
+### Docs
+
+- The egress allowlist section named a variable that does not exist
+  (`sing-boxContainerToWanPorts`); it is `XrayContainerToWanPorts`, and
+  `XrayExtraWanPorts` is the one for a single provider port.
+- Documented what a hysteria2 or TUIC node actually needs: its UDP port in
+  `XrayExtraWanPorts`, which feeds both the firewall rule and the container's
+  `ALLOWED_PORTS` — the list the admin page compares against before it enables Test
+  and Connect.
+
 ## 0.5.0 — 2026-11-06
 
 ### Changed

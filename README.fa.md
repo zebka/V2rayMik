@@ -42,8 +42,17 @@
 ترنسپورت‌ها: TCP، WebSocket، gRPC و HTTPUpgrade. **xhttp/splithttp پشتیبانی
 نمی‌شود** و پنل هم همین را می‌گوید، نه اینکه بی‌صدا شکست بخورد.
 
-hysteria2 و tuic روی UDP کار می‌کنند؛ پورتشان باید در allowlist کانتینر روی روتر
-باشد، وگرنه پنل `port blocked` نشان می‌دهد.
+hysteria2 و tuic روی UDP کار می‌کنند و provider معمولاً پورت دلخواه خودش را
+انتخاب می‌کند. همان پورت را در `router/00-vars.rsc` به `XrayExtraWanPorts` اضافه کن:
+
+```
+:global XrayExtraWanPorts "22001,8443"
+```
+
+اسکریپت‌ها از همین متغیر یک قاعدهٔ accept اضافه می‌سازند. بدون آن، دست‌دادن نود از
+روتر بیرون می‌رود و برنمی‌گردد و پنل `port blocked` نشان می‌دهد. import مجدد
+`01-container.rsc` مقدار `ALLOWED_PORTS` را از همین متغیر بازمی‌سازد، پس پورتی که
+دستی در `/ip firewall filter` اضافه شده باشد بعد از import از دست می‌رود.
 
 اگر لینک hysteria2 هم `insecure=1` داشته باشد و هم `pinSHA256`، پین دور انداخته
 می‌شود: `insecure` خودش یعنی تأیید گواهی خاموش است و پین‌های این لینک‌ها بعد از

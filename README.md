@@ -64,8 +64,18 @@ Transports: TCP, WebSocket, gRPC and HTTPUpgrade. **xhttp/splithttp is not
 supported** — sing-box has no such transport, and the panel says so instead of
 silently failing.
 
-Hysteria2 and TUIC are UDP. Their port has to be in the router's container
-allowlist, otherwise the panel shows `port blocked`.
+Hysteria2 and TUIC are UDP, and providers usually pick a port of their own. Add
+that port to `XrayExtraWanPorts` in `router/00-vars.rsc`:
+
+```
+:global XrayExtraWanPorts "22001,8443"
+```
+
+The scripts then keep an extra accept rule for it. Without it the node's handshake
+leaves the router and never comes back, and the panel reports `port blocked`.
+Re-importing `01-container.rsc` rebuilds `ALLOWED_PORTS` from that variable, so
+setting it there is what survives a re-import — a port added by hand in
+`/ip firewall filter` does not.
 
 A hysteria2 link that carries both `insecure=1` and `pinSHA256` is parsed with the
 pin dropped: `insecure` is the provider's own statement that verification is off,

@@ -10,7 +10,8 @@ Symptom → cause → fix. Start with the container log:
 
 ## The one that catches everyone: the port
 
-A transport whose port is not in `sing-boxContainerToWanPorts` produces **no error**.
+A transport whose port is not in `XrayContainerToWanPorts` (or, for a one-off port,
+`XrayExtraWanPorts`) produces **no error**.
 sing-box redials forever, the router logs nothing, and the symptom is "the tunnel is
 broken".
 

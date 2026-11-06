@@ -62,8 +62,8 @@ everything it can reach:
 
 | Rule | Effect |
 | --- | --- |
-| accept `172.17.0.0/24 → WAN` on `sing-boxContainerToWanPorts` (tcp) | the transport's TCP ports |
-| accept `172.17.0.0/24 → WAN` on `sing-boxContainerToWanPorts` (udp) | UDP transports, DNS |
+| accept `172.17.0.0/24 → WAN` on `XrayContainerToWanPorts` (tcp) | the transport's TCP ports |
+| accept `172.17.0.0/24 → WAN` on `XrayContainerToWanPorts` (udp) | UDP transports, DNS |
 | **drop** `172.17.0.0/24 → anything` | everything else |
 
 ### Why ports and not "allow the server's IP"
@@ -89,7 +89,7 @@ This is least privilege, applied to the one network path the container owns.
 
 ### The default list
 
-`sing-boxContainerToWanPorts` defaults to:
+`XrayContainerToWanPorts` defaults to:
 
 ```
 443,80,8080,8880,2052,2053,2082,2083,2086,2087,2095,2096,8443,53
@@ -108,7 +108,7 @@ Add it. Find the port in the link (`@host:PORT`) or in the container log:
 ```
 
 you will see `dialing to tcp:<ip>:<port>`. Then either edit
-`sing-boxContainerToWanPorts` in `00-vars.rsc` and re-import `03-firewall.rsc`, or
+`XrayContainerToWanPorts` in `00-vars.rsc` and re-import `03-firewall.rsc`, or
 patch the live rule:
 
 ```
@@ -120,6 +120,14 @@ patch the live rule:
 
 `03-firewall.rsc` re-applies the variable on every import, so the script and the
 device stay in step.
+
+A hysteria2 or TUIC node is **UDP**, on whatever port the provider chose, so the
+practical route is `XrayExtraWanPorts` in `00-vars.rsc`: the scripts add one accept
+rule per protocol for it *and* append it to the container's `ALLOWED_PORTS`. That
+second list is not decoration — the admin page compares each entry's port against
+it and disables Test and Connect with a `port blocked` pill when it does not match,
+so a rule patched only in `/ip firewall filter` lets the traffic through while the
+panel still refuses the node.
 
 RouterOS accepts at most **15 ports in one `dst-port` list**. The default list has
 14, which leaves room for exactly one exception. If you need more, add a second
