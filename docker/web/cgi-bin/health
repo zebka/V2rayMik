@@ -1,4 +1,4 @@
-﻿#!/bin/sh
+#!/bin/sh
 # Public (unauthenticated) health endpoint, for the router's auto-route
 # scheduler. It answers three booleans as plain text so RouterOS does not have to
 # parse JSON:

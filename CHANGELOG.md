@@ -1,6 +1,32 @@
 # Changelog
 
-## 0.2.6 — unreleased
+## 0.2.9 — 2026-11-06
+
+### Fixed
+
+- `cgi-bin/health` and `cgi-bin/connect` landed in the image with a UTF-8 BOM,
+  so busybox httpd could not exec them and `/cgi-bin/health` answered 404. Both
+  files are stripped, and `tests/unit/cgi-headers.t.sh` now fails the build if any
+  CGI script loses its shebang to a BOM or gains CRLF line endings.
+
+## 0.2.8 — 2026-11-06
+
+### Fixed
+
+- Admin egress is now an `ip rule from <container-ip> lookup 100` with a default
+  route in table 100, instead of a `/32` bypass per resolver. The `/32` also
+  captured packets forwarded from the router, which bounced back out of the veth
+  and looped: every test of `1.1.1.1` timed out.
+
+## 0.2.7 — 2026-11-06
+
+### Fixed
+
+- Testing the config that is already active no longer deletes its endpoint
+  `/32` bypass at the end of the test. Losing that bypass made the live tunnel
+  route its own server address into itself, so every request looped.
+
+## 0.2.6 — 2026-11-06
 
 ### Added
 

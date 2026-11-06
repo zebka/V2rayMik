@@ -1,4 +1,4 @@
-﻿#!/bin/sh
+#!/bin/sh
 . /app/web/cgi-bin/_common
 . /app/lib/xtest.sh
 
