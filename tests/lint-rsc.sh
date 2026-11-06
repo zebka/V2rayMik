@@ -148,4 +148,22 @@ if have 99-uninstall.rsc; then
   grep -q 'local-nets' "$dir/99-uninstall.rsc" && err "99-uninstall.rsc: touches local-nets"
 fi
 
+# The migration script keeps the old name in its filename on purpose, so build
+# it here: `tests/` is inside the strict set and must not spell it out.
+mig="90-migrate-from-${xr}.rsc"
+if have "$mig"; then
+  m="$dir/$mig"
+  grep -q "name=\"${xr}-gw\"" "$m" || err "90-migrate: does not find the old container by name"
+  grep -q "MOUNT_${XR}_DATA" "$m" || err "90-migrate: does not remove the old mount list"
+  grep -q "World -> ${xr} (LAN)" "$m" || err "90-migrate: the LAN mark rule has no prefix comment and would be orphaned"
+  grep -q "World -> ${xr} (router)" "$m" || err "90-migrate: the router mark rule would be orphaned"
+  grep -q "${xr}-auto-route" "$m" || err "90-migrate: the old scheduler and script would survive"
+  grep -q 'dst="/data"' "$m" || err "90-migrate: does not discover the old data dir from the mount, so the disk is a guess"
+  grep -q 'sub.txt' "$m" || err "90-migrate: does not carry the subscription over"
+  grep -q '/file remove' "$m" && err "90-migrate: deletes files; the old dirs are the rollback path"
+  grep -q ':log warning' "$m" || err "90-migrate: never warns, so a missing subscription would pass silently"
+else
+  err "90-migrate-from-${xr}.rsc: missing (existing installs have no upgrade path)"
+fi
+
 exit "$rc"
