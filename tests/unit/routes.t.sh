@@ -21,11 +21,16 @@ assert_eq "$(printf '%s\n' "$out" | sed -n 1p)" \
 mkdir -p /tmp/fakeip
 cat > /tmp/fakeip/ip <<'EOF'
 #!/bin/sh
-echo "default via 172.17.0.1 dev veth-xray  proto static"
+# the real table, with a default dev tun0 listed first — the shape that broke
+# detect_egress on the router
+echo "0.0.0.0/1 dev tun0 scope link"
+echo "default via 172.17.0.1 dev tun0"
+echo "default via 172.17.0.1 dev veth-xray"
+echo "198.18.0.0/15 dev tun0 scope link"
 EOF
 chmod +x /tmp/fakeip/ip
 out=$(PATH=/tmp/fakeip:$PATH sh -c '. /app/lib/links.sh; . /app/lib/routes.sh; detect_egress')
-assert_eq "$out" "veth-xray" "egress detected from the default route"
+assert_eq "$out" "veth-xray" "egress skips tun0"
 out=$(PATH=/tmp/fakeip:$PATH sh -c '. /app/lib/links.sh; . /app/lib/routes.sh; detect_gateway')
 assert_eq "$out" "172.17.0.1" "gateway detected from the default route"
 

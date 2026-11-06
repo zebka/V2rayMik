@@ -2,14 +2,22 @@
 
 # detect_egress — the container's real interface name. RouterOS names the
 # container's NIC after the veth (veth-xray), not eth0, so this must never be
-# hard-coded.
+# hard-coded. It must also skip `tun0`: once xray is up, a `default dev tun0`
+# can appear before the real one, and a /32 bypass installed through the tunnel
+# is a loop.
 detect_egress() {
-  ip route show default 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1); exit}}'
+  ip route show 2>/dev/null | awk -v t="${TUN_NAME:-tun0}" '
+    $1 == "default" {
+      for (i = 1; i <= NF; i++) if ($i == "dev") { d = $(i + 1); if (d != t) { print d; exit } }
+    }'
 }
 
 # detect_gateway — the default gateway inside the container (172.17.0.1).
 detect_gateway() {
-  ip route show default 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="via"){print $(i+1); exit}}'
+  ip route show 2>/dev/null | awk '
+    $1 == "default" {
+      for (i = 1; i <= NF; i++) if ($i == "via") { print $(i + 1); exit }
+    }'
 }
 
 # plan_routes <endpoint-ip> [tun] [eth] [gateway]
