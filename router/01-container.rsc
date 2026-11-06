@@ -18,6 +18,16 @@
 }
 /container/config/set tmpdir=($XrayDisk . "/tmp") registry-url="https://registry-1.docker.io"
 
+# The panel's state (subscription, chosen node, sessions) lives outside the
+# container's root-dir, because `/container/repull` wipes that directory on every
+# update. This mount is what makes an upgrade keep the selected node.
+:if ([:len [/file find where name=($XrayDisk . "/xray-data")]] = 0) do={
+  /file add name=($XrayDisk . "/xray-data") type=directory
+}
+:if ([:len [/container/mounts find where list="MOUNT_XRAY_DATA"]] = 0) do={
+  /container/mounts add list=MOUNT_XRAY_DATA src=($XrayDisk . "/xray-data") dst=/data
+}
+
 # --- veth --------------------------------------------------------------------
 # The address goes on the veth itself, with no bridge in between. Measured on
 # RouterOS 7.25.1: with the veth in a bridge, the router could ARP the container
@@ -72,14 +82,16 @@
     /container add name=$XrayContainerName file=$XrayImageFile interface=$XrayVeth \
       root-dir=($XrayDisk . "/" . $XrayContainerName) dns=1.1.1.1 \
       envlist=$XrayContainerName start-on-boot=yes restart-policy=always \
-      check-certificate=$XrayCheckCertificate memory-high=100663296 logging=yes
+      check-certificate=$XrayCheckCertificate mountlists=MOUNT_XRAY_DATA \
+      memory-high=100663296 logging=yes
   }
 } else={
   :if ([:len [/container find where name=$XrayContainerName]] = 0) do={
     /container add name=$XrayContainerName remote-image=$XrayImage interface=$XrayVeth \
       root-dir=($XrayDisk . "/" . $XrayContainerName) dns=1.1.1.1 \
       envlist=$XrayContainerName start-on-boot=yes restart-policy=always \
-      check-certificate=$XrayCheckCertificate memory-high=100663296 logging=yes
+      check-certificate=$XrayCheckCertificate mountlists=MOUNT_XRAY_DATA \
+      memory-high=100663296 logging=yes
   }
 }
 

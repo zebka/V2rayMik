@@ -52,6 +52,7 @@ have 99-uninstall.rsc || err "99-uninstall.rsc: missing"
 
 if have 01-container.rsc; then  grep -q 'veth' "$dir/01-container.rsc" || err "01-container.rsc: no veth"
   grep -q 'container/config/set' "$dir/01-container.rsc" || err "01-container.rsc: tmpdir not set"
+  grep -q 'mountlists=MOUNT_XRAY_DATA' "$dir/01-container.rsc" || err "01-container.rsc: /data is not mounted outside the root-dir, so repull wipes the panel state"
 fi
 
 if have 02-routing.rsc; then
