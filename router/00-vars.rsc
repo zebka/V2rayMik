@@ -29,6 +29,15 @@
 # for example "usb2/royal-xray-gateway.tar".
 :global XrayImageFile ""
 
+# --- admin page --------------------------------------------------------------
+# Password for the LAN page. It is the only credential of the panel; set it
+# before importing 01-container.rsc. The page is off while this is empty.
+:global XrayAdminPassword ""
+
+# Port inside the container, and the port clients use on the router's LAN IP.
+:global XrayAdminPort "8080"
+:global XrayAdminLanPort "8081"
+
 # Disk that holds the container root-dir (must be a mounted external disk).
 :global XrayDisk "usb2"
 

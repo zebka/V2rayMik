@@ -3,10 +3,11 @@
 #
 #   entrypoint.sh render [-]   print the rendered config (or write it)
 #   entrypoint.sh routes       print the ip route commands for the endpoint
-#   entrypoint.sh run          configure the container and exec xray (default)
+#   entrypoint.sh run          supervise Xray and the admin UI (default)
 #
 # The TUN inbound always comes from this file. Only `outbounds` comes from the
-# operator: either a JSON file (XRAY_OUTBOUND_FILE) or a share link (XRAY_LINK).
+# operator: a JSON file, a share link, or the active entry in state.json (set by
+# the admin page).
 set -eu
 
 XRAY_CONFIG=${XRAY_CONFIG:-/etc/xray/config.json}
@@ -17,7 +18,16 @@ TUN_MTU=${TUN_MTU:-1500}
 TUN_GATEWAY=${TUN_GATEWAY:-198.18.0.1/15}
 ENDPOINT_IP=${ENDPOINT_IP:-}
 
-# Link parsing and route planning live in lib/ so the tests can source them.
+# Admin UI state lives with the container's persistent root-dir.
+DATA_DIR=${DATA_DIR:-/data}
+ALLOWED_PORTS=${ALLOWED_PORTS:-443,80,8080,8880,2052,2053,2082,2083,2086,2087,2095,2096,8443,53}
+STATE_FILE=${STATE_FILE:-$DATA_DIR/state.json}
+STATUS_FILE=${STATUS_FILE:-$DATA_DIR/status.json}
+CHECK_URL=${CHECK_URL:-http://connectivitycheck.gstatic.com/generate_204}
+export DATA_DIR ALLOWED_PORTS STATE_FILE CHECK_URL
+
+# Link parsing, route planning, admin helpers and the test harness live in lib/
+# so the tests can source them.
 for f in /app/lib/*.sh; do
   [ -e "$f" ] || continue
   # shellcheck source=/dev/null
@@ -49,7 +59,7 @@ load_outbound() {
   cat "$XRAY_OUTBOUND_FILE"
 }
 
-# Prints the full config on stdout.
+# render_config — prints the full config on stdout.
 render_config() {
   ob=$(load_outbound)
   printf '%s' "$ob" | jq -e . >/dev/null 2>&1 \
@@ -74,8 +84,16 @@ render_config() {
     '{log:{loglevel:$lvl},
       inbounds:[{tag:"tun-in",protocol:"tun",
                  settings:{name:$name,mtu:$mtu,gateway:[$gw]}}],
-      outbounds:$ob}' 
+      outbounds:$ob}'
   rm -f "$tmp"
+}
+
+validate_config() {
+  # $1 = path to a config file
+  if ! out=$(xray run -test -c "$1" 2>&1); then
+    printf '%s\n' "$out" >&2
+    die "invalid-config: xray rejected the rendered configuration"
+  fi
 }
 
 # Turns on IPv4 forwarding in the container's namespace. RouterOS containers
@@ -90,11 +108,116 @@ enable_forwarding() {
   fi
 }
 
-validate_config() {  # $1 = path to a config file
-  if ! out=$(xray run -test -c "$1" 2>&1); then
-    printf '%s\n' "$out" >&2
-    die "invalid-config: xray rejected the rendered configuration"
+# ---------------------------------------------------------------------------
+# active config: state.json first, environment second
+# ---------------------------------------------------------------------------
+
+status_write() {
+  # $1 up|false  $2 label
+  mkdir -p "$DATA_DIR"
+  printf '{"up":%s,"label":"%s","at":%s}\n' \
+    "$1" "$(json_escape "${2:-}")" "$(date +%s)" > "$STATUS_FILE.tmp" \
+    && mv -f "$STATUS_FILE.tmp" "$STATUS_FILE"
+}
+
+# build_active_config — sets OB, ACTIVE_LABEL, IPV4, ETH, GW and writes
+# $XRAY_CONFIG. Returns non-zero when no usable config exists yet.
+build_active_config() {
+  ETH=${EGRESS_IF:-$(detect_egress)}
+  GW=${EGRESS_GW:-$(detect_gateway)}
+  [ -n "$ETH" ] || { log "no-egress: no default route inside the container"; return 1; }
+
+  ACTIVE_LABEL="environment"
+  ob=""
+  if [ -f "$STATE_FILE" ]; then
+    ob=$(jq -c '.outbound // empty' "$STATE_FILE" 2>/dev/null || true)
+    ACTIVE_LABEL=$(jq -r '.label // "state"' "$STATE_FILE" 2>/dev/null || echo "state")
   fi
+
+  if [ -n "$ob" ] && [ "$ob" != "null" ]; then
+    XRAY_OUTBOUND_JSON=$ob
+  else
+    ob=$(load_outbound 2>/dev/null) || { return 1; }
+  fi
+  export XRAY_OUTBOUND_JSON="$ob"
+
+  ep=$(endpoint_of "$ob" 2>/dev/null) || { log "no endpoint in the outbound"; return 1; }
+  host=${ep%:*}
+
+  ipv4=$(resolve_endpoint "$host") || return 1
+  IPV4=$ipv4
+
+  if ! is_ipv4 "$host"; then
+    ob=$(printf '%s' "$ob" | jq --arg ip "$ipv4" '(.settings.vnext // .settings.servers)[0].address = $ip')
+    XRAY_OUTBOUND_JSON=$ob
+    export XRAY_OUTBOUND_JSON
+  fi
+
+  OB=$ob
+  mkdir -p "$(dirname "$XRAY_CONFIG")"
+  render_config > "$XRAY_CONFIG"
+  validate_config "$XRAY_CONFIG"
+  return 0
+}
+
+install_routes() {
+  plan_routes "$IPV4" "$TUN_NAME" "$ETH" "$GW" | while IFS= read -r cmdline; do
+    sh -c "$cmdline" || log "route failed: $cmdline"
+  done
+  ip link set dev "$TUN_NAME" up 2>/dev/null || true
+
+  # Admin plane: the subscription fetch and the container's own resolver must
+  # work even when the active node is dead, so they get their own bypass.
+  for r in ${ADMIN_DNS:-1.1.1.1 8.8.8.8}; do
+    if [ -n "$GW" ]; then
+      ip route replace "$r/32" via "$GW" dev "$ETH" 2>/dev/null || true
+    fi
+  done
+
+  verify_routes "$TUN_NAME"
+}
+
+# ---------------------------------------------------------------------------
+# supervisor
+# ---------------------------------------------------------------------------
+
+supervise() {
+  ADMIN_NAME=${CONTAINER_NAME:-}
+  restart=0
+  trap 'restart=1; [ -n "${xpid:-}" ] && kill -TERM "$xpid" 2>/dev/null' HUP
+  trap 'kill -TERM "${xpid:-}" 2>/dev/null; exit 0' TERM INT
+
+  while :; do
+    status_write false ""
+    if ! build_active_config; then
+      log "no usable config yet; waiting"
+      sleep 10
+      continue
+    fi
+    log "starting: ${ACTIVE_LABEL} endpoint ${host} -> ${IPV4}, tun ${TUN_NAME}, egress ${ETH}, gw ${GW:-none}"
+
+    xray run -c "$XRAY_CONFIG" &
+    xpid=$!
+
+    if wait_for_tun "$TUN_NAME" "$xpid"; then
+      if install_routes; then
+        status_write true "$ACTIVE_LABEL"
+      else
+        log "route-not-installed: traffic is not entering $TUN_NAME"
+      fi
+    else
+      log "tun-not-ready: $TUN_NAME did not appear"
+    fi
+
+    wait "$xpid" || true
+    xpid=""
+    if [ "$restart" = 1 ]; then
+      restart=0
+      log "reloading on request"
+      continue
+    fi
+    sleep 2
+  done
 }
 
 cmd=${1:-run}
@@ -113,60 +236,13 @@ case "$cmd" in
   routes)
     ob=$(load_outbound) || exit 2
     ep=$(endpoint_of "$ob") || exit 2
-    plan_routes "$(resolve_endpoint "${ep%:*}")" "$TUN_NAME" "${EGRESS_IF:-eth0}"
+    plan_routes "$(resolve_endpoint "${ep%:*}")" "$TUN_NAME" "${EGRESS_IF:-$(detect_egress)}" "$(detect_gateway)"
     ;;
   run)
-    eth=${EGRESS_IF:-$(detect_egress)}
-    if [ -z "$eth" ]; then
-      die "no-egress: could not find the container's default-route interface"
-    fi
-    gw=${EGRESS_GW:-$(detect_gateway)}
-
-    ob=$(load_outbound) || exit 2
-    ep=$(endpoint_of "$ob") || exit 2
-    host=${ep%:*}
-    ipv4=$(resolve_endpoint "$host")
-
-    # Pin the endpoint address into the config. xray resolves the outbound's
-    # address at dial time, and inside this container DNS goes *through the
-    # tunnel*, which cannot come up until the server is dialable: a deadlock.
-    # Dialing an IP removes the resolver from the startup path entirely.
-    if ! is_ipv4 "$host"; then
-      ob=$(printf '%s' "$ob" | jq --arg ip "$ipv4" '(.settings.vnext // .settings.servers)[0].address = $ip') || exit 2
-      XRAY_OUTBOUND_JSON=$ob
-      export XRAY_OUTBOUND_JSON
-    fi
-
-    mkdir -p "$(dirname "$XRAY_CONFIG")"
-    render_config > "$XRAY_CONFIG"
-    validate_config "$XRAY_CONFIG"
-
+    mkdir -p "$DATA_DIR" "$(dirname "$XRAY_CONFIG")"
+    start_admin
     enable_forwarding
-    log "endpoint ${host} -> ${ipv4}, tun ${TUN_NAME}, egress ${eth}, gw ${gw:-none}"
-
-    xray run -c "$XRAY_CONFIG" &
-    pid=$!
-    trap 'kill -TERM "$pid" 2>/dev/null; wait "$pid" 2>/dev/null; exit 0' TERM INT
-
-    if wait_for_tun "$TUN_NAME" "$pid"; then
-      plan_routes "$ipv4" "$TUN_NAME" "$eth" "$gw" | while IFS= read -r cmdline; do
-        sh -c "$cmdline" || log "route failed: $cmdline"
-      done
-      ip link set dev "$TUN_NAME" up 2>/dev/null || true
-      if ! verify_routes "$TUN_NAME"; then
-        kill "$pid" 2>/dev/null || true
-        wait "$pid" 2>/dev/null || true
-        exit 1
-      fi
-      reapply_endpoint_route "$host" "$TUN_NAME" "$eth" "$gw" &
-    else
-      log "tun-not-ready: $TUN_NAME did not appear; exiting"
-      kill "$pid" 2>/dev/null || true
-      wait "$pid" 2>/dev/null || true
-      exit 1
-    fi
-
-    wait "$pid"
+    supervise
     ;;
   *)
     die "usage: entrypoint.sh [render|routes|run]"

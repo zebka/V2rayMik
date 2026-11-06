@@ -101,6 +101,24 @@ lint rule in this repo:
 | Router's own traffic dies inside the container | it left with the WAN address as source; masquerade towards the veth fixes it |
 | Router could ARP the container but never talk to it | the bridge layout; address on the veth fixes it |
 
+## Process model
+
+```
+PID 1: entrypoint (supervisor)
+ ├── busybox httpd :8080          (the LAN panel; off without ADMIN_PASSWORD)
+ └── xray run -c config.json      (restarted on SIGHUP, never the container)
+```
+
+`/data/state.json` (persistent root-dir) wins over the environment: when the panel
+picks a node it writes the outbound there and sends `HUP`; the supervisor rebuilds
+`config.json`, restarts Xray, and verifies the result. The RouterOS routes and the
+container itself are untouched, which is why a switch costs ~2–3 s and not a
+container restart.
+
+Testing a candidate runs a *second*, short-lived Xray with a SOCKS inbound and a
+`/32 via <gateway>` route for its endpoint. Without that route the candidate's
+dial would enter the live TUN and the measurement would describe the wrong node.
+
 ## Health and failover
 
 - `restart-policy=always` handles a crashed process.

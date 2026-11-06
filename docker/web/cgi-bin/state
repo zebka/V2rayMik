@@ -1,0 +1,23 @@
+#!/bin/sh
+. /app/web/cgi-bin/_common
+
+require_auth
+
+gen=$(gen_of "$SUB_FILE")
+count=$(subs_count "$SUB_FILE")
+testing=false
+lock_held && testing=true
+
+label=""
+index=-1
+if [ -f "$STATE_FILE" ]; then
+  label=$(jq -r '.label // ""' "$STATE_FILE" 2>/dev/null)
+  index=$(jq -r '.index // -1' "$STATE_FILE" 2>/dev/null)
+fi
+
+tun=false
+[ -d /sys/class/net/tun0 ] && tun=true
+
+list=$(subs_list "$SUB_FILE" "$ALLOWED_PORTS")
+
+ok_json "{\"ok\":true,\"gen\":\"$(json_escape "$gen")\",\"count\":$count,\"label\":\"$(json_escape "$label")\",\"index\":$index,\"testing\":$testing,\"tun\":$tun,\"list\":$list}"

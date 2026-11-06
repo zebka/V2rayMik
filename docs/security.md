@@ -24,6 +24,37 @@ What this project does about it:
 What it cannot do: protect you from a malicious image, a compromised registry, or
 a RouterOS vulnerability. Pin the version you audited.
 
+## The admin page
+
+The panel is a second process in the same container: it shares the image with the
+transport, so its risk is the transport's risk. What keeps that bounded:
+
+- **One door, on the LAN.** The container listens on `:8080`; the only exposure is
+  the `dst-nat` in `04-admin.rsc`, which is scoped to `in-interface-list=LAN`.
+  There is no WAN rule to forget to remove.
+- **Off by default.** No `ADMIN_PASSWORD`, no panel: the HTTP server does not
+  start, Xray runs as usual, and the log says `admin-disabled`.
+- **Session cookie only**: `HttpOnly`, `SameSite=Strict`, 32 random hex chars,
+  2 h server-side expiry. No JWT, no client-side state worth stealing.
+- **Every mutation needs the `gen` hash** of the current config list, so a stale
+  tab cannot act on a shifted index. A missing or wrong hash is a `409`.
+- **No secrets in responses.** The list carries label, protocol, host and port —
+  never a UUID, key or full link. The active outbound lives in `/data/state.json`
+  (mode 600) on the USB disk.
+- **No shell from the browser.** CGI parameters are integers and enums; the
+  subscription URL is the single free-form string and it goes to `curl` as one
+  argv with `--proto '=http,https'`.
+- **One test at a time**, guarded by a lock directory with a 2-minute stale
+  timeout, so a dead tab cannot pin the CPU.
+- **Failed switch → rollback.** State is written tentatively; if the new node
+  does not come up within 12 s the previous outbound is restored (or, on a first
+  switch, the state is dropped and the environment config returns).
+
+What it does *not* protect against: someone already on your LAN with the
+password, and the container image itself. The password is stored in the
+container's environment, which is visible in a RouterOS export — treat the router
+config as sensitive.
+
 ## The container's egress allowlist
 
 The container subnet is **default-deny**. Three rules in `03-firewall.rsc` decide

@@ -72,6 +72,14 @@ if have 03-firewall.rsc; then
   grep -q 'dst-address=\$XrayContainerIp' "$dir/03-firewall.rsc" && err "03-firewall.rsc: masquerade matches the destination, which is never the container"
 fi
 
+have 04-admin.rsc || err "04-admin.rsc: missing"
+
+if have 04-admin.rsc; then
+  grep -q 'comment="xray: admin ui"' "$dir/04-admin.rsc" || err "04-admin.rsc: no admin dst-nat"
+  grep -q 'in-interface-list=LAN' "$dir/04-admin.rsc" || err "04-admin.rsc: the admin port is not restricted to the LAN"
+  grep -q 'dst-port=\$XrayAdminLanPort' "$dir/04-admin.rsc" || err "04-admin.rsc: LAN port not driven by the variable"
+fi
+
 if have 99-uninstall.rsc; then
   for sym in XrayVeth XrayBridge XrayContainerName; do
     grep -q "\$$sym" "$dir/99-uninstall.rsc" || err "99-uninstall.rsc: does not mention \$$sym"

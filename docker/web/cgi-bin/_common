@@ -1,0 +1,38 @@
+#!/bin/sh
+# Shared preamble for every CGI. Not executable on purpose.
+. /app/lib/admin.sh
+. /app/lib/links.sh
+. /app/lib/routes.sh
+. /app/lib/subs.sh
+
+DATA_DIR=${DATA_DIR:-/data}
+SUB_FILE=${SUB_FILE:-$DATA_DIR/sub.txt}
+STATE_FILE=${STATE_FILE:-$DATA_DIR/state.json}
+ALLOWED_PORTS=${ALLOWED_PORTS:-}
+
+json_header() {
+  printf 'Content-Type: application/json\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\n\r\n'
+}
+
+ok_json() {
+  json_header
+  printf '%s' "$1"
+  exit 0
+}
+
+fail_json() {
+  printf 'Status: %s\r\n' "$1"
+  json_header
+  printf '{"ok":false,"error":"%s"}' "$(json_escape "$2")"
+  exit 0
+}
+
+cookie_sid() {
+  printf '%s' "${HTTP_COOKIE:-}" | sed -n 's/.*sid=\([0-9a-f]\{32\}\).*/\1/p'
+}
+
+# Sets SID, or answers 401 and exits.
+require_auth() {
+  SID=$(cookie_sid)
+  session_valid "$SID" || fail_json "401 Unauthorized" "auth required"
+}

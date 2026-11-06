@@ -36,9 +36,21 @@
 # The outbound lives in the container's root-dir, so it survives a re-pull:
 #   <disk>/xray-gw/etc/xray/outbound.json
 # Set XRAY_LINK here instead if you prefer a share link (do not set both).
-:if ([:len [/container envs find where list=$XrayContainerName]] = 0) do={
+# Each entry is added only when missing, so re-importing never resets a value
+# the admin page has since changed.
+:if ([:len [/container envs find where list=$XrayContainerName and key="XRAY_OUTBOUND_FILE"]] = 0) do={
   /container envs add list=$XrayContainerName key=XRAY_OUTBOUND_FILE \
     value="/etc/xray/outbound.json"
+}
+
+:if ([:len [/container envs find where list=$XrayContainerName and key="ADMIN_PASSWORD"]] = 0) do={
+  /container envs add list=$XrayContainerName key=ADMIN_PASSWORD value=$XrayAdminPassword
+}
+
+# The UI marks configs whose port is outside this list as blocked, so it must
+# match the firewall allowlist exactly.
+:if ([:len [/container envs find where list=$XrayContainerName and key="ALLOWED_PORTS"]] = 0) do={
+  /container envs add list=$XrayContainerName key=ALLOWED_PORTS value=$XrayContainerToWanPorts
 }
 
 # --- container ---------------------------------------------------------------

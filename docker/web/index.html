@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>xray gateway</title>
+<style>
+  :root { color-scheme: light dark; --line:#8a8a8a40; --accent:#3b82f6; --bad:#dc2626; --good:#16a34a; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:1rem; font:15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  h1 { font-size:1.15rem; margin:0 0 .25rem; }
+  h2 { font-size:.95rem; margin:0 0 .6rem; font-weight:600; }
+  .card { border:1px solid var(--line); border-radius:10px; padding:.9rem; margin:0 0 .9rem; }
+  .muted { opacity:.65; font-size:.85rem; }
+  .row { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
+  input, textarea, button { font:inherit; }
+  input[type=text], input[type=password], textarea {
+    width:100%; padding:.5rem .6rem; border:1px solid var(--line); border-radius:8px; background:transparent; color:inherit;
+  }
+  textarea { min-height:5.5rem; resize:vertical; }
+  button { padding:.45rem .8rem; border-radius:8px; border:1px solid var(--line); background:transparent; color:inherit; cursor:pointer; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button:disabled { opacity:.45; cursor:default; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { text-align:left; padding:.45rem .35rem; border-bottom:1px solid var(--line); vertical-align:top; font-size:.9rem; }
+  th { font-weight:600; opacity:.75; }
+  .num { font-variant-numeric:tabular-nums; }
+  .ok { color:var(--good); } .bad { color:var(--bad); }
+  .pill { display:inline-block; padding:.05rem .45rem; border-radius:99px; border:1px solid var(--line); font-size:.78rem; }
+  .scroll { overflow-x:auto; }
+  label.check { display:flex; gap:.4rem; align-items:center; font-size:.85rem; }
+</style>
+</head>
+<body>
+<h1>xray gateway</h1>
+<p class="muted">Exit node selection for this router. Reachable from the LAN only.</p>
+
+<div class="card" id="loginCard" hidden>
+  <h2>Sign in</h2>
+  <form id="loginForm" class="row">
+    <input id="password" type="password" placeholder="panel password" autocomplete="current-password" required>
+    <button class="primary" type="submit">Sign in</button>
+  </form>
+  <p class="muted" id="loginMsg"></p>
+</div>
+
+<div id="app" hidden>
+  <div class="card">
+    <h2>Status</h2>
+    <p class="row" style="gap:.75rem">
+      <span>active: <b id="activeLabel">—</b></span>
+      <span>tun: <b id="tunState">—</b></span>
+      <span>configs: <b id="countState">—</b></span>
+      <span id="busy" class="pill" hidden>testing…</span>
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>Subscription</h2>
+    <form id="subForm">
+      <div class="row" style="margin-bottom:.5rem">
+        <input id="subUrl" type="text" placeholder="https://…/sub  (v2ray base64 or plain links)">
+      </div>
+      <label class="muted" for="subLinks">…or paste one or more links</label>
+      <textarea id="subLinks" placeholder="vless://…&#10;vmess://…"></textarea>
+      <p class="row" style="margin:.6rem 0 0">
+        <button class="primary" type="submit">Load</button>
+        <span class="muted" id="subMsg"></span>
+      </p>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Configs</h2>
+    <p class="row">
+      <button id="testAll">Test all</button>
+      <button id="cancel" disabled>Cancel</button>
+      <span class="muted" id="testMsg"></span>
+    </p>
+    <div class="scroll">
+      <table>
+        <thead><tr>
+          <th>#</th><th>Name</th><th>Host</th><th>204</th><th class="num">ms</th><th class="num">Mbps</th><th></th>
+        </tr></thead>
+        <tbody id="rows"><tr><td colspan="7" class="muted">No configs yet.</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+let GEN = "";
+let ENTRIES = [];
+let TESTED = {};
+let CANCELLED = false;
+let BUSY = false;
+
+const $ = (id) => document.getElementById(id);
+
+async function api(path, body) {
+  const opt = body === undefined ? {} : {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams(body).toString()
+  };
+  opt.credentials = "same-origin";
+  const res = await fetch("cgi-bin/" + path, opt);
+  if (res.status === 401) { showLogin(); throw new Error("auth"); }
+  return res.json();
+}
+
+function showLogin() {
+  $("app").hidden = true;
+  $("loginCard").hidden = false;
+  $("password").focus();
+}
+
+function showApp() {
+  $("loginCard").hidden = true;
+  $("app").hidden = false;
+}
+
+$("loginForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("loginMsg").textContent = "";
+  try {
+    const r = await api("login", { password: $("password").value });
+    if (r.ok) { $("password").value = ""; await load(); }
+    else $("loginMsg").textContent = r.error || "sign in failed";
+  } catch (_) { $("loginMsg").textContent = "sign in failed"; }
+});
+
+$("subForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const url = $("subUrl").value.trim();
+  const links = $("subLinks").value.trim();
+  if (!url && !links) { $("subMsg").textContent = "give a URL or paste a link"; return; }
+  $("subMsg").textContent = "loading…";
+  try {
+    const r = await api("sub", url ? { url } : { links });
+    if (!r.ok) { $("subMsg").textContent = r.error || "failed"; return; }
+    $("subMsg").textContent = r.count + " configs";
+    $("subLinks").value = "";
+    TESTED = {};
+    await load();
+  } catch (_) { $("subMsg").textContent = "failed"; }
+});
+
+function renderRows() {
+  const tb = $("rows");
+  if (!ENTRIES.length) {
+    tb.innerHTML = '<tr><td colspan="7" class="muted">No configs yet.</td></tr>';
+    return;
+  }
+  tb.innerHTML = "";
+  ENTRIES.forEach((e) => {
+    const tr = document.createElement("tr");
+    const res = TESTED[e.i] || {};
+    const code = res.code ? (res.code === 204 ? '<span class="ok">204</span>' : '<span class="bad">' + res.code + "</span>") : "—";
+    const speed = res.mbps ? res.mbps : "—";
+    tr.innerHTML =
+      "<td class='num'>" + (e.i + 1) + "</td>" +
+      "<td>" + esc(e.label) + (e.port_ok ? "" : " <span class='pill bad'>port blocked</span>") + "</td>" +
+      "<td class='muted'>" + esc(e.host) + ":" + esc(e.port) + "</td>" +
+      "<td>" + code + "</td>" +
+      "<td class='num'>" + (res.ms || "—") + "</td>" +
+      "<td class='num'>" + speed + "</td>" +
+      "<td class='row'></td>";
+    const cell = tr.lastElementChild;
+    const testBtn = document.createElement("button");
+    testBtn.textContent = "Test";
+    testBtn.disabled = !e.port_ok || BUSY;
+    testBtn.onclick = () => testOne(e.i);
+    const connBtn = document.createElement("button");
+    connBtn.textContent = "Connect";
+    connBtn.className = "primary";
+    connBtn.disabled = !e.port_ok || BUSY;
+    connBtn.onclick = () => connect(e.i);
+    cell.append(testBtn, connBtn);
+    tb.append(tr);
+  });
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function setBusy(b) {
+  BUSY = b;
+  $("busy").hidden = !b;
+  $("testAll").disabled = b;
+  $("cancel").disabled = !b;
+  renderRows();
+}
+
+async function load() {
+  const r = await api("state");
+  if (!r.ok) { showLogin(); return; }
+  showApp();
+  GEN = r.gen;
+  ENTRIES = (r.list && r.list.entries) || [];
+  $("activeLabel").textContent = r.label || "environment";
+  $("tunState").textContent = r.tun ? "up" : "down";
+  $("countState").textContent = r.count;
+  renderRows();
+}
+
+async function testOne(i) {
+  if (BUSY) return;
+  setBusy(true);
+  $("testMsg").textContent = "testing #" + (i + 1) + "…";
+  try {
+    const r = await api("test", { i, gen: GEN });
+    TESTED[i] = r;
+    $("testMsg").textContent = r.code === 204 ? "ok" : (r.error || "unreachable");
+  } catch (err) {
+    $("testMsg").textContent = "error";
+  } finally {
+    setBusy(false);
+  }
+}
+
+$("testAll").onclick = async () => {
+  if (BUSY) return;
+  CANCELLED = false;
+  setBusy(true);
+  for (const e of ENTRIES.slice()) {
+    if (CANCELLED) break;
+    if (!e.port_ok) continue;
+    $("testMsg").textContent = "testing #" + (e.i + 1) + " of " + ENTRIES.length + "…";
+    try {
+      const r = await api("test", { i: e.i, gen: GEN });
+      TESTED[e.i] = r;
+      renderRows();
+    } catch (_) { break; }
+  }
+  $("testMsg").textContent = CANCELLED ? "cancelled" : "done";
+  setBusy(false);
+};
+
+$("cancel").onclick = () => { CANCELLED = true; $("cancel").disabled = true; };
+
+async function connect(i) {
+  const e = ENTRIES.find((x) => x.i === i);
+  if (!e) return;
+  if (!TESTED[i] && !confirm("This config has not been tested. Connect anyway?")) return;
+  if (!confirm("Move the router's world traffic to \"" + e.label + "\"?\nAbout 2–3 seconds of dropped connections.")) return;
+  setBusy(true);
+  $("testMsg").textContent = "switching…";
+  try {
+    const r = await api("connect", { i, gen: GEN });
+    $("testMsg").textContent = r.ok ? "connected to " + r.label : (r.error || "failed");
+  } catch (_) {
+    $("testMsg").textContent = "failed";
+  } finally {
+    setBusy(false);
+    await load();
+  }
+}
+
+load().catch(() => showLogin());
+</script>
+</body>
+</html>

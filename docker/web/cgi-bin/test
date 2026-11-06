@@ -1,0 +1,20 @@
+#!/bin/sh
+. /app/web/cgi-bin/_common
+. /app/lib/xtest.sh
+
+require_auth
+[ "${REQUEST_METHOD:-GET}" = "POST" ] || fail_json "405 Method Not Allowed" "POST only"
+
+body=$(read_body)
+idx=$(form_get "$body" "i")
+gen=$(form_get "$body" "gen")
+
+case "$idx" in ''|*[!0-9]*) fail_json "400 Bad Request" "bad index" ;; esac
+[ "$gen" = "$(gen_of "$SUB_FILE")" ] || fail_json "409 Conflict" "the list changed, reload"
+
+lock_try || fail_json "409 Conflict" "a test is already running"
+
+result=$(xtest_run "$idx")
+
+lock_release
+ok_json "$result"

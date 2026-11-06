@@ -46,7 +46,7 @@
 }
 
 # --- 4. NAT ------------------------------------------------------------------
-:foreach c in={"xray: container egress";"xray: LAN to container"} do={
+:foreach c in={"xray: container egress";"xray: masquerade to container";"xray: LAN to container";"xray: admin ui"} do={
   :if ([:len [/ip firewall nat find where comment=$c]] > 0) do={
     /ip firewall nat remove [find where comment=$c]
   }

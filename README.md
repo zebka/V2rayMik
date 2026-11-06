@@ -104,9 +104,11 @@ What is *not* verified is written down as such there and in `CHANGELOG.md`.
    /import file-name=01-container.rsc
    /import file-name=02-routing.rsc
    /import file-name=03-firewall.rsc
+   /import file-name=04-admin.rsc
    ```
 
-   Edit `00-vars.rsc` first: WAN interface, LAN subnet, disk.
+   Edit `00-vars.rsc` first: WAN interface, LAN subnet, disk, and
+   `XrayAdminPassword` if you want the LAN page.
 
 5. Start the container and watch the log:
 
@@ -117,6 +119,11 @@ What is *not* verified is written down as such there and in `CHANGELOG.md`.
 
 6. Verify from a LAN client: `curl https://ifconfig.me` should print your
    server's address.
+
+7. Optional, the panel: open `http://<router-lan-ip>:8081/` from a LAN device,
+   sign in with `XrayAdminPassword`, paste a subscription URL (or a single
+   link), press **Test all**, then **Connect** on the node you want. See
+   "Admin page" below.
 
 Rollback is `99-uninstall.rsc`. It removes the route first, so traffic leaves the
 tunnel before anything else is touched.
@@ -131,6 +138,34 @@ tunnel before anything else is touched.
   tunnel is down.
 
 Both are shipped on purpose; pick deliberately and read `docs/security.md`.
+
+## Admin page
+
+The same container serves a small panel on the LAN: subscriptions, per-config
+testing, and switching the active node.
+
+```
+http://<router-lan-ip>:8081/        # XrayAdminLanPort
+```
+
+- **Subscription**: paste a v2ray subscription URL (base64 or plain links) or a
+  single link. Parsed locally; nothing leaves the router.
+- **Test**: each config gets its own short-lived Xray with a SOCKS inbound, then
+  a `generate_204` check and a 10 MB download. The live tunnel keeps running
+  throughout. "Test all" walks the list; "Cancel" stops it.
+- **Connect**: the router's world traffic moves to that config. The switch is
+  verified (TUN up, routes right, 204 through the tunnel) and rolls back
+  automatically if the new node does not come up. Expect ~2–3 seconds of dropped
+  connections during the switch; nothing leaks, because the world route keeps
+  pointing at the container.
+
+Two things the panel refuses to do on its own, by design:
+
+- It will not connect a config whose port is outside the egress allowlist. Those
+  rows say `port blocked` — add the port first (see `docs/security.md`).
+- It will not open itself to the WAN. The only exposure is the LAN `dst-nat` in
+  `router/04-admin.rsc`, and the panel is disabled while `XrayAdminPassword` is
+  empty.
 
 ## Measured performance
 

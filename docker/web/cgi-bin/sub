@@ -1,0 +1,48 @@
+#!/bin/sh
+. /app/web/cgi-bin/_common
+
+require_auth
+[ "${REQUEST_METHOD:-GET}" = "POST" ] || fail_json "405 Method Not Allowed" "POST only"
+
+if lock_held; then
+  fail_json "409 Conflict" "a test is running"
+fi
+
+body=$(read_body)
+url=$(form_get "$body" "url")
+links=$(form_get "$body" "links")
+
+mkdir -p "$DATA_DIR"
+tmp="$DATA_DIR/sub.tmp"
+
+if [ -n "$url" ]; then
+  case "$url" in
+    http://*|https://*) ;;
+    *) fail_json "400 Bad Request" "url must be http or https" ;;
+  esac
+  if ! curl -fsSL --proto '=http,https' --max-time 25 -A "xray-gw-admin" "$url" -o "$tmp" 2>/dev/null; then
+    rm -f "$tmp"
+    fail_json "502 Bad Gateway" "could not fetch the subscription"
+  fi
+elif [ -n "$links" ]; then
+  printf '%s\n' "$links" > "$tmp"
+else
+  fail_json "400 Bad Request" "url or links required"
+fi
+
+if [ ! -s "$tmp" ]; then
+  rm -f "$tmp"
+  fail_json "400 Bad Request" "empty subscription"
+fi
+
+chmod 600 "$tmp"
+mv -f "$tmp" "$SUB_FILE"
+
+gen=$(gen_of "$SUB_FILE")
+count=$(subs_count "$SUB_FILE")
+if [ "$count" -eq 0 ]; then
+  fail_json "400 Bad Request" "no usable configs in that subscription"
+fi
+
+list=$(subs_list "$SUB_FILE" "$ALLOWED_PORTS")
+ok_json "{\"ok\":true,\"gen\":\"$(json_escape "$gen")\",\"count\":$count,\"list\":$list}"

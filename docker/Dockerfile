@@ -3,7 +3,7 @@ FROM alpine:3.22
 ARG XRAY_VERSION=26.10.31
 ARG TARGETARCH
 
-RUN apk add --no-cache ca-certificates jq unzip \
+RUN apk add --no-cache ca-certificates jq curl unzip busybox-extras \
  && case "$TARGETARCH" in \
       amd64) asset="Xray-linux-64.zip" ;; \
       arm64) asset="Xray-linux-arm64-v8a.zip" ;; \
@@ -19,6 +19,8 @@ RUN apk add --no-cache ca-certificates jq unzip \
 
 COPY --chmod=755 entrypoint.sh /app/entrypoint.sh
 COPY --chmod=755 lib/ /app/lib/
+COPY web/ /app/web/
+COPY --chmod=755 web/cgi-bin/ /app/web/cgi-bin/
 
 WORKDIR /app
 ENTRYPOINT ["/app/entrypoint.sh"]

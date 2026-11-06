@@ -1,0 +1,20 @@
+#!/bin/sh
+. /app/web/cgi-bin/_common
+
+[ "${REQUEST_METHOD:-GET}" = "POST" ] || fail_json "405 Method Not Allowed" "POST only"
+
+body=$(read_body)
+pass=$(form_get "$body" "password")
+
+if [ -z "${ADMIN_PASSWORD:-}" ]; then
+  fail_json "503 Service Unavailable" "admin disabled"
+fi
+
+if [ "$pass" != "$ADMIN_PASSWORD" ]; then
+  sleep 1
+  fail_json "401 Unauthorized" "wrong password"
+fi
+
+sid=$(session_new)
+printf 'Set-Cookie: sid=%s; Path=/; HttpOnly; SameSite=Strict; Max-Age=7200\r\n' "$sid"
+ok_json "{\"ok\":true}"
