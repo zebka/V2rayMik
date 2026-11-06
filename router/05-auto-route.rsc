@@ -44,7 +44,7 @@
     # direct WAN at a higher distance...). Naming them here would tie this script
     # to one setup, so they are found by shape instead: same destination, not the
     # xray route, and not the route that reaches the container itself.
-    :local fb {}
+    :local fb [:toarray ""]
     :foreach r in=[/ip route find where routing-table="to-world" and dst-address="0.0.0.0/0"] do={
       :if ($r != $xwid and [/ip route get $r gateway] != "172.17.0.2") do={
         :set fb ($fb, $r)
