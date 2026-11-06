@@ -138,15 +138,17 @@ reapply_endpoint_route() {
 }
 
 # verify_routes <tun> — the tunnel only works if traffic really enters the TUN.
-# A container that says "healthy" while its routes are wrong is the one failure
-# mode this project must not ship.
+# The probe address must not be one of the admin-plane bypasses (1.1.1.1 and
+# 8.8.8.8 are routed out directly so the panel works with a dead node), otherwise
+# this check always fails and a healthy tunnel is reported as broken.
 verify_routes() {
   tun=$1
-  got=$(ip route get 1.1.1.1 2>/dev/null || true)
+  probe=${VERIFY_PROBE:-203.0.113.1}
+  got=$(ip route get "$probe" 2>/dev/null || true)
   case "$got" in
     *"dev $tun"*) return 0 ;;
     *)
-      echo "route-not-installed: 'ip route get 1.1.1.1' says: ${got:-nothing}" >&2
+      echo "route-not-installed: 'ip route get ${probe}' says: ${got:-nothing}" >&2
       return 1
       ;;
   esac

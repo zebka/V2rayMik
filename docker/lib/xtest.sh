@@ -109,13 +109,21 @@ xtest_run() {
   ms=$(awk -v s="${secs:-0}" 'BEGIN { printf "%d", s * 1000 }')
 
   mbps=0
+  country=""
   if [ "$code" = "204" ]; then
     bps=$(curl -s -o /dev/null --max-time "$SPEED_MAX_TIME" \
           --socks5-hostname "127.0.0.1:$XTEST_PORT" \
           -w '%{speed_download}' "$SPEED_URL" 2>/dev/null || echo 0)
     mbps=$(awk -v b="${bps:-0}" 'BEGIN { printf "%.1f", b * 8 / 1000000 }')
+
+    # Where does that node actually exit? Cloudflare's trace answers with
+    # `loc=<country>` for the address it sees, queried through the same proxy.
+    trace=$(curl -s --max-time 5 --socks5-hostname "127.0.0.1:$XTEST_PORT" \
+            "http://1.1.1.1/cdn-cgi/trace" 2>/dev/null || true)
+    country=$(printf '%s\n' "$trace" | sed -n 's/^loc=\([A-Z][A-Z]\)$/\1/p' | head -n 1)
   fi
 
   cleanup
-  printf '{"code":%s,"ms":%s,"mbps":%s,"error":""}' "${code:-0}" "${ms:-0}" "${mbps:-0}"
+  printf '{"code":%s,"ms":%s,"mbps":%s,"country":"%s","error":""}' \
+    "${code:-0}" "${ms:-0}" "${mbps:-0}" "${country:-}"
 }

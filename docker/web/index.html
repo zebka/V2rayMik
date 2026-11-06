@@ -80,7 +80,7 @@
     <div class="scroll">
       <table>
         <thead><tr>
-          <th>#</th><th>Name</th><th>Host</th><th>204</th><th class="num">ms</th><th class="num">Mbps</th><th></th>
+          <th>#</th><th>Name</th><th>Host</th><th>real delay</th><th>country</th><th class="num">Mbps</th><th></th>
         </tr></thead>
         <tbody id="rows"><tr><td colspan="7" class="muted">No configs yet.</td></tr></tbody>
       </table>
@@ -146,6 +146,12 @@ $("subForm").addEventListener("submit", async (e) => {
   } catch (_) { $("subMsg").textContent = "failed"; }
 });
 
+function flag(code) {
+  if (!code || code.length !== 2) return "";
+  const base = 0x1F1E6;
+  return String.fromCodePoint(base + code.charCodeAt(0) - 65, base + code.charCodeAt(1) - 65);
+}
+
 function renderRows() {
   const tb = $("rows");
   if (!ENTRIES.length) {
@@ -156,14 +162,18 @@ function renderRows() {
   ENTRIES.forEach((e) => {
     const tr = document.createElement("tr");
     const res = TESTED[e.i] || {};
-    const code = res.code ? (res.code === 204 ? '<span class="ok">204</span>' : '<span class="bad">' + res.code + "</span>") : "—";
+    let delay = "—";
+    if (res.code === 204) delay = '<span class="ok">✓</span> ' + (res.ms || 0) + " ms";
+    else if (res.code) delay = '<span class="bad">✗</span> ' + (res.ms ? res.ms + " ms" : "timeout");
+    else if (res.error) delay = '<span class="bad">✗</span> ' + esc(res.error);
+    const country = res.country ? flag(res.country) + " " + esc(res.country) : "—";
     const speed = res.mbps ? res.mbps : "—";
     tr.innerHTML =
       "<td class='num'>" + (e.i + 1) + "</td>" +
       "<td>" + esc(e.label) + (e.port_ok ? "" : " <span class='pill bad'>port blocked</span>") + "</td>" +
       "<td class='muted'>" + esc(e.host) + ":" + esc(e.port) + "</td>" +
-      "<td>" + code + "</td>" +
-      "<td class='num'>" + (res.ms || "—") + "</td>" +
+      "<td class='num'>" + delay + "</td>" +
+      "<td>" + country + "</td>" +
       "<td class='num'>" + speed + "</td>" +
       "<td class='row'></td>";
     const cell = tr.lastElementChild;
