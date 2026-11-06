@@ -5,3 +5,5 @@ Dockerfile text eol=lf
 Makefile text eol=lf
 *.yml text eol=lf
 *.md text eol=lf
+docker/web/cgi-bin/* text eol=lf
+docker/entrypoint.sh text eol=lf
