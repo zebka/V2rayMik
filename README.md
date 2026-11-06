@@ -80,9 +80,14 @@ What is *not* verified is written down as such there and in `CHANGELOG.md`.
    `ghcr.io` is unreachable from your network):
 
    ```
-   docker pull azebka/mikrotik-xray-gateway:latest   # or :0.4.0 to pin
+   docker pull azebka/mikrotik-xray-gateway:latest   # newest release
+   docker pull azebka/mikrotik-xray-gateway:0.4.2    # pin repo + image together
    docker pull ghcr.io/zebka/mikrotik-xray-gateway:latest
    ```
+
+   `latest` is republished only when a release tag is pushed, so it always equals
+   the `VERSION` file and the newest release here; `:edge` is the raw `main`
+   build. The panel shows the running version under **Status → image**.
 
    On RouterOS, `01-container.rsc` sets `remote-image=`; in Iran a mirror works
    better, for example:

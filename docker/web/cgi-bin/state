@@ -18,6 +18,11 @@ fi
 tun=false
 [ -d /sys/class/net/tun0 ] && tun=true
 
+# The image version is written at build time from the repository's VERSION file,
+# which is also the release tag. It is shown in the panel so the page itself
+# says which code is running.
+version=$(cat /app/VERSION 2>/dev/null || echo "dev")
+
 list=$(subs_list "$SUB_FILE" "$ALLOWED_PORTS")
 
-ok_json "{\"ok\":true,\"gen\":\"$(json_escape "$gen")\",\"count\":$count,\"label\":\"$(json_escape "$label")\",\"index\":$index,\"testing\":$testing,\"tun\":$tun,\"list\":$list}"
+ok_json "{\"ok\":true,\"gen\":\"$(json_escape "$gen")\",\"count\":$count,\"label\":\"$(json_escape "$label")\",\"index\":$index,\"testing\":$testing,\"tun\":$tun,\"version\":\"$(json_escape "$version")\",\"list\":$list}"

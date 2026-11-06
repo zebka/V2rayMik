@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.2 — 2026-11-06
+
+### Changed
+
+- **The image and the repository now carry the same version, enforced.** A
+  `VERSION` file is the single source of truth; CI refuses to build a `v*` tag
+  that disagrees with it and refuses a `VERSION` with no `CHANGELOG` section.
+  The value is written to `/app/VERSION` in the image and shown in the panel
+  under **Status → image**.
+- **`latest` now means "newest release"**, not "whatever is on `main`". Main
+  builds publish `:edge`; only tag builds publish `:latest`, so the image you
+  pull and the source tag are always the same code. `make check-version` runs the
+  same check locally.
+
 ## 0.4.1 — 2026-11-06
 
 ### Changed

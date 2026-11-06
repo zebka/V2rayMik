@@ -9,3 +9,4 @@ docker/web/cgi-bin/* text eol=lf
 docker/entrypoint.sh text eol=lf
 
 .gitignore text eol=lf
+VERSION text eol=lf

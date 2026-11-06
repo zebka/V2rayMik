@@ -23,6 +23,11 @@
 
 # Image to pull. The published multi-arch image lives here; replace the owner
 # only if you fork or host your own.
+#
+# `latest` is republished only from release tags, so it always equals the newest
+# released version and the repository's VERSION file. `edge` is the current
+# `main` build; do not run it on a router you depend on. Pin a version
+# (`...:0.4.2`) when you want the image and the scripts to be a known pair.
 :global XrayImage "azebka/mikrotik-xray-gateway:latest"
 
 # Set to "no" only when pulling through a mirror whose CA the router does not

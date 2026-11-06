@@ -39,9 +39,14 @@
 ۱. ایمیج را بگیر. مالتی‌آرک روی Docker Hub هست و روی GHCR هم:
 
 ```
-docker pull azebka/mikrotik-xray-gateway:latest # یا :0.4.0 برای نسخهٔ ثابت
+docker pull azebka/mikrotik-xray-gateway:latest # آخرین نسخهٔ منتشرشده
+docker pull azebka/mikrotik-xray-gateway:0.4.2 # نسخهٔ ثابت، هم‌ارز با همین مخزن
 docker pull ghcr.io/zebka/mikrotik-xray-gateway:latest
 ```
+
+تگ `latest` فقط با پوش‌شدن یک تگ ریلیز به‌روز می‌شود، پس همیشه با فایل `VERSION`
+و آخرین نسخهٔ همین مخزن یکی است. `edge` بیلد خام `main` است و برای تست است. نسخهٔ
+در حال اجرا در پنل زیر **Status → image** دیده می‌شود.
 
 اگر به `ghcr.io` دسترسی نداری، از Docker Hub (یا میرور داخلی) استفاده کن. روی
 خود روتر، در ایران این تنظیم جواب می‌دهد:

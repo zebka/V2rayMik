@@ -2,6 +2,9 @@ FROM alpine:3.22
 
 ARG XRAY_VERSION=26.10.31
 ARG TARGETARCH
+# The repository's VERSION file, which is also the release tag. CI refuses to
+# build a tag that disagrees with it, so the image and the source always match.
+ARG VERSION=dev
 
 RUN apk add --no-cache ca-certificates jq curl unzip busybox-extras \
  && case "$TARGETARCH" in \
@@ -21,6 +24,8 @@ COPY --chmod=755 entrypoint.sh /app/entrypoint.sh
 COPY --chmod=755 lib/ /app/lib/
 COPY web/ /app/web/
 COPY --chmod=755 web/cgi-bin/ /app/web/cgi-bin/
+RUN printf '%s\n' "$VERSION" > /app/VERSION
+LABEL org.opencontainers.image.version=$VERSION
 
 WORKDIR /app
 ENTRYPOINT ["/app/entrypoint.sh"]

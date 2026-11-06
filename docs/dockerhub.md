@@ -25,8 +25,9 @@ Platforms: `linux/amd64`, `linux/arm64`. Runs on RouterOS 7.24+ devices with the
 
 | Tag | Meaning |
 | --- | --- |
-| `latest` | the current `main` build |
-| `0.4.0`, `0.3.3`, … | released versions, immutable |
+| `latest` | the newest released version, and only that |
+| `0.4.2`, `0.4.1`, … | released versions, immutable, equal to the source tag |
+| `edge` | the current `main` build, for testing only |
 | `26.10.31` | the Xray-core release bundled in the image |
 
 ## RouterOS quick start
@@ -41,8 +42,12 @@ in the repository's RouterOS scripts.
 2. Point the container at this image:
 
    ```
-   /container/set [find where name="xray-gw"] remote-image=azebka/mikrotik-xray-gateway:0.4.0
+   /container/set [find where name="xray-gw"] remote-image=azebka/mikrotik-xray-gateway:0.4.2
    ```
+
+   Pin a version so the image and the router scripts are a known pair, or use
+   `:latest`, which only ever moves to a new release. `:edge` is the raw `main`
+   build. The panel shows the running version under **Status → image**.
 
    If `docker.io` is not reachable from your network, set a mirror and
    `check-certificate=no` as described in the repository README (Iran: use

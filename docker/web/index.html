@@ -51,6 +51,7 @@
       <span>active: <b id="activeLabel">—</b></span>
       <span>tun: <b id="tunState">—</b></span>
       <span>configs: <b id="countState">—</b></span>
+      <span>image: <b id="versionState">—</b></span>
       <span id="busy" class="pill" hidden>testing…</span>
     </p>
   </div>
@@ -212,6 +213,7 @@ async function load() {
   $("activeLabel").textContent = r.label || "environment";
   $("tunState").textContent = r.tun ? "up" : "down";
   $("countState").textContent = r.count;
+  $("versionState").textContent = r.version || "dev";
   renderRows();
 }
 

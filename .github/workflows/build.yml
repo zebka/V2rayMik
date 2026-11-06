@@ -21,15 +21,41 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # VERSION is the release tag: one number for the repo, the image and the
+      # changelog, so a running container can never be a version the repository
+      # does not describe.
+      - name: Version and tag agree
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          want="$(cat VERSION)"
+          got="${GITHUB_REF_NAME#v}"
+          if [ "$want" != "$got" ]; then
+            echo "VERSION is $want but the tag is $got" >&2
+            exit 1
+          fi
+
+      - name: CHANGELOG describes this version
+        run: |
+          v="$(cat VERSION)"
+          grep -q "^## $v " CHANGELOG.md || {
+            echo "CHANGELOG.md has no '## $v' section" >&2; exit 1; }
+
       - name: Build the test image
         run: |
           docker buildx build --build-arg XRAY_VERSION="$XRAY_VERSION" \
+            --build-arg VERSION="$(cat VERSION)" \
             -t mikrotik-xray-gateway:test docker --load
 
       - name: Unit tests
         run: |
           docker run --rm -v "$PWD/tests:/w/tests:ro" \
             --entrypoint sh mikrotik-xray-gateway:test /w/tests/run.sh
+
+      - name: Image carries the repository version
+        run: |
+          got="$(docker run --rm --entrypoint cat mikrotik-xray-gateway:test /app/VERSION)"
+          test "$got" = "$(cat VERSION)" || {
+            echo "image says $got, VERSION says $(cat VERSION)" >&2; exit 1; }
 
       - name: RouterOS lint
         run: |
@@ -65,6 +91,13 @@ jobs:
           username: ${{ env.DH_USER }}
           password: ${{ env.DH_TOKEN }}
 
+      - id: ver
+        name: Read VERSION
+        run: |
+          v="$(cat VERSION)"
+          if [ "${{ github.ref_type }}" != "tag" ]; then v="$v-edge"; fi
+          echo "value=$v" >> "$GITHUB_OUTPUT"
+
       - id: meta
         uses: docker/metadata-action@v5
         with:
@@ -72,10 +105,10 @@ jobs:
             ${{ env.IMAGE }}
             ${{ env.DH_USER != '' && format('docker.io/{0}/mikrotik-xray-gateway', env.DH_USER) || '' }}
           tags: |
-            type=ref,event=branch
+            type=raw,value=edge,enable=${{ github.ref == 'refs/heads/main' }}
             type=semver,pattern={{version}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
             type=raw,value=${{ env.XRAY_VERSION }},enable=${{ startsWith(github.ref, 'refs/tags/v') }}
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
       - uses: docker/build-push-action@v6
         with:
@@ -84,6 +117,7 @@ jobs:
           push: true
           build-args: |
             XRAY_VERSION=${{ env.XRAY_VERSION }}
+            VERSION=${{ steps.ver.outputs.value }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -109,12 +143,18 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+      - id: ver
+        run: echo "value=$(cat VERSION)" >> "$GITHUB_OUTPUT"
       - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
           body: |
-            Image: `azebka/mikrotik-xray-gateway:${{ github.ref_name }}` (Docker Hub)
-            and `ghcr.io/${{ github.repository }}:${{ github.ref_name }}` (GHCR).
+            Matches source tag `v${{ steps.ver.outputs.value }}` (the `VERSION` file
+            in the repository).
+
+            Images: `azebka/mikrotik-xray-gateway:${{ steps.ver.outputs.value }}`
+            and `:latest` (Docker Hub),
+            `ghcr.io/${{ github.repository }}:${{ steps.ver.outputs.value }}` (GHCR).
 
             Details for this release are in
             [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md).
