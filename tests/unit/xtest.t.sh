@@ -20,6 +20,25 @@ echo "$plan" | jq -e '.route.final == "proxy"' >/dev/null || fail "route does no
 printf '%s' "$plan" > /tmp/xt.json
 sing-box check -c /tmp/xt.json >/dev/null 2>&1 || fail "sing-box rejected the test plan"
 
+# Where the node exits is read from Cloudflare's trace. That URL has to be the
+# HTTPS one: `http://1.1.1.1/cdn-cgi/trace` answers 301 to HTTPS, and a redirect
+# page contains no `loc=` line at all, so every test used to report a blank
+# country while the delay and speed were measured fine.
+case "$TRACE_URL" in
+  https://*) ;;
+  *) fail "trace URL must be https, got [$TRACE_URL]" ;;
+esac
+
+assert_eq "$(trace_country 'ip=203.0.113.7
+ts=1793981610.5
+loc=US
+colo=MCI
+warp=off')" "US" "trace country"
+
+# a redirect body (or any non-trace answer) must yield nothing, not a bogus code
+assert_eq "$(trace_country '<html><head><title>301 Moved Permanently</title></head></html>')" \
+  "" "redirect body yields no country"
+
 # a hysteria2 node must produce a plan sing-box accepts too
 HY='{"type":"hysteria2","server":"a.test","server_port":22001,"password":"p","tls":{"enabled":true,"server_name":"bing.com"}}'
 plan=$(xtest_plan "$HY" 10801)

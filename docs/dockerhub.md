@@ -26,7 +26,7 @@ Platforms: `linux/amd64`, `linux/arm64`. Runs on RouterOS 7.24+ devices with the
 | Tag | Meaning |
 | --- | --- |
 | `latest` | the newest released version, and only that |
-| `0.5.0`, `0.4.1`, … | released versions, immutable, equal to the source tag |
+| `0.5.1`, `0.5.0`, `0.4.1`, … | released versions, immutable, equal to the source tag |
 | `edge` | the current `main` build, for testing only |
 | `1.14.4` | the sing-box release bundled in the image |
 
@@ -42,7 +42,7 @@ in the repository's RouterOS scripts.
 2. Point the container at this image:
 
    ```
-   /container/set [find where name="xray-gw"] remote-image=azebka/mikrotik-xray-gateway:0.5.0
+   /container/set [find where name="xray-gw"] remote-image=azebka/mikrotik-xray-gateway:0.5.1
    ```
 
    Pin a version so the image and the router scripts are a known pair, or use

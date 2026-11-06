@@ -68,7 +68,7 @@ hysteria2 کار می‌کرد). لینکی که پین دارد و `insecure` �
 
 ```
 docker pull azebka/mikrotik-xray-gateway:latest # آخرین نسخهٔ منتشرشده
-docker pull azebka/mikrotik-xray-gateway:0.5.0 # نسخهٔ ثابت، هم‌ارز با همین مخزن
+docker pull azebka/mikrotik-xray-gateway:0.5.1 # نسخهٔ ثابت، هم‌ارز با همین مخزن
 docker pull ghcr.io/zebka/mikrotik-xray-gateway:latest
 ```
 

@@ -8,8 +8,18 @@
 XTEST_PORT=${XTEST_PORT:-10800}
 CHECK_URL=${CHECK_URL:-http://connectivitycheck.gstatic.com/generate_204}
 SPEED_URL=${SPEED_URL:-https://speed.cloudflare.com/__down?bytes=10000000}
+# Which country the node exits in. This must be the HTTPS URL: Cloudflare answers
+# `http://1.1.1.1/cdn-cgi/trace` with a 301 to HTTPS, and the redirect body has no
+# `loc=` line, so a plain-HTTP trace reports nothing while the node is fine.
+TRACE_URL=${TRACE_URL:-https://1.1.1.1/cdn-cgi/trace}
 SPEED_MAX_TIME=${SPEED_MAX_TIME:-15}
 CHECK_MAX_TIME=${CHECK_MAX_TIME:-8}
+TRACE_MAX_TIME=${TRACE_MAX_TIME:-6}
+
+# trace_country <trace-body> — the two-letter exit country, or nothing.
+trace_country() {
+  printf '%s\n' "$1" | sed -n 's/^loc=\([A-Z][A-Z]\)$/\1/p' | head -n 1
+}
 
 # xtest_plan <outbound-json> <port> — a full config with a mixed inbound.
 xtest_plan() {
@@ -124,9 +134,11 @@ xtest_run() {
 
     # Where does that node actually exit? Cloudflare's trace answers with
     # `loc=<country>` for the address it sees, queried through the same proxy.
-    trace=$(curl -s --max-time 5 --socks5-hostname "127.0.0.1:$XTEST_PORT" \
-            "http://1.1.1.1/cdn-cgi/trace" 2>/dev/null || true)
-    country=$(printf '%s\n' "$trace" | sed -n 's/^loc=\([A-Z][A-Z]\)$/\1/p' | head -n 1)
+    # `-L` is a seatbelt: if the endpoint ever starts redirecting again, follow it
+    # instead of parsing a redirect page as if it were a trace.
+    trace=$(curl -sL --max-time "$TRACE_MAX_TIME" --socks5-hostname "127.0.0.1:$XTEST_PORT" \
+            "$TRACE_URL" 2>/dev/null || true)
+    country=$(trace_country "$trace")
   fi
 
   cleanup

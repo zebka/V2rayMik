@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.1 — 2026-11-06
+
+### Fixed
+
+- **The panel shows the node's exit country again.** The per-node test asked
+  Cloudflare for the trace over plain HTTP, and `http://1.1.1.1/cdn-cgi/trace`
+  answers `301 Moved Permanently`; the redirect page contains no `loc=` line, so
+  the country came back empty while the delay and the 10 MB speed were measured
+  correctly. The trace is now fetched over HTTPS, follows a redirect if one
+  appears, and is parsed by one small function that has its own test — a
+  non-trace answer can no longer turn into a bogus country.
+
 ## 0.5.0 — 2026-11-06
 
 ### Changed
