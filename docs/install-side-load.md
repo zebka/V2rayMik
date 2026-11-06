@@ -28,18 +28,18 @@ layers named `<hash>.tar` — the shape RouterOS accepted on 7.25.1.
 
 ## 2. Upload
 
-Through SMB to the disk you configured as `XrayDisk` (e.g. `/usb2`), or drag the
+Through SMB to the disk you configured as `sing-boxDisk` (e.g. `/usb2`), or drag the
 file into Winbox's Files panel. Put it at the path your install uses:
 `usb2/royal-xray-gateway.tar`.
 
 ## 3. Point the container at the file
 
-`01-container.rsc` uses `XrayImageFile` when it is set, otherwise it pulls
-`XrayImage` from a registry:
+`01-container.rsc` uses `sing-boxImageFile` when it is set, otherwise it pulls
+`sing-boxImage` from a registry:
 
 ```
 /import file-name=00-vars.rsc
-:global XrayImageFile "usb2/royal-xray-gateway.tar"
+:global sing-boxImageFile "usb2/royal-xray-gateway.tar"
 /import file-name=01-container.rsc
 /container/start [find where name="xray-gw"]
 ```

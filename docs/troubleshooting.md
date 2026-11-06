@@ -10,8 +10,8 @@ Symptom → cause → fix. Start with the container log:
 
 ## The one that catches everyone: the port
 
-A transport whose port is not in `XrayContainerToWanPorts` produces **no error**.
-Xray redials forever, the router logs nothing, and the symptom is "the tunnel is
+A transport whose port is not in `sing-boxContainerToWanPorts` produces **no error**.
+sing-box redials forever, the router logs nothing, and the symptom is "the tunnel is
 broken".
 
 ```
@@ -27,9 +27,9 @@ else, that port is the answer. Add it (see `docs/security.md`) and import
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
 | Repeated `dialing to …` and nothing else | port missing from the egress allowlist | add it, re-import `03-firewall.rsc` |
-| Container stops immediately, `missing-config` | neither `XRAY_LINK` nor `/etc/xray/outbound.json` is set | set one of them |
+| Container stops immediately, `missing-config` | neither `NODE_LINK` nor `/etc/sing-box/outbound.json` is set | set one of them |
 | `conflicting-config` | both were set | unset one |
-| `invalid-outbound` / `invalid-config` | the outbound is a full config, contains `inbounds`, or Xray rejects it | give one outbound object; `xray run -test -c` locally shows the real error |
+| `invalid-outbound` / `invalid-config` | the outbound is a full config, contains `inbounds`, or sing-box rejects it | give one outbound object; `sing-box check -c` locally shows the real error |
 | `unsupported-link: <scheme>` | the link path covers vless/vmess/trojan/ss only | use the JSON outbound path |
 | `ipv6-unsupported` | the endpoint host is IPv6 | use IPv4 or a domain; this build has no IPv6 |
 | `resolve-failed: <host>` | the container cannot resolve the endpoint | set `ENDPOINT_IP` |
@@ -41,7 +41,7 @@ else, that port is the answer. Add it (see `docs/security.md`) and import
 | LAN is tunnelled but the router is not | router-originated traffic not masqueraded towards the veth | `03-firewall.rsc` adds `masquerade out-interface=veth-xray` |
 | Wrong exit IP from a LAN client | the container subnet got marked | the "never mark the container" rule must sit first and have counters |
 | DDNS name points at the exit | router traffic to IP-Cloud went through the tunnel | the installer keeps the `cloud.mikrotik.com*` names in `router-direct`; check it and `/ip cloud force-update` |
-| `filesystem not mounted` from `/container` | `tmpdir` or `root-dir` points at a missing disk | fix `XrayDisk`; `01-container.rsc` recreates `tmpdir` |
+| `filesystem not mounted` from `/container` | `tmpdir` or `root-dir` points at a missing disk | fix `sing-boxDisk`; `01-container.rsc` recreates `tmpdir` |
 | Container restarts in a loop | xray exits: bad UUID/key, unreachable server | lower `restart-max-count`, read one log entry |
 | Router cannot ping `172.17.0.2` | the veth is in a bridge (broken layout on 7.25.1) | keep the address directly on the veth, as the scripts do |
 
@@ -65,7 +65,7 @@ ip -4 addr show dev tun0    # 198.18.0.1
 
 Two measurements that lie on this setup:
 
-- **`ping` from the router.** Xray answers ICMP inside the TUN, so replies come
+- **`ping` from the router.** sing-box answers ICMP inside the TUN, so replies come
   back in microseconds and never leave the box. Measure latency from a LAN client.
 - **A 1 KB page.** It proves the handshake and nothing else; a missing MSS clamp
   only shows up on a download of a few MB.

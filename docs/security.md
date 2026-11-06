@@ -18,7 +18,7 @@ What this project does about it:
 - The container gets no WAN-exposed ports. Nothing is forwarded to it.
 - No secrets live in the repository or the image, and the outbound file is the
   operator's own file on the operator's own disk.
-- The image is built from `alpine` + the official Xray release, with a pinned
+- The image is built from `alpine` + the official sing-box release, with a pinned
   version. No `curl | sh` at runtime, no third-party binaries.
 
 What it cannot do: protect you from a malicious image, a compromised registry, or
@@ -33,7 +33,7 @@ transport, so its risk is the transport's risk. What keeps that bounded:
   the `dst-nat` in `04-admin.rsc`, which is scoped to `in-interface-list=LAN`.
   There is no WAN rule to forget to remove.
 - **Off by default.** No `ADMIN_PASSWORD`, no panel: the HTTP server does not
-  start, Xray runs as usual, and the log says `admin-disabled`.
+  start, sing-box runs as usual, and the log says `admin-disabled`.
 - **Session cookie only**: `HttpOnly`, `SameSite=Strict`, 32 random hex chars,
   2 h server-side expiry. No JWT, no client-side state worth stealing.
 - **Every mutation needs the `gen` hash** of the current config list, so a stale
@@ -62,8 +62,8 @@ everything it can reach:
 
 | Rule | Effect |
 | --- | --- |
-| accept `172.17.0.0/24 → WAN` on `XrayContainerToWanPorts` (tcp) | the transport's TCP ports |
-| accept `172.17.0.0/24 → WAN` on `XrayContainerToWanPorts` (udp) | UDP transports, DNS |
+| accept `172.17.0.0/24 → WAN` on `sing-boxContainerToWanPorts` (tcp) | the transport's TCP ports |
+| accept `172.17.0.0/24 → WAN` on `sing-boxContainerToWanPorts` (udp) | UDP transports, DNS |
 | **drop** `172.17.0.0/24 → anything` | everything else |
 
 ### Why ports and not "allow the server's IP"
@@ -89,7 +89,7 @@ This is least privilege, applied to the one network path the container owns.
 
 ### The default list
 
-`XrayContainerToWanPorts` defaults to:
+`sing-boxContainerToWanPorts` defaults to:
 
 ```
 443,80,8080,8880,2052,2053,2082,2083,2086,2087,2095,2096,8443,53
@@ -108,7 +108,7 @@ Add it. Find the port in the link (`@host:PORT`) or in the container log:
 ```
 
 you will see `dialing to tcp:<ip>:<port>`. Then either edit
-`XrayContainerToWanPorts` in `00-vars.rsc` and re-import `03-firewall.rsc`, or
+`sing-boxContainerToWanPorts` in `00-vars.rsc` and re-import `03-firewall.rsc`, or
 patch the live rule:
 
 ```
@@ -126,13 +126,13 @@ RouterOS accepts at most **15 ports in one `dst-port` list**. The default list h
 pair of accept rules (for example one for the CDN ports and one per provider)
 rather than trimming the first list.
 
-A tunnel whose port is missing does not fail loudly: Xray keeps redialling, the
+A tunnel whose port is missing does not fail loudly: sing-box keeps redialling, the
 router logs nothing, and the symptom is "the internet is slow / half broken".
 That is why the port list is documented here rather than left implicit.
 
 ## What fail-open leaks
 
-With `XrayFailOpen=true`, a dead tunnel means marked traffic silently takes the
+With `sing-boxFailOpen=true`, a dead tunnel means marked traffic silently takes the
 direct route. Your real address becomes visible to every destination that
 believed it was talking to the server. If that matters more than staying online,
 set it to `false`: marked traffic then blackholes while the tunnel is down.

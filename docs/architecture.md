@@ -11,7 +11,7 @@
    veth. The container therefore never sees a LAN address.
 5. Inside the container, `net.ipv4.ip_forward=1` and two half-default routes send
    the packet to `tun0`.
-6. Xray reads the packet from the TUN, opens (or reuses) a connection to the
+6. sing-box reads the packet from the TUN, opens (or reuses) a connection to the
    server through its outbound, and writes replies back into the TUN.
 7. Replies arrive on `tun0`, the kernel routes them to the on-link `172.17.0.1`,
    and the router un-NATs them back to the client.
@@ -40,7 +40,7 @@ segment, and every dial fails while the route looks correct.
 
 - Return traffic to the LAN is already addressed to `172.17.0.1`, which is
   on-link on the veth inside the container.
-- Outbound connections are made by Xray itself, whose source is the container's
+- Outbound connections are made by sing-box itself, whose source is the container's
   veth address — no NAT required.
 - The server side normally masquerades the tunnel subnet, so inner source
   addresses never need to be routable.
@@ -64,26 +64,26 @@ removed by `99-uninstall.rsc` only if this project created it.
 
 The transport runs in the container, and the container's egress is unmarked by
 design. It leaves through the WAN on the main table. The only bypass needed is
-`<endpoint>/32 via <gateway> dev <iface>` inside the container, so Xray's own
+`<endpoint>/32 via <gateway> dev <iface>` inside the container, so sing-box's own
 connection does not enter the TUN.
 
 The router never learns the endpoint address. There is no address list to keep in
 sync. A hostname with **one** A record keeps working: the entrypoint re-resolves
-every five minutes and swaps the `/32` without restarting Xray.
+every five minutes and swaps the `/32` without restarting sing-box.
 
 A hostname with several A records (typical for a CDN in front of the server) is
-**not** safe that way: Xray may dial an address the bypass does not know, and that
+**not** safe that way: sing-box may dial an address the bypass does not know, and that
 packet would enter the tunnel that carries it. Set `ENDPOINT_IP` to pin the
 address; the re-resolve loop then does nothing.
 
 ## Why the endpoint address is pinned into the config
 
-Xray resolves its outbound address when it dials. Inside this container, DNS goes
+sing-box resolves its outbound address when it dials. Inside this container, DNS goes
 *through the tunnel* — which cannot come up until the server is dialable. A
 hostname outbound is therefore a deadlock: dial needs DNS, DNS needs the dial.
 
 The entrypoint resolves the endpoint once, with the container's own unmarked
-egress, and writes the resulting IP into the outbound before Xray starts. SNI,
+egress, and writes the resulting IP into the outbound before sing-box starts. SNI,
 Host headers and REALITY settings are untouched.
 
 ## What we had to get right (measured, not guessed)
@@ -106,16 +106,16 @@ lint rule in this repo:
 ```
 PID 1: entrypoint (supervisor)
  ├── busybox httpd :8080          (the LAN panel; off without ADMIN_PASSWORD)
- └── xray run -c config.json      (restarted on SIGHUP, never the container)
+ └── sing-box run -c config.json      (restarted on SIGHUP, never the container)
 ```
 
 `/data/state.json` (persistent root-dir) wins over the environment: when the panel
 picks a node it writes the outbound there and sends `HUP`; the supervisor rebuilds
-`config.json`, restarts Xray, and verifies the result. The RouterOS routes and the
+`config.json`, restarts sing-box, and verifies the result. The RouterOS routes and the
 container itself are untouched, which is why a switch costs ~2–3 s and not a
 container restart.
 
-Testing a candidate runs a *second*, short-lived Xray with a SOCKS inbound and a
+Testing a candidate runs a *second*, short-lived sing-box with a mixed inbound and a
 `/32 via <gateway>` route for its endpoint. Without that route the candidate's
 dial would enter the live TUN and the measurement would describe the wrong node.
 
@@ -142,6 +142,6 @@ loudly.
 
 ## Sizing
 
-One `xray` process, one TUN, nothing else. The image is ~17.5 MB compressed and the
+One `sing-box` process, one TUN, nothing else. The image is ~30 MB compressed and the
 container idled at 10–17 MiB of RSS on the reference device. Throughput numbers are
 in `benchmarks.md`.
