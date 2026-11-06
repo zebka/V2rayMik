@@ -39,12 +39,16 @@ out=$(plan_routes 198.51.100.7)
 assert_eq "$(printf '%s\n' "$out" | sed -n 2p)" "ip route replace 0.0.0.0/1 dev tun0" "default tun name"
 
 # endpoint_of from outbound JSON
-json='{"protocol":"vless","settings":{"vnext":[{"address":"a.test","port":443}]}}'
+json='{"type":"vless","server":"a.test","server_port":443,"uuid":"u"}'
 assert_eq "$(endpoint_of "$json")" "a.test:443" "endpoint from json"
 
 # endpoint_of from a share link
 assert_eq "$(endpoint_of 'vless://u@203.0.113.9:8443?security=tls&type=tcp')" \
   "203.0.113.9:8443" "endpoint from link"
+
+# endpoint_of knows hysteria2 (UDP endpoints have no special shape here)
+assert_eq "$(endpoint_of 'hysteria2://p@203.0.113.9:22001?sni=a.test')" \
+  "203.0.113.9:22001" "endpoint from a hysteria2 link"
 
 # ENDPOINT_IP wins over resolution
 out=$(ENDPOINT_IP=198.51.100.7 resolve_endpoint a.test)
@@ -61,9 +65,9 @@ chmod +x /tmp/nodns/nslookup
 out=$(PATH=/tmp/nodns:$PATH sh -c '. /app/lib/links.sh; . /app/lib/routes.sh; resolve_endpoint 203.0.113.9' 2>/dev/null)
 assert_eq "$out" "203.0.113.9" "literal ipv4 endpoint"
 
-# an outbound with no endpoint (freedom, wireguard) is rejected, not rendered as ":"
+# an outbound with no endpoint (direct, block) is rejected, not rendered as ":"
 set +e
-msg=$(endpoint_of '{"protocol":"freedom"}' 2>&1); code=$?
+msg=$(endpoint_of '{"type":"direct"}' 2>&1); code=$?
 set -e
 assert_eq "$code" "2" "endpointless outbound exit"
 assert_match "$msg" "unsupported-outbound"

@@ -45,10 +45,10 @@ endpoint_of() {
     \{*) ob=$src ;;
     *) ob=$(link_to_outbound "$src") ;;
   esac
-  addr=$(printf '%s' "$ob" | jq -r '((.settings.vnext // .settings.servers)[0] // {}) | .address // ""')
-  port=$(printf '%s' "$ob" | jq -r '((.settings.vnext // .settings.servers)[0] // {}) | .port // ""')
+  addr=$(printf '%s' "$ob" | jq -r '.server // ""')
+  port=$(printf '%s' "$ob" | jq -r '.server_port // ""')
   if [ -z "$addr" ] || [ -z "$port" ]; then
-    echo "unsupported-outbound: the outbound has no vnext/servers address (freedom, wireguard and similar have no endpoint)" >&2
+    echo "unsupported-outbound: the outbound has no server/server_port (direct, block and similar have no endpoint)" >&2
     exit 2
   fi
   printf '%s:%s\n' "$addr" "$port"

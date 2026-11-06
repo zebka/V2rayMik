@@ -1,14 +1,14 @@
 # mikrotik-xray-gateway
 
-A MikroTik **RouterOS** egress gateway in **one** Alpine container: Xray-core with
+A MikroTik **RouterOS** egress gateway in **one** Alpine container: sing-box with
 its native TUN inbound, driven by a small LAN admin page. It is built for routers,
 not for laptops — the router keeps its Iran/world split, and this image only
-carries the world half.
+carries the world half. (The name is historic: the engine was Xray until 0.4.x.)
 
 - **One container, one process to trust.** No tun2socks, no second container, no
   geodata files, no iptables inside the container. Image: ~40 MB, idle ~10–17 MiB
   RSS on a hAP ax³.
-- **Real TUN inside the container.** Xray creates `tun0`; RouterOS routes
+- **Real TUN inside the container.** sing-box creates `tun0`; RouterOS routes
   `0.0.0.0/0` in a dedicated table to the container. The endpoint is pinned with
   a `/32`, so the transport never routes into itself.
 - **A LAN panel** on `:8081` (through the router): paste a subscription URL,
@@ -26,9 +26,9 @@ Platforms: `linux/amd64`, `linux/arm64`. Runs on RouterOS 7.24+ devices with the
 | Tag | Meaning |
 | --- | --- |
 | `latest` | the newest released version, and only that |
-| `0.4.2`, `0.4.1`, … | released versions, immutable, equal to the source tag |
+| `0.5.0`, `0.4.1`, … | released versions, immutable, equal to the source tag |
 | `edge` | the current `main` build, for testing only |
-| `26.10.31` | the Xray-core release bundled in the image |
+| `1.14.4` | the sing-box release bundled in the image |
 
 ## RouterOS quick start
 
@@ -42,7 +42,7 @@ in the repository's RouterOS scripts.
 2. Point the container at this image:
 
    ```
-   /container/set [find where name="xray-gw"] remote-image=azebka/mikrotik-xray-gateway:0.4.2
+   /container/set [find where name="xray-gw"] remote-image=azebka/mikrotik-xray-gateway:0.5.0
    ```
 
    Pin a version so the image and the router scripts are a known pair, or use
@@ -66,14 +66,14 @@ and wins over the environment.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `XRAY_LINK` | — | one share link (`vless://`, `vmess://`, `trojan://`, `ss://`) |
-| `XRAY_OUTBOUND_FILE` | — | path to a full Xray outbound JSON |
-| `XRAY_OUTBOUND_JSON` | — | the same JSON inline |
+| `NODE_LINK` | — | one share link (`vless://`, `vmess://`, `trojan://`, `ss://`, `hysteria2://`, `tuic://`) |
+| `NODE_OUTBOUND_FILE` | — | path to a full sing-box outbound JSON |
+| `NODE_OUTBOUND_JSON` | — | the same JSON inline |
 | `ADMIN_PASSWORD` | — | panel password; empty disables the panel |
 | `ALLOWED_PORTS` | all | transport ports the panel may use |
-| `TUN_NAME` / `TUN_ADDR` | `tun0` / `198.18.0.1` | the TUN Xray creates |
+| `TUN_NAME` / `TUN_ADDR` | `tun0` / `198.18.0.1` | the TUN sing-box creates |
 | `DATA_DIR` | `/data` | mount this; it holds the chosen node and the session DB |
-| `XRAY_LOG_LEVEL` | `warning` | Xray log level inside the container log |
+| `SINGBOX_LOG_LEVEL` | `warn` | sing-box log level inside the container log |
 | `CHECK_URL` | Google `generate_204` | what the panel and the health probe test |
 
 ## Health endpoint
@@ -94,7 +94,7 @@ the container. It carries no secrets and no labels.
 ## Notes
 
 - MIT licensed.
-- Not a hosting service and not a proxy provider: you need your own Xray server.
+- Not a hosting service and not a proxy provider: you need your own server.
 - The container shares the RouterOS kernel. Read
   [docs/security.md](https://github.com/zebka/mikrotik-xray-gateway/blob/main/docs/security.md)
   before deploying it on a device you do not own.

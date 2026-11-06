@@ -27,7 +27,7 @@ port_allowed "$port" "$ALLOWED_PORTS" || fail_json "409 Conflict" "port $port is
 # Pin the endpoint address now: after this the supervisor never needs DNS.
 ipv4=$(resolve_endpoint "$host") || fail_json "502 Bad Gateway" "cannot resolve $host"
 if ! is_ipv4 "$host"; then
-  ob=$(printf '%s' "$ob" | jq --arg ip "$ipv4" '(.settings.vnext // .settings.servers)[0].address = $ip')
+  ob=$(printf '%s' "$ob" | jq --arg ip "$ipv4" '.server = $ip')
 fi
 
 # Keep the previous config for rollback.

@@ -1,7 +1,7 @@
 IMAGE ?= mikrotik-xray-gateway
 TAG ?= test
 PLATFORM ?= linux/arm64
-XRAY_VERSION ?= 26.10.31
+SING_BOX_VERSION ?= 1.14.4
 VERSION ?= $(shell cat VERSION)
 DIST ?= dist
 
@@ -12,15 +12,15 @@ help:
 	@echo "make test    - build native image and run tests/unit"
 	@echo "make lint    - shellcheck + RouterOS lint"
 	@echo "make check-version - VERSION and CHANGELOG agree"
-	@echo "make save    - export $(DIST)/$(IMAGE)-$(XRAY_VERSION).tar for side-loading"
+	@echo "make save    - export $(DIST)/$(IMAGE)-$(SING_BOX_VERSION).tar for side-loading"
 	@echo "make clean   - remove $(DIST)"
 
 image:
-	docker buildx build --platform $(PLATFORM) --build-arg XRAY_VERSION=$(XRAY_VERSION) \
+	docker buildx build --platform $(PLATFORM) --build-arg SING_BOX_VERSION=$(SING_BOX_VERSION) \
 		--build-arg VERSION=$(VERSION) -t $(IMAGE):$(TAG) docker/ --load
 
 test:
-	docker buildx build --build-arg XRAY_VERSION=$(XRAY_VERSION) --build-arg VERSION=$(VERSION) \
+	docker buildx build --build-arg SING_BOX_VERSION=$(SING_BOX_VERSION) --build-arg VERSION=$(VERSION) \
 		-t $(IMAGE):test docker/ --load
 	docker run --rm -v "$(CURDIR)/tests:/w/tests:ro" --entrypoint sh $(IMAGE):test /w/tests/run.sh
 
@@ -41,10 +41,10 @@ check-version:
 
 save:
 	mkdir -p $(DIST)
-	docker buildx build --platform $(PLATFORM) --build-arg XRAY_VERSION=$(XRAY_VERSION) \
+	docker buildx build --platform $(PLATFORM) --build-arg SING_BOX_VERSION=$(SING_BOX_VERSION) \
 		--build-arg VERSION=$(VERSION) \
-		-t $(IMAGE):$(TAG) --output type=docker,dest=$(DIST)/$(IMAGE)-$(XRAY_VERSION).tar docker/
-	@ls -lh $(DIST)/$(IMAGE)-$(XRAY_VERSION).tar
+		-t $(IMAGE):$(TAG) --output type=docker,dest=$(DIST)/$(IMAGE)-$(SING_BOX_VERSION).tar docker/
+	@ls -lh $(DIST)/$(IMAGE)-$(SING_BOX_VERSION).tar
 
 clean:
 	rm -rf $(DIST)

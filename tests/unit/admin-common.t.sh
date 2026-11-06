@@ -21,5 +21,5 @@ for fn in json_escape gen_of session_new session_valid read_body form_get \
   command -v "$fn" >/dev/null 2>&1 || fail "missing function: $fn"
 done
 
-assert_eq "$(endpoint_of '{"protocol":"vless","settings":{"vnext":[{"address":"1.2.3.4","port":443}]}}')" \
+assert_eq "$(endpoint_of '{"type":"vless","server":"1.2.3.4","server_port":443,"uuid":"u"}')" \
   "1.2.3.4:443" "endpoint_of available through _common"

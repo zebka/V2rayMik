@@ -19,9 +19,9 @@ subs_entry() {
   link=$1
   ob=$(link_to_outbound "$link" 2>/dev/null) || return 1
   [ -n "$ob" ] || return 1
-  proto=$(printf '%s' "$ob" | jq -r '.protocol // empty' 2>/dev/null)
-  addr=$(printf '%s' "$ob" | jq -r '((.settings.vnext // .settings.servers)[0] // {}) | .address // empty' 2>/dev/null)
-  port=$(printf '%s' "$ob" | jq -r '((.settings.vnext // .settings.servers)[0] // {}) | .port // empty' 2>/dev/null)
+  proto=$(printf '%s' "$ob" | jq -r '.type // empty' 2>/dev/null)
+  addr=$(printf '%s' "$ob" | jq -r '.server // empty' 2>/dev/null)
+  port=$(printf '%s' "$ob" | jq -r '.server_port // empty' 2>/dev/null)
   [ -n "$proto" ] && [ -n "$addr" ] && [ -n "$port" ] || return 1
 
   label=""

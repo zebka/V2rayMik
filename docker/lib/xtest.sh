@@ -11,14 +11,14 @@ SPEED_URL=${SPEED_URL:-https://speed.cloudflare.com/__down?bytes=10000000}
 SPEED_MAX_TIME=${SPEED_MAX_TIME:-15}
 CHECK_MAX_TIME=${CHECK_MAX_TIME:-8}
 
-# xtest_plan <outbound-json> <port> — a full config with a SOCKS inbound.
+# xtest_plan <outbound-json> <port> — a full config with a mixed inbound.
 xtest_plan() {
   printf '%s' "$1" \
     | jq -c --argjson port "$2" --arg listen "127.0.0.1" \
-      '{log:{loglevel:"warning"},
-        inbounds:[{tag:"socks-in",protocol:"socks",listen:$listen,port:$port,
-                   settings:{udp:false,auth:"noauth"}}],
-        outbounds:[.]}'
+      '{log:{level:"warn", timestamp:false},
+        inbounds:[{type:"mixed", tag:"test-in", listen:$listen, listen_port:$port}],
+        outbounds:[(. + {tag:"proxy"})],
+        route:{final:"proxy"}}'
 }
 
 # xtest_wait_port <port> <pid> — up to 3 s.
@@ -61,10 +61,10 @@ xtest_run() {
   }
 
   # Pin the resolved address into the test outbound. Dialing the hostname would
-  # re-resolve inside xray and could pick a different A record than the /32
-  # bypass below covers — on a CDN endpoint that is a guaranteed timeout.
+  # re-resolve inside the engine and could pick a different A record than the
+  # /32 bypass below covers — on a CDN endpoint that is a guaranteed timeout.
   if ! is_ipv4 "$host"; then
-    ob=$(printf '%s' "$ob" | jq --arg ip "$ip" '(.settings.vnext // .settings.servers)[0].address = $ip') || {
+    ob=$(printf '%s' "$ob" | jq --arg ip "$ip" '.server = $ip') || {
       printf '{"code":0,"ms":0,"mbps":0,"error":"bad outbound"}'
       return 0
     }
@@ -86,7 +86,7 @@ xtest_run() {
   plan=$(xtest_plan "$ob" "$XTEST_PORT")
   printf '%s' "$plan" > "$cfg"
 
-  xray run -c "$cfg" >/tmp/xtest.log 2>&1 &
+  sing-box run -c "$cfg" >/tmp/xtest.log 2>&1 &
   xpid=$!
 
   cleanup() {

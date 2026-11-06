@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.5.0 — 2026-11-06
+
+### Changed
+
+- **The engine is sing-box, not Xray.** One config format covers vless, vmess,
+  trojan, shadowsocks, **hysteria2** and tuic, and sing-box owns the TUN itself —
+  so the container still has one process in the tunnel path and RouterOS still
+  owns every route. The repository and image keep their historic name.
+- **Hysteria2 / TUIC nodes work**, including the `obfs=salamander` and
+  `pinSHA256` options that Iranian providers hand out. The panel tests and
+  connects them like any other node. Verified on the reference router: a hysteria2
+  node carried a 10 MB download in 3.2 s (≈25 Mbps) while the Xray-shaped nodes
+  were still in the list.
+- Environment names are now engine-neutral: `NODE_LINK`, `NODE_OUTBOUND_FILE`,
+  `NODE_OUTBOUND_JSON`, `SINGBOX_LOG_LEVEL`. The old `XRAY_*` names still work.
+- xhttp/splithttp links are **rejected with a named error**: sing-box has no such
+  transport. WebSocket, gRPC and HTTPUpgrade are supported.
+- `docs/` and both READMEs were rewritten around sing-box; `docs/dockerhub.md`
+  follows.
+
+### Notes
+
+- A hysteria2/TUIC node is UDP: its port must be in the RouterOS container
+  allowlist (`XrayContainerToWanPorts`/`XrayExtraWanPorts`, which kept their names
+  for compatibility). The panel marks nodes whose port is missing as
+  `port blocked`.
+- The image grows to ~30 MB compressed because sing-box is a bigger binary.
+
 ## 0.4.2 — 2026-11-06
 
 ### Changed

@@ -1,4 +1,4 @@
-﻿# mikrotik-xray-gateway
+# mikrotik-xray-gateway
 
 [![build](https://github.com/zebka/mikrotik-xray-gateway/actions/workflows/build.yml/badge.svg)](https://github.com/zebka/mikrotik-xray-gateway/actions/workflows/build.yml)
 [![Docker Hub](https://img.shields.io/docker/pulls/azebka/mikrotik-xray-gateway)](https://hub.docker.com/r/azebka/mikrotik-xray-gateway)
@@ -6,13 +6,18 @@
 [![فارسی](https://img.shields.io/badge/readme-%D9%81%D8%A7%D8%B1%D8%B3%DB%8C-0a7)](README.fa.md)
 
 Put a MikroTik RouterOS device's world-bound traffic through **one** Alpine
-container running [Xray-core](https://github.com/XTLS/Xray-core) with its native
+container running [sing-box](https://github.com/SagerNet/sing-box) with its native
 TUN inbound. No tun2socks, no second container, no geodata files.
 
-RouterOS has no VLESS/REALITY support. This closes that gap without asking you to
-give up the router as the place where traffic is split. It also serves a small
-LAN page for subscriptions and node switching, so you do not need Winbox to
-change the exit.
+> The repository keeps its historic name; since **0.5.0 the engine is sing-box**
+> (it was Xray until 0.4.x). That is what lets the same gateway carry
+> **hysteria2**, tuic, vless/REALITY, vmess, trojan and shadowsocks nodes — the
+> config format the panel already receives from providers.
+
+RouterOS has no VLESS/REALITY/hysteria2 support. This closes that gap without
+asking you to give up the router as the place where traffic is split. It also
+serves a small LAN page for subscriptions and node switching, so you do not need
+Winbox to change the exit.
 
 ```
 LAN clients ─┐
@@ -25,24 +30,42 @@ router own ──┘                 │
                      container eth0 172.17.0.2
                      ip_forward=1, routes: 0/1 + 128/1 → tun0, <endpoint>/32 → eth0
                                │
-                     tun0 (198.18.0.1/15, owned by Xray)
+                     tun0 (198.18.0.1/15, owned by sing-box)
                                │
-                     Xray outbound → your server:443
+                     sing-box outbound → your server (tcp or udp, per node)
 ```
 
 ## Why this shape
 
-- **The TUN belongs to Xray.** RouterOS exposes `/dev/net/tun` to containers, and
-  Xray can create and consume a TUN interface itself. That removes tun2socks from
-  the path — one process, one image, one less thing to break.
-- **Routes are explicit.** `autoSystemRoutingTable` depends on the kernel's
-  `ip rule` order, which RouterOS changed in 7.22 and broke TUN gateways. Two
-  `/1` routes plus an endpoint `/32` depend on nothing but longest-prefix match.
+- **The TUN belongs to the engine.** RouterOS exposes `/dev/net/tun` to containers,
+  and sing-box creates and consumes a TUN interface itself. That removes tun2socks
+  from the path — one process, one image, one less thing to break.
+- **Routes are explicit.** `auto_route` is off: the container sets two `/1` routes
+  and an endpoint `/32` itself, so the split depends on longest-prefix match and
+  nothing else — not on `ip rule` ordering that RouterOS changed in 7.22.
 - **No NAT inside the container, no iptables.** The container shares RouterOS's
   kernel; its netfilter modules are not ours to assume. The router masquerades
   LAN → container, so the container only ever talks to `172.17.0.1`.
 - **The split stays on RouterOS.** `iran-ips` decides what is tunnelled. The
   container carries no geo files and no rules, which is what keeps it small.
+
+## Supported node types
+
+| Link scheme | Notes |
+| --- | --- |
+| `vless://` | including REALITY and `xtls-rprx-vision` |
+| `vmess://` | |
+| `trojan://` | TLS and WebSocket/gRPC |
+| `ss://` | |
+| `hysteria2://`, `hy2://` | QUIC/UDP; obfs (salamander) and `pinSHA256` are honoured |
+| `tuic://` | |
+
+Transports: TCP, WebSocket, gRPC and HTTPUpgrade. **xhttp/splithttp is not
+supported** — sing-box has no such transport, and the panel says so instead of
+silently failing.
+
+Hysteria2 and TUIC are UDP. Their port has to be in the router's container
+allowlist, otherwise the panel shows `port blocked`.
 
 ## Requirements
 
@@ -54,7 +77,8 @@ router own ──┘                 │
   wears out.
 - Clean DNS on the router. If `:resolve twitter.com` returns `10.10.34.x`, fix DNS
   before blaming the tunnel.
-- An Xray server you already run. Any outbound Xray understands will do.
+- An Xray/sing-box server you already run (vless, vmess, trojan, ss, hysteria2
+  or tuic). Any node your provider gives you as a share link is fine.
 
 ## Verified
 
@@ -64,6 +88,8 @@ On a hAP ax³ (arm64, 1 GB) with RouterOS 7.25.1 and USB storage:
 - Exit was confirmed in three countries with three transports (VLESS+REALITY,
   VLESS over WebSocket, plain VLESS), plus a Shadowsocks config that carried TCP
   but not UDP.
+- A **hysteria2** node (QUIC/UDP, obfs=salamander, pinned certificate) moved
+  10 MB in 3.2 s through the same container: ≈25 Mbps, exit `loc=US`.
 - The panel loads a subscription, tests each node (real delay, exit country,
   Mbps) and switches the world route in ~3 seconds.
 - With the selected node stopped, the scheduler moved world traffic back to the
@@ -103,28 +129,30 @@ What is *not* verified is written down as such there and in `CHANGELOG.md`.
    (`remote-image=` in `router/01-container.rsc`) or side-load the tarball
    (`make save`, then upload `dist/*.tar`; see `docs/install-side-load.md`).
 
-2. Put your outbound where the container can read it. Either a full outbound
-   object:
+2. Put your outbound where the container can read it. Either a full sing-box
+   outbound object:
 
    ```
-   <disk>/xray-gw/etc/xray/outbound.json
+   <disk>/xray-gw/etc/sing-box/outbound.json
    ```
 
    or a share link in the container environment:
 
    ```
-   /container/envs/add list=xray-gw key=XRAY_LINK value="vless://…"
+   /container/envs/add list=xray-gw key=NODE_LINK value="hysteria2://…"
    ```
 
    (or `set` on the existing entry if you already added one)
 
-   Do not set both. The JSON path accepts anything; the link path understands
-   `vless://`, `vmess://`, `trojan://` and `ss://`.
+   Do not set both. The JSON path accepts any sing-box outbound; the link path
+   understands `vless://`, `vmess://`, `trojan://`, `ss://`, `hysteria2://`
+   (`hy2://`) and `tuic://`.
 
    **The port in that link must be in `XrayContainerToWanPorts`** (default:
-   every Cloudflare proxy port plus 53). A provider on a non-standard port needs
-   one line changed — see "The container's egress allowlist" in
-   `docs/security.md` for why it is an allowlist and how to extend it.
+   every Cloudflare proxy port plus 53; the rule covers TCP and UDP). A provider
+   on a non-standard port needs one line changed — see "The container's egress
+   allowlist" in `docs/security.md` for why it is an allowlist and how to extend
+   it. Hysteria2/TUIC are UDP, so their port has to be there as well.
 
 3. Import the RouterOS scripts **in one session**, in order:
 
@@ -176,7 +204,7 @@ tunnel before anything else is touched.
 Both are shipped on purpose; pick deliberately and read `docs/security.md`.
 
 A fallback is deliberately **never another tunnel**. Pointing it at OpenVPN or
-WireGuard looks safer but hides a dead Xray node and quietly changes the exit
+WireGuard looks safer but hides a dead node and quietly changes the exit
 country, which is exactly the thing you are paying for.
 
 ### Follow the panel automatically
@@ -204,8 +232,8 @@ http://<router-lan-ip>:8081/        # XrayAdminLanPort
 
 - **Subscription**: paste a v2ray subscription URL (base64 or plain links) or a
   single link. Parsed locally; nothing leaves the router.
-- **Test**: each config gets its own short-lived Xray with a SOCKS inbound, then
-  a `generate_204` check and a 10 MB download. The live tunnel keeps running
+- **Test**: each config gets its own short-lived sing-box with a mixed inbound,
+  then a `generate_204` check and a 10 MB download. The live tunnel keeps running
   throughout. "Test all" walks the list; "Cancel" stops it.
 - **Connect**: the router's world traffic moves to that config. The switch is
   verified (TUN up, routes right, 204 through the tunnel) and rolls back
@@ -230,16 +258,17 @@ consumer links — read them as orders of magnitude, not as a spec:
 | --- | --- |
 | `tool fetch` of 9.5 MiB, single stream (early build, TR node) | **≈ 13 Mbps** |
 | The panel's own 10 MB test, three nodes on the same box | **30–38 Mbps** |
+| A hysteria2 node, 10 MB through the panel's method | **≈ 25 Mbps** |
 | OpenVPN/TCP on the same box, for comparison (`iperf3`) | ~14 Mbps down / ~15.8 Mbps up |
 
-The container is not the limit here: the same hardware carried OpenVPN at 14 and
-Xray at 30–38 over different paths. Full table, commands and the not-yet-measured
-cells are in `docs/benchmarks.md`.
+The container is not the limit here: the same hardware carried OpenVPN at 14, Xray
+at 30–38 and hysteria2 at 25 over different paths. Full table, commands and the
+not-yet-measured cells are in `docs/benchmarks.md`.
 
 ## Roadmap
 
 - Upload throughput, multi-stream and reboot-recovery tests.
-- Optional XHTTP-first examples, since WebSocket is deprecated in Xray.
+- Consume a provider's sing-box JSON subscription (`?format=json`) directly.
 - Per-node "last worked at" memory, so the panel can rank nodes by history.
 
 ## Layout
@@ -259,6 +288,8 @@ tests/            unit tests (POSIX sh) and RouterOS lint
 - Container networking on this class of hardware is CPU-bound; do not expect the
   server's line rate.
 - No IPv6 (the reference deployment has it disabled).
+- xhttp/splithttp links are rejected: sing-box has no such transport. If your
+  provider only offers xhttp, this image is not for that node.
 - One router, one active node. No per-user accounting and no multi-tenant panel.
 - The container's root shares RouterOS's kernel. See `docs/security.md` before
   deploying this on a device you do not control.
