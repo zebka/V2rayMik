@@ -57,8 +57,13 @@ root=$(cd "$dir/.." 2>/dev/null && pwd) || root="."
 # Files where the engine is never named at all: one stale character is a bug.
 # Every path is quoted on purpose: the checkout sits under "New OpenCode Project",
 # and an unquoted list would split there and grep nothing (2>/dev/null hides it).
-hits=$(grep -rni --exclude="90-migrate-from-${xr}.rsc" "$xr" \
-  "$root/router" "$root/docker" "$root/tests" 2>/dev/null)
+# The migration script is dropped with `grep -v` rather than `--exclude`: this
+# runs inside the image, whose BusyBox grep rejects `--exclude` outright, and a
+# grep that dies on its own arguments leaves $hits empty — a guard that silently
+# checks nothing. Both halves are proved to bite in the plan's Task 7.
+hits=$(grep -rni "$xr" \
+  "$root/router" "$root/docker" "$root/tests" 2>/dev/null |
+  grep -v "/90-migrate-from-${xr}\.rsc:")
 [ -z "$hits" ] || { printf '%s\n' "$hits" >&2; err "stale project name above; the project is V2rayMik, the engine is sing-box"; }
 hits=$(grep -ni "$xr" "$root/Makefile" "$root/SECURITY.md" \
   "$root/.github/workflows/build.yml" "$root/.github/ISSUE_TEMPLATE/bug.md" \
