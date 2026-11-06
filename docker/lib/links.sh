@@ -286,6 +286,15 @@ link_hysteria2() {
   sni=$(qs "$2" sni)
   insecure=$(qs "$2" insecure)
   pin=$(hex_to_b64 "$(qs "$2" pinSHA256)")
+  # A provider that puts `insecure=1` next to a pin expects clients to skip
+  # verification, and its pin is often stale: on the reference node the pin named
+  # a key the server no longer presents, sing-box refused the handshake, and the
+  # same link was fine in the hysteria2 client (which honours `insecure` over the
+  # pin). Trust the explicit `insecure` and drop the pin, so one stale field does
+  # not turn a working node into a dead one.
+  case "$insecure" in
+    1|true|TRUE|yes) pin="" ;;
+  esac
   obfs=$(qs "$2" obfs)
   obfsPass=$(qs "$2" obfs-password)
 

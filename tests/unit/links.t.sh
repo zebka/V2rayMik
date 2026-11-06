@@ -44,9 +44,18 @@ assert_eq "$(printf '%s' "$out" | jq -r '.tls.insecure')" "true" "hy2 insecure"
 assert_eq "$(printf '%s' "$out" | jq -r '.tls.server_name')" "bing.com" "hy2 sni"
 assert_eq "$(printf '%s' "$out" | jq -r '.obfs.type')" "salamander" "hy2 obfs"
 assert_eq "$(printf '%s' "$out" | jq -r '.obfs.password')" "guard" "hy2 obfs password"
-# hex pin is converted to the base64 sing-box expects
+# `insecure=1` means the provider expects no verification, and its pin is often
+# stale (measured: a live node whose pin named a key the server never sent). The
+# pin must not be passed on, or the node tests as dead.
+assert_eq "$(printf '%s' "$out" | jq -r '.tls.certificate_public_key_sha256')" \
+  "null" "hy2 pin dropped when insecure"
+
+# without `insecure`, the pin is the only verification and has to survive
+hp='hysteria2://secret@203.0.113.9:22001?sni=bing.com&pinSHA256=8b09498b70ddc884a266048968f3ae60f19f1048822cd8857ee72df5cd5dd91d'
+out=$(link_to_outbound "$hp")
 assert_eq "$(printf '%s' "$out" | jq -r '.tls.certificate_public_key_sha256[0]')" \
-  "iwlJi3DdyISiZgSJaPOuYPGfEEiCLNiFfuct9c1d2R0=" "hy2 pin base64"
+  "iwlJi3DdyISiZgSJaPOuYPGfEEiCLNiFfuct9c1d2R0=" "hy2 pin kept without insecure"
+assert_eq "$(printf '%s' "$out" | jq -r '.tls.insecure')" "null" "hy2 not insecure"
 
 # hy2 shorthand and a link without obfs
 out=$(link_to_outbound 'hy2://p@203.0.113.9:8443?sni=a.test')

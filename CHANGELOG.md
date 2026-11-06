@@ -13,6 +13,12 @@
   connects them like any other node. Verified on the reference router: a hysteria2
   node carried a 10 MB download in 3.2 s (≈25 Mbps) while the Xray-shaped nodes
   were still in the list.
+- **A stale `pinSHA256` can no longer kill a node.** When a link also says
+  `insecure=1`, the provider is telling clients not to verify, so the pin is
+  dropped instead of enforced. Measured on a live node: the pin named a key the
+  server never presented, sing-box refused the handshake
+  (`unrecognized remote public key`), while the same link was fine in the
+  hysteria2 client — which honours `insecure` over the pin.
 - Environment names are now engine-neutral: `NODE_LINK`, `NODE_OUTBOUND_FILE`,
   `NODE_OUTBOUND_JSON`, `SINGBOX_LOG_LEVEL`. The old `XRAY_*` names still work.
 - xhttp/splithttp links are **rejected with a named error**: sing-box has no such

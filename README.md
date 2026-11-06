@@ -67,6 +67,11 @@ silently failing.
 Hysteria2 and TUIC are UDP. Their port has to be in the router's container
 allowlist, otherwise the panel shows `port blocked`.
 
+A hysteria2 link that carries both `insecure=1` and `pinSHA256` is parsed with the
+pin dropped: `insecure` is the provider's own statement that verification is off,
+and pins in these links go stale after a certificate rotation. A link with a pin
+and no `insecure` keeps the pin.
+
 ## Requirements
 
 - RouterOS 7.24.x or newer (validated on **7.25.1**), arm64 or x86 device with the
