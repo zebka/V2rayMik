@@ -134,7 +134,7 @@ jobs:
           username: ${{ env.DH_USER }}
           password: ${{ env.DH_TOKEN }}
           repository: ${{ env.DH_USER }}/v2raymik
-          short-description: "V2rayMik - MikroTik RouterOS to sing-box egress gateway: one Alpine container, native TUN, LAN admin page"
+          short-description: "V2rayMik - MikroTik RouterOS to sing-box gateway: one container, LAN admin page"
           readme-filepath: ./docs/dockerhub.md
 
   release:
