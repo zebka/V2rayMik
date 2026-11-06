@@ -49,7 +49,7 @@ kill -HUP 1 2>/dev/null || true
 
 i=0
 up=false
-while [ "$i" -lt 12 ]; do
+while [ "$i" -lt 20 ]; do
   sleep 1
   if [ -f "$STATUS_FILE" ] && jq -e '.up == true' "$STATUS_FILE" >/dev/null 2>&1; then
     up=true
@@ -59,9 +59,16 @@ while [ "$i" -lt 12 ]; do
 done
 
 # End-to-end: the router's next world request must actually reach the check URL.
+# A fresh node can take an extra second or two, so give the probe two tries.
 if [ "$up" = true ]; then
-  code=$(curl -s -o /dev/null --interface "${TUN_ADDR:-198.18.0.1}" --max-time 8 -w '%{http_code}' "$CHECK_URL" 2>/dev/null || echo 0)
-  [ "$code" = "204" ] || up=false
+  up=false
+  n=0
+  while [ "$n" -lt 2 ]; do
+    code=$(curl -s -o /dev/null --interface "${TUN_ADDR:-198.18.0.1}" --max-time 8 -w '%{http_code}' "$CHECK_URL" 2>/dev/null || echo 0)
+    if [ "$code" = "204" ]; then up=true; break; fi
+    n=$((n + 1))
+    sleep 1
+  done
 fi
 
 if [ "$up" = true ]; then

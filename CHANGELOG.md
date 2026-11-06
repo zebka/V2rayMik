@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0 — 2026-11-06
+
+### Fixed
+
+- **Connect now works.** `_common` never defined `STATUS_FILE`, so `connect`'s
+  wait loop tested an empty path and rolled back every successful switch after
+  12 s — even on a node that was up and passing traffic. The default is now set
+  next to `state.json`, the wait is 20 s, and the 204 probe gets a second try.
+
 ## 0.2.9 — 2026-11-06
 
 ### Fixed

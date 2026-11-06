@@ -10,6 +10,11 @@ HTTP_COOKIE=""
 CONTENT_LENGTH=0
 . /app/web/cgi-bin/_common
 
+# connect's wait loop reads $STATUS_FILE; a missing definition silently made the
+# loop test an empty path and roll back every successful connect after 12 s.
+assert_eq "${STATUS_FILE:-}" "$DATA_DIR/status.json" "STATUS_FILE defaults next to state.json"
+assert_eq "${STATE_FILE:-}" "$DATA_DIR/state.json" "STATE_FILE defaults into DATA_DIR"
+
 for fn in json_escape gen_of session_new session_valid read_body form_get \
           lock_try lock_release link_to_outbound endpoint_of resolve_endpoint \
           is_ipv4 detect_egress detect_gateway subs_decode subs_entry port_allowed; do

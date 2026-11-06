@@ -8,6 +8,7 @@
 DATA_DIR=${DATA_DIR:-/data}
 SUB_FILE=${SUB_FILE:-$DATA_DIR/sub.txt}
 STATE_FILE=${STATE_FILE:-$DATA_DIR/state.json}
+STATUS_FILE=${STATUS_FILE:-$DATA_DIR/status.json}
 ALLOWED_PORTS=${ALLOWED_PORTS:-}
 
 json_header() {
