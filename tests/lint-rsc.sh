@@ -65,7 +65,7 @@ hits=$(grep -rni "$xr" \
   "$root/router" "$root/docker" "$root/tests" 2>/dev/null |
   grep -v "/90-migrate-from-${xr}\.rsc:")
 [ -z "$hits" ] || { printf '%s\n' "$hits" >&2; err "stale project name above; the project is V2rayMik, the engine is sing-box"; }
-hits=$(grep -ni "$xr" "$root/Makefile" "$root/SECURITY.md" \
+hits=$(grep -ni "$xr" "$root/Makefile" "$root/SECURITY.md" "$root/LICENSE" \
   "$root/.github/workflows/build.yml" "$root/.github/ISSUE_TEMPLATE/bug.md" \
   "$root/docs/dockerhub.md" "$root/docs/security.md" "$root/docs/troubleshooting.md" \
   "$root/docs/architecture.md" "$root/docs/install-side-load.md" 2>/dev/null)
