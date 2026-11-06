@@ -1,4 +1,4 @@
-IMAGE ?= mikrotik-xray-gateway
+IMAGE ?= v2raymik
 TAG ?= test
 PLATFORM ?= linux/arm64
 SING_BOX_VERSION ?= 1.14.4
