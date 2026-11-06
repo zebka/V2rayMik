@@ -1,5 +1,37 @@
 # Changelog
 
+## 1.0.1 — 2026-11-06
+
+### Fixed
+
+- **`01-container.rsc`, `02-routing.rsc` and `03-firewall.rsc` import again.**
+  The three files shipped with a UTF-8 byte-order mark in front of the first
+  `#`. RouterOS reads the first line of an imported file as a command, so
+  `/import` answered `Script Error: expected command name (line 1 column 1)` and
+  skipped the whole file — while the next line of the operator's paste still
+  printed, so a fresh install stalled at `01-container.rsc` with nothing in the
+  log to say why. The BOMs are gone, and `tests/lint-rsc.sh` now fails on a BOM
+  in any router script or test script, because editors add one silently.
+- **`05-auto-route.rsc` no longer raises an argument error when the world route
+  is missing.** The "no `mik-world` route" branch ended in a bare `:return`,
+  which on 7.25 fails with `missing value(s) of argument(s) value (:return)`:
+  the closing brace is read as the missing argument. It returns an explicit value
+  now. Only reachable in a half-finished install, but it wrote a script error to
+  the log on every 30-second run.
+- **`90-migrate-from-xray.rsc` prints a LAN subnet with its prefix.**
+  `/ip address get <id> network` returns `192.168.88.0` on 7.25 — no `/24` — and
+  the migration took that at face value: the printed `MikLanSubnet` had no
+  prefix, and because the string was not empty the "guessed, check it" warning
+  never appeared. The length is read from the address itself now, a value
+  without a prefix counts as not found, and `MikFailOpen` is guessed as `true`
+  (the shipped default) instead of `false`, since a hand-built install has no
+  route commented `xray-fallback`.
+- **`02-routing.rsc` stops warning about the route it created itself.** The
+  competing-distance-1 check looked at every row in the table, so on the second
+  import it found `mik: connected to container` — the row `02-routing.rsc`
+  creates so the gateway is reachable — and logged "disable it or the exit is
+  per-connection random". It only considers `0.0.0.0/0` now.
+
 ## 1.0.0 — 2026-11-06
 
 ### Changed

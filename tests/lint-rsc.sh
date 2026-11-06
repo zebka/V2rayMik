@@ -54,6 +54,21 @@ Xr='X''ray'
 XR='X''RAY'
 root=$(cd "$dir/.." 2>/dev/null && pwd) || root="."
 
+# --- no byte-order marks ------------------------------------------------------
+# RouterOS reads the first line of an imported file as a command. With a UTF-8
+# BOM in front of it that line is not a command, and `/import` answers
+# "expected command name (line 1 column 1)" and skips the file — while the next
+# line of the operator's paste still prints, so an install stalls at 01-container
+# without ever saying why. Editors add the BOM silently, so guard it here.
+# BusyBox only: compare the first three bytes as text, no `od -t`, no `file`.
+bom=$(printf '\357\273\277')
+for f in "$dir"/*.rsc "$root"/tests/*.sh "$root"/tests/*/*.sh; do
+  [ -f "$f" ] || continue
+  first3=$(head -c 3 "$f")
+  [ "$first3" = "$bom" ] || continue
+  err "$f: starts with a UTF-8 BOM; RouterOS /import rejects it (expected command name)"
+done
+
 # Files where the engine is never named at all: one stale character is a bug.
 # Every path is quoted on purpose: the checkout sits under "New OpenCode Project",
 # and an unquoted list would split there and grep nothing (2>/dev/null hides it).

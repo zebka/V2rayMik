@@ -45,7 +45,13 @@
          [:len [:find $body "live=1"]] > 0) do={ :set want 1 }
 
     :local xw [/ip route find where comment="mik-world"]
-    :if ([:len $xw] = 0) do={ :log warning "mik-auto: no mik-world route"; :return }
+    # `:return` without a value is an argument error on 7.25 ("missing value(s)
+    # of argument(s) value"), and on the last line of a block the closing brace
+    # is what it tries to read as one. Give it an explicit value.
+    :if ([:len $xw] = 0) do={
+      :log warning "mik-auto: no mik-world route"
+      :return 0
+    }
     :local xwid [:pick $xw 0]
     :local xon ([/ip route get $xwid disabled] = false)
 

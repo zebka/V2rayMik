@@ -1,4 +1,4 @@
-﻿# Admin UI: subscriptions, testing, selecting a config
+# Admin UI: subscriptions, testing, selecting a config
 
 Status: implemented (0.2.0–0.4.0). Kept as the design record; the current
 behaviour is described in the README and `CHANGELOG.md`.

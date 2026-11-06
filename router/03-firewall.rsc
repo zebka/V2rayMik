@@ -1,4 +1,4 @@
-﻿# 03-firewall.rsc — what the container may reach, and how it is NATed.
+# 03-firewall.rsc — what the container may reach, and how it is NATed.
 #
 # Import after 02-routing.rsc, in the same session.
 # Safe to import twice.

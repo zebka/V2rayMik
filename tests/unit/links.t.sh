@@ -1,4 +1,4 @@
-﻿#!/bin/sh
+#!/bin/sh
 # Share-link parsing: every supported scheme becomes one sing-box outbound.
 set -eu
 . "$(dirname "$0")/../lib/assert.sh"

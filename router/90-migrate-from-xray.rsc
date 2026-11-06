@@ -40,7 +40,15 @@
   :if ([:len $lan] = 0) do={
     :foreach a in=[/ip address find where dynamic=no] do={
       :local ifc [/ip address get $a interface]
+      # `network` is the bare address on 7.25 ("192.168.88.0", no "/24"), while
+      # the globals and the firewall rules want a prefix. Take the length from
+      # `address`, which is always "x.x.x.x/len".
       :local net [/ip address get $a network]
+      :local addr [/ip address get $a address]
+      :local slash [:find $addr "/"]
+      :if ([:typeof $slash] = "num") do={
+        :set net ($net . [:pick $addr $slash [:len $addr]])
+      }
       :if ([:len $lan] = 0 and $ifc != "veth-xray" and $ifc != $wan and $net != "172.17.0.0/24") do={
         :if ([:len [/interface bridge find where name=$ifc]] > 0) do={
           :set lan $net
@@ -56,10 +64,16 @@
     :set tbl [/ip route get [:pick $rwid 0] routing-table]
   }
 
-  # Fail-open showed itself as the presence of the ISP fallback route.
+  # Fail-open showed itself as the presence of the ISP fallback route. Its absence
+  # does not mean the operator wanted fail-closed — an install built by hand has
+  # such a route under a name of its own — and the project defaults to fail-open
+  # (a dead node must return world traffic to the ISP, not to another tunnel), so
+  # `true` is the guess either way. Say so when the route was not found.
   :local failOpen "true"
+  :local failNote ""
   :if ([:len [/ip route find where comment="xray-fallback"]] = 0) do={
-    :set failOpen "false"
+    :set failNote "   # guessed: check it"
+    :log warning "90-migrate: MikFailOpen guessed as true (no old fallback route), check the printed block"
   }
 
   # The opt-in LAN rule existed or it did not.
@@ -107,6 +121,9 @@
   }
 
   # Everything that could not be read falls back to the shipped default, and says so.
+  # A LAN value without a prefix is not usable: the globals and the firewall rules
+  # want `192.168.88.0/24`, and a bare `192.168.88.0` would pass as "found".
+  :if ([:len $lan] > 0 and [:typeof [:find $lan "/"]] = "nothing") do={ :set lan "" }
   :local wanNote ""
   :if ([:len $wan] = 0) do={
     :set wan "ether2-WAN"
@@ -274,7 +291,7 @@
   :put (":global MikExtraWanPorts \"" . $extra . "\"")
   :put (":global MikAdminLanPort \"" . $alan . "\"")
   :put (":global MikTable \"" . $tbl . "\"")
-  :put (":global MikFailOpen " . $failOpen)
+  :put (":global MikFailOpen " . $failOpen . $failNote)
   :put (":global MikAllowContainerToLan " . $allowLan)
   :put (":global MikAdminPassword \"" . $pw . "\"")
   :put ""

@@ -1,4 +1,4 @@
-﻿# 02-routing.rsc — world route, marking, MSS clamp, health.
+# 02-routing.rsc — world route, marking, MSS clamp, health.
 #
 # Import after 01-container.rsc, in the same session.
 # Safe to import twice.
@@ -64,7 +64,10 @@
 
 # A competing distance-1 route in the same table makes the choice per-connection
 # and unpredictable. Refuse to guess: tell the operator which one to disable.
-:foreach c in=[/ip route find where routing-table=$MikTable] do={
+# Only 0.0.0.0/0 competes: the connected row to the container subnet is a
+# distance-1 route in the same table by design, and counting it would tell the
+# operator to disable the route the gateway needs.
+:foreach c in=[/ip route find where routing-table=$MikTable and dst-address="0.0.0.0/0"] do={
   :if ([/ip route get $c distance] = 1) do={
     :if ([/ip route get $c comment] != "mik-world") do={
       :if ([/ip route get $c disabled] = false) do={

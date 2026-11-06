@@ -1,4 +1,4 @@
-﻿# 01-container.rsc — veth, container bridge, storage and the container entry.
+# 01-container.rsc — veth, container bridge, storage and the container entry.
 #
 # Import 00-vars.rsc first, in the same terminal session:
 #   /import file-name=00-vars.rsc
