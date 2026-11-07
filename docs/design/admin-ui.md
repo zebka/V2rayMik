@@ -57,6 +57,7 @@ PID 1: entrypoint (shell supervisor)
 | `/cgi/sub` | POST | save a subscription URL or pasted links, return the parsed list |
 | `/cgi/test` | POST | test one config by index; returns `{code, ms, mbps, error}` |
 | `/cgi/connect` | POST | make one config active, restart Xray, return the new state |
+| `/cgi/power` | POST | `state=stop\|start`: bypass the tunnel by flag, not by signal |
 
 Rules:
 

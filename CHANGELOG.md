@@ -1,5 +1,68 @@
 # Changelog
 
+## 1.1.0 — 2026-11-07
+
+### Added
+
+- **Stop, from the panel.** A Stop button makes the router send traffic out
+  through the ISP *on purpose*: the container writes `/data/bypass.flag` and
+  `health` then answers `selected=0`, so the router's scheduler takes the branch
+  it already takes for a dead node. `sing-box` is **not** killed and `tun0` stays
+  up, so the container's healthcheck and `restart-policy=always` never fire —
+  a deliberate stop must not look like a crash, or `stop-on-unhealthy` would
+  restart exactly what was stopped. Start removes the flag and traffic returns to
+  the node still recorded in `state.json`; connecting a config clears the flag
+  too. The flag lives on the disk, so a stop survives a reboot.
+  New endpoint: `POST /cgi-bin/power` with `state=stop|start`.
+- `health` answers a fourth field, `bypass=0|1`. The router's scheduler ignores
+  it (it reads `selected=`, `up=`, `live=`), so an old scheduler keeps working
+  against a new image; it is there so a raw fetch says *why* a node that is up is
+  not selected.
+
+### Changed
+
+- **The world route now follows the panel in ~10 seconds, both ways.** The
+  scheduler ticks every **10 s** instead of 30 s, and **one** sample decides in
+  each direction instead of three good samples before returning to the tunnel.
+  This removes the damping on purpose: returning took 60–90 s, longer than a page
+  load waits, and the cost of a node that wobbles is two route flips rather than a
+  minute on the ISP.
+- `live.cache` in `health` is valid for **5 s** instead of 20 s, so a 10 s poll
+  always gets a fresh probe; the probe timeout dropped from 4 s to 3 s so the
+  whole answer fits inside the router's 4 s fetch.
+- `health` counts the Stop flag as "not selected". Both a stopped tunnel and a
+  dead node fall back to the ISP, which is the same thing the router has to do in
+  either case.
+
+### Fixed
+
+- **The panel says what the router is actually doing.** The world-route line was
+  hard-wired to "tunnel" unless Stop was pressed, so a router with no node chosen
+  or with `tun0` down claimed a tunnel that was not there. It now reads
+  "ISP, no node chosen", "ISP, tunnel down", "tunnel" or
+  "ISP, stopped on purpose", and the Stop button is disabled while there is
+  nothing to stop.
+- The "testing…" pill was visible all the time: `.pill` sets
+  `display:inline-block`, which beats the browser's own `[hidden]` rule.
+- The page paints its own `Canvas` background instead of relying on the browser's
+  default, so it stays readable in a webview that makes the page transparent.
+
+### Upgrading
+
+`05-auto-route.rsc` only creates what is missing, so an existing install keeps its
+30 s scheduler and its 3-sample return — and prints a warning saying so on import.
+On a router that already runs it:
+
+```
+/system script remove [find where name="mik-auto-route"]
+/system scheduler remove [find where name="mik-auto-route"]
+/import file-name=05-auto-route.rsc
+```
+
+The image has to move too: Stop is a container change, and with a 1.0.x image the
+panel has no Stop button at all. With the new image and an old router script, Stop
+works but Start takes the old 60–90 s to come back.
+
 ## 1.0.1 — 2026-11-06
 
 ### Fixed

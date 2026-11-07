@@ -83,12 +83,15 @@ and wins over the environment.
 `GET /cgi-bin/health` is unauthenticated and answers plain text:
 
 ```
-selected=1 up=1 live=1
+selected=1 up=1 live=1 bypass=0
 ```
 
-- `selected` — a node was chosen in the panel
+- `selected` — a node was chosen in the panel, and its Stop button is not pressed
 - `up` — the tunnel started and `tun0` exists
-- `live` — a `204` actually came back through the tunnel (cached 20 s)
+- `live` — a `204` actually came back through the tunnel (cached 5 s, so a 10 s
+  poll always gets a fresh answer)
+- `bypass` — the panel was told to stop; `selected` is then forced to `0` and the
+  router sends traffic out through the ISP on purpose
 
 That is all a router needs to decide whether to keep its world route pointed at
 the container. It carries no secrets and no labels.

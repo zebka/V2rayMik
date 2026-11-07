@@ -45,6 +45,10 @@ jq -n --argjson ob "$ob" --arg label "$label" --argjson idx "$idx" \
 chmod 600 "$tmp"
 mv -f "$tmp" "$STATE_FILE"
 
+# Picking a node is a request to use the tunnel: a tunnel stopped with the
+# panel's Stop button must not swallow the new node. One less click to explain.
+rm -f "$BYPASS_FILE"
+
 kill -HUP 1 2>/dev/null || true
 
 i=0

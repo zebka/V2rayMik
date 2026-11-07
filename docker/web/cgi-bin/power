@@ -1,0 +1,37 @@
+#!/bin/sh
+# Stop / start the tunnel from the panel: POST state=stop|start.
+#
+# Stop is not "kill sing-box". It writes a flag next to state.json, and the
+# health endpoint then reports `selected=0`, so the router's scheduler moves
+# world traffic to the ISP within one tick (10 s) — the same, already-proven
+# branch it takes when a node dies. sing-box keeps running and tun0 stays up, so
+# the container's healthcheck stays green and `restart-policy=always` is never
+# triggered: a deliberate stop must not look like a crash.
+#
+# Start removes the flag. Nothing else changes: the node chosen in the panel is
+# still in state.json, so the tunnel comes back on the same node.
+. /app/web/cgi-bin/_common
+
+require_auth
+[ "${REQUEST_METHOD:-GET}" = "POST" ] || fail_json "405 Method Not Allowed" "POST only"
+
+body=$(read_body)
+want=$(form_get "$body" "state")
+
+case "$want" in
+  stop)
+    mkdir -p "$DATA_DIR"
+    # An empty file is enough; the mtime is what a human reads in a listing.
+    : > "$BYPASS_FILE" || fail_json "500 Internal Server Error" "cannot write $BYPASS_FILE"
+    ;;
+  start)
+    rm -f "$BYPASS_FILE"
+    ;;
+  *)
+    fail_json "400 Bad Request" "state must be start or stop"
+    ;;
+esac
+
+# The router notices on its next tick; the panel says so instead of pretending
+# this call moved a route.
+ok_json "{\"ok\":true,\"bypassed\":$([ "$want" = "stop" ] && echo true || echo false)}"

@@ -132,7 +132,21 @@ dial would enter the live TUN and the measurement would describe the wrong node.
 - `05-auto-route.rsc` is the only thing that should toggle those routes. It keeps
   `mik-world` enabled only while the panel reports a selected, up and live node,
   and otherwise enables the ISP route and disables every other default route in
-  the table.
+  the table. One sample decides, each way: the tick is 10 s, so a node that dies
+  and a node that returns are both handled within about ten seconds.
+
+## Stop
+
+The panel's Stop button is not a process control. It writes `/data/bypass.flag`;
+`health` then answers `selected=0 bypass=1`, and the scheduler takes the same
+branch it takes for a dead node: world traffic leaves through the ISP, which is
+what was asked for. `sing-box` is left running and `tun0` stays up, so the
+container's `healthcheck-cmd` stays green and `restart-policy=always` never fires —
+killing the engine would have made "stopped on purpose" indistinguishable from
+"crashed", and `stop-on-unhealthy` would restart exactly what the operator
+stopped. Start removes the flag; the node in `state.json` was never touched, so
+the tunnel returns on the same node in one tick. The flag lives on the disk, so a
+stop survives a reboot.
 
 There is deliberately no `check-gateway=ping` on the world route. On the reference
 device the container did not answer ICMP reliably, which silently deactivated the

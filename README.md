@@ -110,8 +110,10 @@ On a hAP ax³ (arm64, 1 GB) with RouterOS 7.25.1 and USB storage:
 - The panel loads a subscription, tests each node (real delay, exit country,
   Mbps) and switches the world route in ~3 seconds.
 - With the selected node stopped, the scheduler moved world traffic back to the
-  ISP in under 30 seconds (`loc=IR`, the router's own address) and returned to
-  the node when it came back — with the OpenVPN route never enabled.
+  ISP within one tick (`loc=IR`, the router's own address) and returned to
+  the node when it came back — with the OpenVPN route never enabled. That was
+  measured with a 30 s tick and a 3-sample return; 1.1.0 uses 10 s and one sample,
+  which shortens exactly the wait this bullet describes.
 - The container idles at 10–22 MiB RSS. Details and commands in
   `docs/benchmarks.md`.
 
@@ -250,13 +252,19 @@ country, which is exactly the thing you are paying for.
 
 ### Follow the panel automatically
 
-`router/05-auto-route.rsc` adds a 30-second scheduler that asks the container's
-public `cgi-bin/health` endpoint (`selected=`, `up=`, `live=`). Only when all
-three are `1` does it keep `mik-world` enabled; otherwise it disables it and
-enables the route to the ISP gateway, disabling every other default route in the
-table (OpenVPN, WireGuard) on the way. The script owns the routing table while it
-runs: to use another tunnel as the exit, disable the scheduler and enable the
-route by hand.
+`router/05-auto-route.rsc` adds a 10-second scheduler that asks the container's
+public `cgi-bin/health` endpoint (`selected=`, `up=`, `live=`, `bypass=`). Only
+when the node is selected, the tunnel is up and a `204` came back through it does
+it keep `mik-world` enabled; otherwise it disables it and enables the route to the
+ISP gateway, disabling every other default route in the table (OpenVPN, WireGuard)
+on the way. The script owns the routing table while it runs: to use another tunnel
+as the exit, disable the scheduler and enable the route by hand.
+
+One sample decides, in both directions: a node that stops answering loses the
+world route on the next tick, and a node that answers again gets it back on the
+next tick — about 10 seconds each way. That is deliberately not damped: a minute
+of waiting for a return is longer than any page load, so a node that wobbles costs
+two route flips rather than a minute of the ISP.
 
 The ISP gateway is read from the main table on every run, so a DHCP or PPPoE
 change needs no edit.
@@ -278,9 +286,16 @@ http://<router-lan-ip>:8081/        # MikAdminLanPort
   throughout. "Test all" walks the list; "Cancel" stops it.
 - **Connect**: the router's world traffic moves to that config. The switch is
   verified (TUN up, routes right, 204 through the tunnel) and rolls back
-  automatically if the new node does not come up. Expect ~2–3 seconds of dropped
-  connections during the switch; nothing leaks, because the world route keeps
-  pointing at the container.
+  automatically if the new node does not come up. Expect up to ~10 seconds before
+  the router follows; nothing leaks, because the world route keeps pointing at the
+  container until the scheduler moves it.
+- **Stop / Start**: `Stop` sends this router's traffic out through the ISP **on
+  purpose** — every client goes direct, the tunnel is bypassed rather than broken.
+  It does not kill `sing-box`: the container only writes a flag, so `tun0` stays up
+  and the container is never restarted for it. `Start` puts traffic back on the node
+  that is still selected, in about the same 10 seconds. The choice survives a
+  reboot (the flag lives on the disk next to `state.json`). Connecting a config
+  clears it, because picking a node is asking for the tunnel.
 
 Two things the panel refuses to do on its own, by design:
 

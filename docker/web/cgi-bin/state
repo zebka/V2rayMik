@@ -18,6 +18,12 @@ fi
 tun=false
 [ -d /sys/class/net/tun0 ] && tun=true
 
+# Stop is a flag file, not a process state: the tunnel is still up, the router
+# just routes around it. The panel needs to know that, or a stopped tunnel looks
+# like a broken one.
+bypass=false
+[ -f "$BYPASS_FILE" ] && bypass=true
+
 # The image version is written at build time from the repository's VERSION file,
 # which is also the release tag. It is shown in the panel so the page itself
 # says which code is running.
@@ -25,4 +31,4 @@ version=$(cat /app/VERSION 2>/dev/null || echo "dev")
 
 list=$(subs_list "$SUB_FILE" "$ALLOWED_PORTS")
 
-ok_json "{\"ok\":true,\"gen\":\"$(json_escape "$gen")\",\"count\":$count,\"label\":\"$(json_escape "$label")\",\"index\":$index,\"testing\":$testing,\"tun\":$tun,\"version\":\"$(json_escape "$version")\",\"list\":$list}"
+ok_json "{\"ok\":true,\"gen\":\"$(json_escape "$gen")\",\"count\":$count,\"label\":\"$(json_escape "$label")\",\"index\":$index,\"testing\":$testing,\"tun\":$tun,\"bypass\":$bypass,\"version\":\"$(json_escape "$version")\",\"list\":$list}"
