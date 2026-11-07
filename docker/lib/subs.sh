@@ -82,6 +82,31 @@ subs_list() {
   printf ']}'
 }
 
+# subs_reject_reason <raw-file> — why a payload produced no usable links.
+# The operator has to know which side to fix: the provider, the URL, or the
+# panel. A sing-box JSON profile, for instance, is a valid subscription that
+# this panel cannot use, and saying so is the difference between "broken" and
+# "wrong link".
+subs_reject_reason() {
+  raw=$1
+  [ -f "$raw" ] && [ -s "$raw" ] || { printf 'the subscription was empty'; return 0; }
+  size=$(wc -c < "$raw" | tr -d ' ')
+  head=$(head -c 400 "$raw" | tr -d '\r\n')
+  case "$head" in
+    '<'*)
+      printf 'the subscription returned a web page, not configs (a block or login page?)'
+      ;;
+    *'"outbounds"'*|*'"inbounds"'*|*'"route"'*)
+      printf 'that link is a sing-box JSON profile, not a list of links; pick the v2ray/links subscription in the provider panel'
+      ;;
+    *)
+      lines=$(subs_decode "$raw" 2>/dev/null | grep -c '' || true)
+      printf 'no usable configs in that subscription (%s bytes, %s lines)' \
+        "$size" "${lines:-0}"
+      ;;
+  esac
+}
+
 # subs_count <raw-file> — how many usable links, robust to a missing file.
 subs_count() {
   [ -f "$1" ] || { printf '0'; return 0; }

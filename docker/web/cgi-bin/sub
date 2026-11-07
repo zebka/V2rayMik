@@ -23,9 +23,18 @@ if [ -n "$url" ]; then
   # Say *why* the fetch failed. `-f` collapsed a 403, a bad certificate and a
   # poisoned DNS answer into the same sentence, and the operator had no way to
   # tell a provider that blocks us from one that is simply offline.
+  #
+  # The User-Agent must not contain "v2ray". A provider's edge (and DPI on the
+  # way there) drops the request without an answer when it sees that word, so
+  # curl sat until `--max-time` with zero bytes and the panel blamed the
+  # subscription. Measured against a real panel in Iran: `curl/x` and `clash/x`
+  # answer 200 in ~0.4 s, while `v2raymik-admin`, `v2rayNG/1.8.5` and
+  # `v2raymik` all hang until the timeout. A plain browser string is the one
+  # thing that is safe on every provider tested.
   errf="$DATA_DIR/.fetch.err"
   code=$(curl -sSL --max-redirs 5 --proto '=http,https' --max-time 25 \
-        -A "v2raymik-admin" -o "$tmp" -w '%{http_code}' "$url" 2>"$errf")
+        -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" \
+        -o "$tmp" -w '%{http_code}' "$url" 2>"$errf")
   rc=$?
   if [ "$rc" -ne 0 ]; then
     why=$(head -n 1 "$errf" 2>/dev/null | tr -d '\r' \
@@ -56,14 +65,7 @@ fi
 # unreadable or has no usable link must not throw away a list that still works.
 count=$(subs_count "$tmp")
 if [ "$count" -eq 0 ]; then
-  peek=$(head -c 200 "$tmp" 2>/dev/null | tr -d '\r\n')
-  # `grep -c ''` also counts a last line that has no newline, so a one-line
-  # payload is not reported as "0 lines".
-  lines=$(subs_decode "$tmp" 2>/dev/null | grep -c '' || true)
-  case "$peek" in
-    '<'*) why="the subscription returned a web page, not configs (a block or login page?)" ;;
-    *)    why="no usable configs in that subscription (${lines:-0} lines)" ;;
-  esac
+  why=$(subs_reject_reason "$tmp")
   rm -f "$tmp"
   fail_json "400 Bad Request" "$why"
 fi

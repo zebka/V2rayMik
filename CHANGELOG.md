@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.1.2 — 2026-11-07
+
+### Fixed
+
+- **A subscription no longer hangs because of our own name.** The fetch sent
+  `User-Agent: v2raymik-admin`. Measured against a real provider panel: no UA,
+  `curl/x` and `clash/x` answer `200` in ~0.4 s, while `v2raymik-admin`,
+  `v2raymik` and `v2rayNG/1.8.5` get **no answer at all** until the timeout —
+  a User-Agent containing `v2ray` is dropped silently, by DPI or by the
+  provider's edge. The panel now sends a plain browser User-Agent. Before this,
+  the operator saw "the subscription does not import at all" while pasting one
+  of its nodes by hand worked, which points away from the fetch.
+- **A sing-box JSON profile is named instead of being called broken.** Some
+  panels hand out a sing-box profile at the subscription URL. It is a valid
+  subscription that this panel cannot eat (it wants links), so the message now
+  says exactly that: `that link is a sing-box JSON profile, not a list of links;
+  pick the v2ray/links subscription in the provider panel`. An unrecognised
+  payload reports its byte size and line count, and an HTML answer is still
+  named as a block or login page.
+
 ## 1.1.1 — 2026-11-07
 
 ### Fixed

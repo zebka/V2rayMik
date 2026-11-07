@@ -56,3 +56,33 @@ assert_eq "$(subs_count "$D/placeholder.txt")" "0" "loopback placeholder not cou
 
 assert_eq "$(subs_count "$D/plain.txt")" "2" "count counts usable links"
 assert_eq "$(subs_count "$D/missing.txt")" "0" "missing file counts zero"
+
+# --- why a payload was rejected ----------------------------------------------
+# The operator has to be able to tell a dead provider from a wrong URL, so the
+# wording is part of the interface.
+printf '%s\n' '<html><body>login</body></html>' > "$D/page.html"
+assert_match "$(subs_reject_reason "$D/page.html")" "web page" "an HTML answer is named"
+
+# a sing-box profile is a valid subscription this panel cannot eat; saying so
+# stops the hunt for a bug that is a wrong link.
+cat > "$D/profile.json" <<'JSON'
+{
+  "dns": { "final": "local-dns" },
+  "inbounds": [ { "type": "tun" } ],
+  "outbounds": [ { "type": "vless", "server": "203.0.113.9", "server_port": 443 } ]
+}
+JSON
+assert_match "$(subs_reject_reason "$D/profile.json")" "sing-box JSON profile" \
+  "a sing-box profile is named, not called broken"
+assert_match "$(subs_reject_reason "$D/profile.json")" "v2ray/links" \
+  "the profile message says what to use instead"
+
+assert_eq "$(subs_reject_reason "$D/missing.txt")" "the subscription was empty" \
+  "a missing file is called empty"
+: > "$D/empty.txt"
+assert_eq "$(subs_reject_reason "$D/empty.txt")" "the subscription was empty" \
+  "an empty file is called empty"
+
+printf '%s\n' 'nothing here' > "$D/junk.txt"
+assert_match "$(subs_reject_reason "$D/junk.txt")" "bytes" \
+  "an unknown payload reports its size"
