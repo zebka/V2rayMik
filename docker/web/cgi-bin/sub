@@ -20,10 +20,27 @@ if [ -n "$url" ]; then
     http://*|https://*) ;;
     *) fail_json "400 Bad Request" "url must be http or https" ;;
   esac
-  if ! curl -fsSL --proto '=http,https' --max-time 25 -A "v2raymik-admin" "$url" -o "$tmp" 2>/dev/null; then
-    rm -f "$tmp"
-    fail_json "502 Bad Gateway" "could not fetch the subscription"
+  # Say *why* the fetch failed. `-f` collapsed a 403, a bad certificate and a
+  # poisoned DNS answer into the same sentence, and the operator had no way to
+  # tell a provider that blocks us from one that is simply offline.
+  errf="$DATA_DIR/.fetch.err"
+  code=$(curl -sSL --max-redirs 5 --proto '=http,https' --max-time 25 \
+        -A "v2raymik-admin" -o "$tmp" -w '%{http_code}' "$url" 2>"$errf")
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+    why=$(head -n 1 "$errf" 2>/dev/null | tr -d '\r' \
+          | sed -e 's/^curl: ([0-9]*) //' | cut -c1-150)
+    rm -f "$tmp" "$errf"
+    fail_json "502 Bad Gateway" "could not fetch: curl $rc ${why}"
   fi
+  rm -f "$errf"
+  case "$code" in
+    2??) ;;
+    *)
+      rm -f "$tmp"
+      fail_json "502 Bad Gateway" "the subscription answered HTTP $code"
+      ;;
+  esac
 elif [ -n "$links" ]; then
   printf '%s\n' "$links" > "$tmp"
 else
@@ -35,14 +52,25 @@ if [ ! -s "$tmp" ]; then
   fail_json "400 Bad Request" "empty subscription"
 fi
 
+# Parse the payload before replacing the cached one: a subscription that is
+# unreadable or has no usable link must not throw away a list that still works.
+count=$(subs_count "$tmp")
+if [ "$count" -eq 0 ]; then
+  peek=$(head -c 200 "$tmp" 2>/dev/null | tr -d '\r\n')
+  # `grep -c ''` also counts a last line that has no newline, so a one-line
+  # payload is not reported as "0 lines".
+  lines=$(subs_decode "$tmp" 2>/dev/null | grep -c '' || true)
+  case "$peek" in
+    '<'*) why="the subscription returned a web page, not configs (a block or login page?)" ;;
+    *)    why="no usable configs in that subscription (${lines:-0} lines)" ;;
+  esac
+  rm -f "$tmp"
+  fail_json "400 Bad Request" "$why"
+fi
+
 chmod 600 "$tmp"
 mv -f "$tmp" "$SUB_FILE"
 
 gen=$(gen_of "$SUB_FILE")
-count=$(subs_count "$SUB_FILE")
-if [ "$count" -eq 0 ]; then
-  fail_json "400 Bad Request" "no usable configs in that subscription"
-fi
-
 list=$(subs_list "$SUB_FILE" "$ALLOWED_PORTS")
 ok_json "{\"ok\":true,\"gen\":\"$(json_escape "$gen")\",\"count\":$count,\"list\":$list}"

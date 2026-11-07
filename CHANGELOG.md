@@ -1,5 +1,35 @@
 # Changelog
 
+## 1.1.1 — 2026-11-07
+
+### Fixed
+
+- **A failed test now says why.** The panel used to answer a bare
+  `{"code":0,"ms":0,"mbps":0,"country":"","error":""}` for every kind of failure —
+  a dead endpoint, a refused port, a poisoned DNS answer and a node whose REALITY
+  key no longer matches all looked identical, and the web page printed
+  `unreachable`. `xtest` now keeps curl's exit status, reports the real elapsed
+  time instead of `0` for fast failures, and appends the engine's last line with
+  its terminal colour and the `using outbound/...` preamble stripped. What the
+  operator sees is one sentence: `timed out after 8s`, `connection refused`,
+  `the proxy could not open the connection; sing-box: reality verification
+  failed`, `the check answered http 403`.
+- **A failed import no longer wipes the working list.** `sub` replaced
+  `/data/sub.txt` first and parsed afterwards, so a provider that answered with a
+  login page or an empty payload left the panel with zero configs and nothing to
+  test. The payload is now parsed in `sub.tmp`, and only a payload with at least
+  one usable link replaces the cached list.
+- **The subscription fetch names its own failure.** `-f` collapsed an HTTP 403, a
+  bad certificate and a poisoned DNS answer into `could not fetch the
+  subscription`. The fetch now reports the HTTP status (`the subscription
+  answered HTTP 403`), curl's exit code and first line (`could not fetch: curl 6
+  Could not resolve host: ...`), and recognises an HTML page (`the subscription
+  returned a web page, not configs`), which is what a block page or an expired
+  login looks like.
+
+No behaviour changed for a config that tests fine: the check URL, the speed
+measurement and the exit-country lookup are the same.
+
 ## 1.1.0 — 2026-11-07
 
 ### Added
