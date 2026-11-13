@@ -254,7 +254,7 @@ xray_config() {
   }
   tmp=$(mktemp)
   printf '%s' "$1" > "$tmp"
-  jq -c --argjson port "$2" --slurpfile ob "$tmp" \
+  jq -nc --argjson port "$2" --slurpfile ob "$tmp" \
     '{log:{loglevel:"warning"},
       inbounds:[{protocol:"socks", listen:"127.0.0.1", port:$port,
                  settings:{auth:"noauth", udp:true, ip:"127.0.0.1"}}],

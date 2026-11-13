@@ -1,4 +1,22 @@
 # Changelog
+## 1.2.2 - 2026-11-13
+
+### Fixed
+
+- **`xray_config` rendered an empty plan, and the Xray end of the CI
+  therefore always failed at "xray plan has no socks inbound".** `jq`
+  without `-n` runs the filter once per input document, and there is no
+  input document - the outbound arrives on stdin only for the
+  validation step, not for the render. The render now uses `-n` like
+  `render_config` already did, and xray-backed nodes boot.
+
+### History
+
+- 1.2.0 failed to ship: its Xray test fixture had one brace too many.
+- 1.2.1 fixed the fixture, but the Xray render produced an empty plan
+  for the reason above; CI refused the release again, so no broken image
+  was ever published. Both failures were CI doing its job.
+
 ## 1.2.1 - 2026-11-13
 
 ### Fixed
