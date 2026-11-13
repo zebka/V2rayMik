@@ -1,4 +1,16 @@
 # Changelog
+## 1.2.5 - 2026-11-13
+
+### Fixed
+
+- **Uninstall failed on a freshly-installed router.** RouterOS 7
+  injects the veth's connected route into every fib table, so a
+  blanket "remove every route in the table" hit a dynamic route
+  owned by the system and the uninstall stopped before touching
+  anything else. Routes are now removed by comment (only the ones
+  this project creates), and the fib tables are removed last, after
+  the veth is gone.
+
 ## 1.2.4 - 2026-11-13
 
 ### Fixed

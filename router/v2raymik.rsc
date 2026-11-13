@@ -75,12 +75,17 @@
   :log warning "v2raymik: uninstalling"
 
   # --- routes and tables ------------------------------------------------
-  /ip route remove [find where comment="mik-world"]
-  /ip route remove [find where comment="mik-fallback"]
+  # Remove only routes this project creates (by comment). Connected routes in
+  # a fib table are recreated dynamically by the veth itself, so a blanket
+  # "every route in the table" would try (and fail) to remove those too.
+  :foreach c in={"mik-world";"mik-fallback";"mik: connected to container";"mik: tunnel"} do={
+    :if ([:len [/ip route find where comment=$c]] > 0) do={
+      /ip route remove [find where comment=$c]
+    }
+  }
   :foreach t in={"mik-tunnel";"to-world"} do={
-    :foreach r in=[/ip route find where routing-table=$t] do={ /ip route remove $r }
-    :if ([:len [/routing table find where name=$t]] > 0) do={
-      /routing table remove [find where name=$t]
+    :if ([:len [/ip route find where routing-table=$t and dynamic=no]] = 0) do={
+      :do { /routing table remove [find where name=$t] } on-error={ :log warning ("v2raymik: could not remove table " . $t . " yet; it is removed at the end") }
     }
   }
 
@@ -151,6 +156,13 @@
   }
   :if ([:len [/interface veth find where name=$MikVeth]] > 0) do={
     /interface veth remove [find where name=$MikVeth]
+  }
+
+  # now that the veth is gone, the fib tables have no routes left either
+  :foreach t in={"mik-tunnel";"to-world"} do={
+    :if ([:len [/routing table find where name=$t]] > 0) do={
+      :do { /routing table remove [find where name=$t] } on-error={}
+    }
   }
 
   :log info "v2raymik: uninstall complete; the device is back to its defaults"
