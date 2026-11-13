@@ -71,8 +71,8 @@ To uninstall:
 ```
 
 If the router cannot reach GitHub, download `router/v2raymik.rsc` and import
-it by hand. The image is pulled from Docker Hub; if that is blocked, set a
-mirror first (`docs/install.md`, "Get the image").
+it by hand. The image is pulled from the official registry first. If that
+fails, set a mirror and import again (`docs/install.md`, "Get the image").
 
 See `docs/install.md` for the full guide, the Iran mirror and rollback.
 

@@ -37,18 +37,20 @@ docker pull ghcr.io/zebka/v2raymik:latest
 
 `latest` is republished only when a release tag is pushed, so it always equals
 the `VERSION` file and the newest release here; `:edge` is the raw `main` build.
-In Iran the official registry is often unreachable. Try the official one
-first, then a mirror. Set the mirror before the import:
+In Iran the official registry is often unreachable. Use the official registry
+first. Only if the pull fails (the container never starts, and the log shows a
+pull error), switch to a mirror and import again:
 
 ```rsc
 :global MikRegistryUrl "https://focker.ir"
 /import file-name=v2raymik.rsc
 ```
 
-Other mirrors that worked in testing: `https://docker.iranserver.com`,
-`https://docker.arvancloud.ir` (also needs `:global MikCheckCertificate "no"`,
-because the router does not trust its CA). Use the same `MikRegistryUrl` line
-only if the default pull fails.
+The import does not switch registries by itself: RouterOS has one registry
+setting, and the import uses the default (`https://registry-1.docker.io`)
+unless `MikRegistryUrl` is set. Other mirrors that worked in testing:
+`https://docker.iranserver.com`, and `https://docker.arvancloud.ir` (also set
+`:global MikCheckCertificate "no"`, because the router does not trust its CA).
 
 ## Disks: name them correctly
 
