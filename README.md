@@ -13,6 +13,19 @@ container with Xray and sing-box inside. No tun2socks, no second container,
 no geodata files. And a small LAN page to load subscriptions and pick a
 node — no Winbox needed to switch servers.
 
+```
+LAN device ──► RouterOS ──► veth ──► container (Xray / sing-box) ──► your node ──► Internet
+                  │                        │
+                  │                        └─ TUN: all traffic leaves through the node
+                  └─ marks world traffic ──► tunnel table
+                     (LAN and private ranges stay direct)
+```
+
+- **RouterOS** marks every non-LAN packet and sends it to the container.
+- **The container** runs the engine and forwards everything through the node you picked.
+- **If the node is down**, marked traffic is dropped, not sent out your ISP (fail-closed).
+- **The panel** at `http://<router>:8081/` picks the node; no password, LAN only.
+
 ## Supported nodes
 
 | Node type | Engine |
@@ -35,12 +48,16 @@ One line on the router downloads the import file and runs it. Nothing to copy:
 
 That creates the veth, the mounts, the container, the routing table, the
 firewall and the LAN dst-nat. Running the same line again is the upgrade path.
+The container starts by itself once its image is ready.
 
-Start the container and wait for it to come up:
-
-```
-/container/start [find where name="v2raymik"]
-```
+**Disk names.** The container's image and data go on a disk. The installer
+looks for these, in this order, and uses the first one it finds:
+`usb1`, `usb2`, `usb3`, `sata1`, `sata2`, `nvme1`, `pcie1`, `pcie2`, `mmc1`,
+`sd1`, `nand1`, `flash`, `data`. A partitioned drive is found as
+`<name>-part1` (for example `usb2-part1`). Check your name with
+`/file print where type=directory` or in Winbox **Files**. If a USB stick is
+plugged in, it is used before the internal flash. Details and how to pin a
+disk are in `docs/install.md`.
 
 Open `http://<router>:8081/` on a LAN device — no password. Paste a
 subscription URL, press **Test**, and on the winning row press **Connect**.
@@ -54,8 +71,10 @@ To uninstall:
 ```
 
 If the router cannot reach GitHub, download `router/v2raymik.rsc` and import
-it by hand. See `docs/install.md` for the full guide, the Iran mirror and
-rollback.
+it by hand. The image is pulled from Docker Hub; if that is blocked, set a
+mirror first (`docs/install.md`, "Get the image").
+
+See `docs/install.md` for the full guide, the Iran mirror and rollback.
 
 ## Requirements
 

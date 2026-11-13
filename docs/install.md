@@ -37,15 +37,46 @@ docker pull ghcr.io/zebka/v2raymik:latest
 
 `latest` is republished only when a release tag is pushed, so it always equals
 the `VERSION` file and the newest release here; `:edge` is the raw `main` build.
-In Iran a mirror works better, for example:
+In Iran the official registry is often unreachable. Try the official one
+first, then a mirror. Set the mirror before the import:
 
 ```rsc
-:global MikRegistryUrl "https://docker.iranserver.com"
+:global MikRegistryUrl "https://focker.ir"
 /import file-name=v2raymik.rsc
 ```
 
-If your mirror's CA is not trusted by the router (`docker.arvancloud.ir` on
-7.25.1), also `:global MikCheckCertificate "no"`.
+Other mirrors that worked in testing: `https://docker.iranserver.com`,
+`https://docker.arvancloud.ir` (also needs `:global MikCheckCertificate "no"`,
+because the router does not trust its CA). Use the same `MikRegistryUrl` line
+only if the default pull fails.
+
+## Disks: name them correctly
+
+The installer picks a disk on its own. The name must be one RouterOS shows.
+Check it with `/file print where type=directory`, or in Winbox **Files**:
+
+| Drive | Name on the router |
+| --- | --- |
+| Internal flash | `flash` |
+| USB stick, partitioned | `usb1-part1`, `usb2-part1`, `usb3-part1` |
+| USB stick, not partitioned | `usb1`, `usb2`, `usb3` |
+| SATA | `sata1`, `sata2` |
+| NVMe / M.2 | `nvme1` |
+| PCIe | `pcie1`, `pcie2` |
+| SD / MMC | `mmc1`, `sd1` |
+
+The installer tries the names in that order and uses the first one found, so a
+USB stick plugged in is used before the internal flash. If the wrong disk is
+used, pin it once:
+
+```rsc
+:global MikDisk "pcie1"
+/import file-name=v2raymik.rsc
+```
+
+If the name does not exist, the import stops and lists the names that do
+exist. Pinning on USB is fragile: the same stick can get a different number
+after a reboot, so prefer auto-detect there.
 
 ## Side-loading the image
 
