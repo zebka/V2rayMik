@@ -105,6 +105,11 @@
 # Routing goes first, so traffic leaves the tunnel immediately.
 # =========================================================================
   :log warning "v2raymik: uninstalling"
+  :local pfx ""
+  :if ([:len $MikDisk] > 0) do={ :set pfx ($MikDisk . "/") }
+  :local tmpDir ($pfx . "tmp")
+  :local dataDir ($pfx . "v2raymik-data")
+  :local rootDir ($pfx . $MikContainerName)
 
   # --- routes and tables ------------------------------------------------
   # Remove only routes this project creates (by comment). Connected routes in
@@ -179,6 +184,16 @@
       :error "v2raymik: the container did not stop in time; run /container stop v2raymik, wait, then import again"
     }
   }
+  # --- files and folders the install created --------------------------------
+  # The image store (root-dir), the tmp dir and the data dir. The data dir holds
+  # the subscription and the chosen node, so uninstall deletes them too.
+  :foreach p in={$rootDir;$dataDir;$tmpDir} do={
+    :for i from=1 to=20 do={
+      :if ([:len [/file find where name=$p]] > 0) do={
+        :do { /file remove [find where name=$p] } on-error={ :delay 1s }
+      }
+    }
+  }
   :if ([:len [/container envs find where list=$MikContainerName]] > 0) do={
     /container envs remove [find where list=$MikContainerName]
   }
@@ -212,8 +227,11 @@
     }
   }
 
+  /system script environment remove [find where name="MikDisk"]
   :log info "v2raymik: uninstall finished"
   :global MikMode "install"
+  # last: the script file that is running this uninstall
+  :do { /file remove [find where name="v2raymik.rsc"] } on-error={ :log warning "v2raymik: could not remove v2raymik.rsc" }
 } else={
 
 # ==========================================================================

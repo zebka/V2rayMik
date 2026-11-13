@@ -1,4 +1,13 @@
 # Changelog
+## 1.3.6 - 2026-11-14
+
+### Changed
+
+- **Uninstall removes what install created on disk:** the container's image
+  store, `tmp`, the `v2raymik-data` folder (subscription and chosen node), the
+  `MikDisk` global and the `v2raymik.rsc` file itself. The last one means a
+  reinstall fetches the file again, which is what the install command does.
+
 ## 1.3.5 - 2026-11-14
 
 ### Fixed
