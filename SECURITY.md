@@ -24,8 +24,8 @@ subscription URL.
 - The admin panel has no password and is reachable from the LAN by design; that
   is the documented 1.2.0 panel, not a bug. If a LAN user switching your exit
   node is not acceptable for you, block the port in the forward chain.
-- `v2raymik.rsc` is scoped to `in-interface-list=LAN` for the panel's
-  `dst-nat`. If you forward the port to the WAN, that is your change.
+- `v2raymik.rsc` guards the panel's `dst-nat` with `src-address-list=mik-private`
+  (RFC1918 + link-local). If you forward the port to the WAN, that is your change.
 - Fail-closed: when the tunnel is down, marked traffic is dropped. That is
   the documented behaviour, not a bug.
 - The container's root shares the RouterOS kernel. That is the architecture and

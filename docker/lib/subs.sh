@@ -43,14 +43,6 @@ subs_decode() {
     | grep -v '^$'
 }
 
-# port_allowed <port> <csv-list>
-port_allowed() {
-  case ",${2:-}," in
-    *",$1,"*) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
 # subs_usable <link> — parseable and not a placeholder pointing at this host.
 subs_usable() {
   row=$(subs_entry "$1" 2>/dev/null) || return 1
@@ -61,14 +53,15 @@ subs_usable() {
   return 0
 }
 
-# subs_list <raw-file> <allowed-ports>
-# Emits {"entries":[{i,label,proto,host,port,port_ok,engine}]}. `i` is the raw
+# subs_list <raw-file>
+# Emits {"entries":[{i,label,proto,host,port,engine}]}. `i` is the raw
 # line index in the decoded payload — the same number /cgi-bin/test and
 # /connect use with sed. Anything else drifts the moment one line fails to
 # parse.
+# There is no port allowlist since 1.3.0: node ports belong to whoever runs
+# the node and are never known in advance, so every parseable port is usable.
 subs_list() {
   raw=$1
-  allowed=${2:-}
   printf '{"entries":['
   first=1
   n=0
@@ -82,14 +75,12 @@ subs_list() {
     label=${row%%|*}; rest=${row#*|}
     proto=${rest%%|*}; rest=${rest#*|}
     host=${rest%%|*}; port=${rest#*|}
-    ok=false
-    port_allowed "$port" "$allowed" && ok=true
     engine=$(engine_of_link "$link")
     [ "$first" -eq 1 ] || printf ','
     first=0
-    printf '{"i":%s,"label":"%s","proto":"%s","host":"%s","port":"%s","port_ok":%s,"engine":"%s"}' \
+    printf '{"i":%s,"label":"%s","proto":"%s","host":"%s","port":"%s","engine":"%s"}' \
       "$idx" "$(json_escape "$label")" "$(json_escape "$proto")" \
-      "$(json_escape "$host")" "$(json_escape "$port")" "$ok" "$engine"
+      "$(json_escape "$host")" "$(json_escape "$port")" "$engine"
   done < "$tmp"
   rm -f "$tmp"
   printf ']}'

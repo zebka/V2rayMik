@@ -46,12 +46,13 @@ live in **one** file in the repository.
 
    It creates everything (veth, mounts, container, table `mik-tunnel`, mangle,
    firewall, dst-nat). Re-importing is how upgrades work; defaults can be
-   overridden in the same session before the import (`MikWan`, `MikDisk`,
-   `MikImage`, `MikRegistryUrl`, …).
+   overridden in the same session before the import (`MikDisk`, `MikImage`,
+   `MikRegistryUrl`, …). There are no interface names or port lists to adapt —
+   the disk is detected and the LAN is the private address ranges.
 2. Point the container at this image:
 
    ```
-   :global MikImage "azebka/v2raymik:1.2.0"
+   :global MikImage "azebka/v2raymik:1.3.0"
    /import file-name=v2raymik.rsc
    ```
 
@@ -79,7 +80,6 @@ and wins over the environment.
 | `NODE_LINK` | — | one share link (`vless://`, `vmess://`, `trojan://`, `ss://`, `hysteria2://`, `tuic://`) |
 | `NODE_OUTBOUND_FILE` | — | path to a full sing-box outbound JSON |
 | `NODE_OUTBOUND_JSON` | — | the same JSON inline |
-| `ALLOWED_PORTS` | all | transport ports the panel may use |
 | `TUN_NAME` / `TUN_ADDR` | `tun0` / `198.18.0.1` | the TUN sing-box creates |
 | `DATA_DIR` | `/data` | mount this; it holds the chosen node |
 | `SINGBOX_LOG_LEVEL` | `warn` | sing-box log level inside the container log |

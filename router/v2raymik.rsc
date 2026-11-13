@@ -15,8 +15,13 @@
 #
 # The panel is a plain HTTP page on the LAN (http://<router>:<MikAdminLanPort>/),
 # with no password — anyone on the LAN can switch the node. It is reachable only
-# through the dst-nat at the bottom of this file, which is scoped to the LAN
-# interface list. Do not expose it to the WAN.
+# through the dst-nat at the bottom of this file, and only from a private
+# (RFC1918) source address. Do not expose it to the WAN.
+#
+# Nothing in this file names one of your interfaces or disks: there is no
+# etherN, no interface list and no port list to adapt per router. The disk is
+# detected; the LAN is the private address ranges; node ports belong to
+# whoever runs the node and are not filtered.
 #
 # If you upgrade from a 1.x install, run uninstall first, then install again:
 # the uninstall mode below also removes the objects the old 00–05 scripts made
@@ -25,8 +30,6 @@
 
 # --- the knobs. everything else is derived. --------------------------------
 :global MikMode
-:global MikWan
-:global MikLanSubnet
 :global MikDisk
 :global MikVeth
 :global MikSubnet
@@ -39,15 +42,30 @@
 :global MikRegistryUrl
 :global MikAdminPort
 :global MikAdminLanPort
-:global MikContainerToWanPorts
-:global MikExtraWanPorts
 :global MikAllowContainerToLan
 :global MikBridge
 
 # Sensible defaults; override before the import in the same terminal session.
-:if ([:typeof $MikWan] = "nothing") do={ :global MikWan "ether2-WAN" }
-:if ([:typeof $MikLanSubnet] = "nothing") do={ :global MikLanSubnet "192.168.88.0/24" }
-:if ([:typeof $MikDisk] = "nothing") do={ :global MikDisk "usb2" }
+# MikDisk is the one knob that varies per device, so it is detected: the first
+# candidate that exists as a disk directory. Set it yourself only to pin a
+# specific disk — then it must exist, and the import stops with a clear error
+# instead of quietly creating a junk directory under a name that is not there
+# (measured on 7.25.1: `/file add name="nodisk/x"` succeeds and leaves junk).
+:if ([:typeof $MikDisk] = "nothing") do={
+  :local found ""
+  :foreach d in={"usb1";"usb2";"usb3";"sata1";"sata2";"mmc1";"sd1";"nand1";"flash";"data"} do={
+    :if ([:len $found] = 0) do={
+      :if ([:len [/file find where name=$d and type="directory"]] > 0) do={ :set found $d }
+    }
+  }
+  :global MikDisk $found
+} else={
+  :if ([:len $MikDisk] > 0) do={
+    :if ([:len [/file find where name=$MikDisk and type="directory"]] = 0) do={
+      :error ("v2raymik: MikDisk " . $MikDisk . " does not exist on this router; unset :global MikDisk and import again to auto-detect")
+    }
+  }
+}
 :if ([:typeof $MikVeth] = "nothing") do={ :global MikVeth "veth-mik" }
 :if ([:typeof $MikSubnet] = "nothing") do={ :global MikSubnet "172.17.0.0/24" }
 :if ([:typeof $MikContainerIp] = "nothing") do={ :global MikContainerIp "172.17.0.2" }
@@ -61,8 +79,6 @@
 :if ([:typeof $MikRegistryUrl] = "nothing") do={ :global MikRegistryUrl "https://registry-1.docker.io" }
 :if ([:typeof $MikAdminPort] = "nothing") do={ :global MikAdminPort "8080" }
 :if ([:typeof $MikAdminLanPort] = "nothing") do={ :global MikAdminLanPort "8081" }
-:if ([:typeof $MikContainerToWanPorts] = "nothing") do={ :global MikContainerToWanPorts "443,80,8080,8880,2052,2053,2082,2083,2086,2087,2095,2096,8443,53" }
-:if ([:typeof $MikExtraWanPorts] = "nothing") do={ :global MikExtraWanPorts "" }
 :if ([:typeof $MikAllowContainerToLan] = "nothing") do={ :global MikAllowContainerToLan false }
 :if ([:typeof $MikBridge] = "nothing") do={ :global MikBridge "containers" }
 :if ([:typeof $MikMode] = "nothing") do={ :global MikMode "install" }
@@ -105,10 +121,15 @@
   }
 
   # --- firewall filter ---------------------------------------------------
-  :foreach c in={"mik: container tcp transport";"mik: container udp transport";"mik: container tcp transport (extra)";"mik: container udp transport (extra)";"mik: container to LAN (opt-in)";"mik: container default deny";"mik: container replies (established)"} do={
+  :foreach c in={"mik: container tcp transport";"mik: container udp transport";"mik: container tcp transport (extra)";"mik: container udp transport (extra)";"mik: container to LAN (opt-in)";"mik: container default deny";"mik: container replies (established)";"mik: container egress"} do={
     :if ([:len [/ip firewall filter find where comment=$c]] > 0) do={
       /ip firewall filter remove [find where comment=$c]
     }
+  }
+
+  # --- private address list (the LAN boundary since 1.3.0) ------------------
+  :if ([:len [/ip firewall address-list find where comment="mik: private"]] > 0) do={
+    /ip firewall address-list remove [find where comment="mik: private"]
   }
 
   # --- NAT and the admin page ---------------------------------------------
@@ -174,19 +195,39 @@
 
 :log info "v2raymik: installing"
 
-# --- storage ---------------------------------------------------------------
-:if ([:len [/file find where name=($MikDisk . "/tmp")]] = 0) do={
-  /file add name=($MikDisk . "/tmp") type=directory
+# Paths: most devices mount their storage as a named disk (usb2, flash, ...), a
+# few expose the root itself. $MikDisk is empty in the second case and every
+# path below is then built without a prefix.
+:local pfx ""
+:if ([:len $MikDisk] > 0) do={ :set pfx ($MikDisk . "/") }
+:local tmpDir ($pfx . "tmp")
+:local dataDir ($pfx . "v2raymik-data")
+:local rootDir ($pfx . $MikContainerName)
+
+# --- the private ranges -------------------------------------------------------
+# One fixed list stands for "the LAN" everywhere below: nothing about your
+# network has to be guessed or typed in. Router-originated traffic to these
+# ranges bypasses the tunnel, the container is kept out of them, and the panel
+# answers only to a source in them.
+:foreach a in={"127.0.0.0/8";"10.0.0.0/8";"172.16.0.0/12";"192.168.0.0/16";"169.254.0.0/16"} do={
+  :if ([:len [/ip firewall address-list find where list="mik-private" and address=$a]] = 0) do={
+    /ip firewall address-list add list="mik-private" address=$a comment="mik: private"
+  }
 }
-/container/config/set tmpdir=($MikDisk . "/tmp") registry-url=$MikRegistryUrl
+
+# --- storage ---------------------------------------------------------------
+:if ([:len [/file find where name=$tmpDir]] = 0) do={
+  /file add name=$tmpDir type=directory
+}
+/container/config/set tmpdir=$tmpDir registry-url=$MikRegistryUrl
 
 # The panel's state (subscription, chosen node) lives outside the container's
 # root-dir, because `/container/repull` wipes that directory on every update.
-:if ([:len [/file find where name=($MikDisk . "/v2raymik-data")]] = 0) do={
-  /file add name=($MikDisk . "/v2raymik-data") type=directory
+:if ([:len [/file find where name=$dataDir]] = 0) do={
+  /file add name=$dataDir type=directory
 }
 :if ([:len [/container mounts find where list="MOUNT_MIK_DATA"]] = 0) do={
-  /container mounts add list=MOUNT_MIK_DATA src=($MikDisk . "/v2raymik-data") dst=/data
+  /container mounts add list=MOUNT_MIK_DATA src=$dataDir dst=/data
 }
 
 # --- veth -------------------------------------------------------------------
@@ -210,16 +251,11 @@
     value="/etc/sing-box/outbound.json"
 }
 
-# The UI marks configs whose port is outside this list as blocked, so it must
-# match the firewall allowlist exactly — both rules.
-:local allowed $MikContainerToWanPorts
-:if ([:len $MikExtraWanPorts] > 0) do={
-  :set allowed ($allowed . "," . $MikExtraWanPorts)
-}
-:if ([:len [/container envs find where list=$MikContainerName and key="ALLOWED_PORTS"]] = 0) do={
-  /container envs add list=$MikContainerName key=ALLOWED_PORTS value=$allowed
-} else={
-  /container envs set [find where list=$MikContainerName and key="ALLOWED_PORTS"] value=$allowed
+# The egress allowlist is gone (1.3.0): the firewall no longer filters by port
+# and the panel no longer marks rows `port blocked`. Drop the env so an older
+# image does not keep enforcing a list that nothing maintains anymore.
+:if ([:len [/container envs find where list=$MikContainerName and key="ALLOWED_PORTS"]] > 0) do={
+  /container envs remove [find where list=$MikContainerName and key="ALLOWED_PORTS"]
 }
 
 # --- container ---------------------------------------------------------------
@@ -229,7 +265,7 @@
 :if ([:len $MikImageFile] > 0) do={
   :if ([:len [/container find where name=$MikContainerName]] = 0) do={
     /container add name=$MikContainerName file=$MikImageFile interface=$MikVeth \
-      root-dir=($MikDisk . "/" . $MikContainerName) dns=1.1.1.1 \
+      root-dir=$rootDir dns=1.1.1.1 \
       envlist=$MikContainerName start-on-boot=yes restart-policy=always \
       check-certificate=$MikCheckCertificate mountlists=MOUNT_MIK_DATA \
       memory-high=100663296 logging=yes
@@ -237,7 +273,7 @@
 } else={
   :if ([:len [/container find where name=$MikContainerName]] = 0) do={
     /container add name=$MikContainerName remote-image=$MikImage interface=$MikVeth \
-      root-dir=($MikDisk . "/" . $MikContainerName) dns=1.1.1.1 \
+      root-dir=$rootDir dns=1.1.1.1 \
       envlist=$MikContainerName start-on-boot=yes restart-policy=always \
       check-certificate=$MikCheckCertificate mountlists=MOUNT_MIK_DATA \
       memory-high=100663296 logging=yes
@@ -267,12 +303,19 @@
       comment="mik: never mark the container"
   }
 }
+# Router-originated traffic to a private destination (an LAN client's reply, a
+# ping to the upstream gateway) must travel directly, or the answer disappears
+# into the tunnel. Since 1.3.0 this matches the fixed mik-private ranges
+# instead of a guessed MikLanSubnet, which on most routers was one wrong guess.
+:if ([:len [/ip firewall mangle find where comment="mik: router to LAN" and dst-address-list!="mik-private"]] > 0) do={
+  /ip firewall mangle remove [find where comment="mik: router to LAN"]
+}
 :if ([:len [/ip firewall mangle find where comment="mik: router to LAN"]] = 0) do={
   :if ([:len $firstMark] > 0) do={
-    /ip firewall mangle add chain=output dst-address=$MikLanSubnet action=accept \
+    /ip firewall mangle add chain=output dst-address-list=mik-private action=accept \
       comment="mik: router to LAN" place-before=$firstMark
   } else={
-    /ip firewall mangle add chain=output dst-address=$MikLanSubnet action=accept \
+    /ip firewall mangle add chain=output dst-address-list=mik-private action=accept \
       comment="mik: router to LAN"
   }
 }
@@ -322,37 +365,18 @@
 }
 
 # --- firewall: what the container may reach -----------------------------------
-:local firstFwdDrop [:pick [/ip firewall filter find where chain=forward and action=drop] 0]
+# Since 1.3.0 there is no port allowlist: a node's ports are chosen by whoever
+# runs the node and are never known in advance, so filtering by port only broke
+# real configs silently (the engine redialed forever and nothing was logged).
+# The container may reach any public destination; the private ranges in the
+# fixed mik-private list stay closed — they are what MikLanSubnet used to guess.
+# MikAllowContainerToLan=true widens the accept to those ranges as well.
 
-:if ([:len [/ip firewall filter find where comment="mik: container tcp transport"]] = 0) do={
-  :if ([:len $firstFwdDrop] > 0) do={
-    /ip firewall filter add chain=forward action=accept src-address=$MikSubnet \
-      out-interface=$MikWan protocol=tcp dst-port=$MikContainerToWanPorts \
-      comment="mik: container tcp transport" place-before=$firstFwdDrop
-  } else={
-    /ip firewall filter add chain=forward action=accept src-address=$MikSubnet \
-      out-interface=$MikWan protocol=tcp dst-port=$MikContainerToWanPorts \
-      comment="mik: container tcp transport"
+# --- migration: the ≤1.2.x port rules are gone --------------------------------
+:foreach c in={"mik: container tcp transport";"mik: container udp transport";"mik: container tcp transport (extra)";"mik: container udp transport (extra)";"mik: container to LAN (opt-in)"} do={
+  :if ([:len [/ip firewall filter find where comment=$c]] > 0) do={
+    /ip firewall filter remove [find where comment=$c]
   }
-}
-:if ([:len [/ip firewall filter find where comment="mik: container udp transport"]] = 0) do={
-  :if ([:len $firstFwdDrop] > 0) do={
-    /ip firewall filter add chain=forward action=accept src-address=$MikSubnet \
-      out-interface=$MikWan protocol=udp dst-port=$MikContainerToWanPorts \
-      comment="mik: container udp transport" place-before=$firstFwdDrop
-  } else={
-    /ip firewall filter add chain=forward action=accept src-address=$MikSubnet \
-      out-interface=$MikWan protocol=udp dst-port=$MikContainerToWanPorts \
-      comment="mik: container udp transport"
-  }
-}
-
-# Keep the rules in step with the variables on every import.
-:foreach r in=[/ip firewall filter find where comment="mik: container tcp transport"] do={
-  /ip firewall filter set $r dst-port=$MikContainerToWanPorts
-}
-:foreach r in=[/ip firewall filter find where comment="mik: container udp transport"] do={
-  /ip firewall filter set $r dst-port=$MikContainerToWanPorts
 }
 
 # --- replies on established connections ----------------------------------------
@@ -362,6 +386,7 @@
 # container's SYN-ACK hits "mik: container default deny" and the panel is
 # unreachable. Connection-state accepts only here, so a fresh container still
 # cannot reach out to the LAN.
+:local firstFwdDrop [:pick [/ip firewall filter find where chain=forward and action=drop] 0]
 :if ([:len [/ip firewall filter find where comment="mik: container replies (established)"]] = 0) do={
   :if ([:len $firstFwdDrop] > 0) do={
     /ip firewall filter add chain=forward action=accept connection-state=established,related,untracked \
@@ -372,58 +397,40 @@
   }
 }
 
-# --- second pair of accept rules for extra ports (RouterOS caps at 15) --------
-:if ([:len $MikExtraWanPorts] > 0) do={
-  :if ([:len [/ip firewall filter find where comment="mik: container tcp transport (extra)"]] = 0) do={
-    :if ([:len $firstFwdDrop] > 0) do={
-      /ip firewall filter add chain=forward action=accept src-address=$MikSubnet \
-        out-interface=$MikWan protocol=tcp dst-port=$MikExtraWanPorts \
-        comment="mik: container tcp transport (extra)" place-before=$firstFwdDrop
-    } else={
-      /ip firewall filter add chain=forward action=accept src-address=$MikSubnet \
-        out-interface=$MikWan protocol=tcp dst-port=$MikExtraWanPorts \
-        comment="mik: container tcp transport (extra)"
-    }
-  } else={
-    /ip firewall filter set [find where comment="mik: container tcp transport (extra)"] \
-      dst-port=$MikExtraWanPorts
-  }
-  :if ([:len [/ip firewall filter find where comment="mik: container udp transport (extra)"]] = 0) do={
-    :if ([:len $firstFwdDrop] > 0) do={
-      /ip firewall filter add chain=forward action=accept src-address=$MikSubnet \
-        out-interface=$MikWan protocol=udp dst-port=$MikExtraWanPorts \
-        comment="mik: container udp transport (extra)" place-before=$firstFwdDrop
-    } else={
-      /ip firewall filter add chain=forward action=accept src-address=$MikSubnet \
-        out-interface=$MikWan protocol=udp dst-port=$MikExtraWanPorts \
-        comment="mik: container udp transport (extra)"
-    }
-  } else={
-    /ip firewall filter set [find where comment="mik: container udp transport (extra)"] \
-      dst-port=$MikExtraWanPorts
-  }
-} else={
-  :if ([:len [/ip firewall filter find where comment~"container (tcp|udp) transport \\(extra\\)"]] > 0) do={
-    /ip firewall filter remove [find where comment~"container (tcp|udp) transport \\(extra\\)"]
-  }
+# --- egress --------------------------------------------------------------------
+# No ports, no interface names: any public destination, only the private
+# ranges are refused (mik-private). The pair is rebuilt on every import —
+# two rules, and the knob can change between imports. MikAllowContainerToLan
+# widens the accept to everything and then there is no deny rule: an accept
+# behind someone else's drop would be dead weight.
+:if ([:len [/ip firewall filter find where comment="mik: container egress"]] > 0) do={
+  /ip firewall filter remove [find where comment="mik: container egress"]
 }
-
-# --- optional: let the container reach the LAN (off by default) ---------------
+:if ([:len [/ip firewall filter find where comment="mik: container default deny"]] > 0) do={
+  /ip firewall filter remove [find where comment="mik: container default deny"]
+}
+# the removals above may have taken the rule firstFwdDrop pointed at
+:set firstFwdDrop [:pick [/ip firewall filter find where chain=forward and action=drop] 0]
 :if ($MikAllowContainerToLan = true) do={
-  :if ([:len [/ip firewall filter find where comment="mik: container to LAN (opt-in)"]] = 0) do={
+  :if ([:len $firstFwdDrop] > 0) do={
     /ip firewall filter add chain=forward action=accept src-address=$MikSubnet \
-      dst-address=$MikLanSubnet comment="mik: container to LAN (opt-in)"
+      comment="mik: container egress" place-before=$firstFwdDrop
+  } else={
+    /ip firewall filter add chain=forward action=accept src-address=$MikSubnet \
+      comment="mik: container egress"
   }
 } else={
-  :if ([:len [/ip firewall filter find where comment="mik: container to LAN (opt-in)"]] > 0) do={
-    /ip firewall filter remove [find where comment="mik: container to LAN (opt-in)"]
+  :if ([:len $firstFwdDrop] > 0) do={
+    /ip firewall filter add chain=forward action=accept src-address=$MikSubnet \
+      dst-address-list=!mik-private comment="mik: container egress" place-before=$firstFwdDrop
+  } else={
+    /ip firewall filter add chain=forward action=accept src-address=$MikSubnet \
+      dst-address-list=!mik-private comment="mik: container egress"
   }
-}
-
-# --- default deny -------------------------------------------------------------
-:if ([:len [/ip firewall filter find where comment="mik: container default deny"]] = 0) do={
-  /ip firewall filter add chain=forward action=drop src-address=$MikSubnet \
-    comment="mik: container default deny"
+  :if ([:len [/ip firewall filter find where comment="mik: container default deny"]] = 0) do={
+    /ip firewall filter add chain=forward action=drop src-address=$MikSubnet \
+      comment="mik: container default deny"
+  }
 }
 
 # --- NAT ----------------------------------------------------------------------
@@ -436,14 +443,20 @@
     comment="mik: masquerade to container"
 }
 
-# --- admin page, LAN only -------------------------------------------------------
+# --- admin page, private sources only ------------------------------------------
 # The container listens on $MikAdminPort; the router answers on
-# $MikAdminLanPort of any LAN interface. No password: anyone on the LAN can use
-# the panel. There is no second guard behind in-interface-list=LAN — do not
-# drop it.
+# $MikAdminLanPort for a source in mik-private (RFC1918 + link-local), which
+# is what "the LAN" means without naming an interface list. No password:
+# anyone on the LAN can use the panel. There is no second guard behind
+# src-address-list=mik-private — do not drop it.
+# A ≤1.2.x rule guarded by in-interface-list=LAN is rebuilt: on a router
+# whose LAN list is empty or wrong, that guard is either absent or wrong.
+:if ([:len [/ip firewall nat find where comment="mik: admin ui" and src-address-list!="mik-private"]] > 0) do={
+  /ip firewall nat remove [find where comment="mik: admin ui"]
+}
 :if ([:len [/ip firewall nat find where comment="mik: admin ui"]] = 0) do={
   /ip firewall nat add chain=dstnat action=dst-nat protocol=tcp \
-    dst-port=$MikAdminLanPort in-interface-list=LAN \
+    dst-port=$MikAdminLanPort src-address-list=mik-private \
     to-addresses=$MikContainerIp to-ports=$MikAdminPort \
     comment="mik: admin ui"
 } else={

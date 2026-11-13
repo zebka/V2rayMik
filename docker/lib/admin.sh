@@ -1,7 +1,7 @@
 # Admin UI helpers. Sourced by the entrypoint and by every CGI.
 #
 # The panel has no password. It is meant for the LAN, where the only exposure
-# is the dst-nat in the router script (in-interface-list=LAN). Anyone on the
+# is the dst-nat in the router script (src-address-list=mik-private). Anyone on the
 # LAN can use the panel; do not expose it anywhere else.
 #
 # State lives in the persistent root-dir, never in the image:

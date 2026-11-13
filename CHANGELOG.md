@@ -1,4 +1,47 @@
 # Changelog
+## 1.3.0 - 2026-11-13
+
+Zero-config: the import no longer names one of your interfaces, disks or
+subnets, and the egress port allowlist is gone.
+
+### Changed
+
+- **`MikWan`, `MikLanSubnet`, `MikContainerToWanPorts`, `MikExtraWanPorts`
+  are removed.** Nothing in the file needs per-router editing anymore; a
+  fresh import runs unmodified on any device.
+- **`MikDisk` is detected** (first existing of usb1–3, sata1/2, mmc1, sd1,
+  nand1, flash, data). Setting it by hand still works and now fails with a
+  clear error when the disk does not exist — `/file add name="nodisk/x"`
+  silently creates junk on 7.25.1, so a silent default was worse than none.
+- **The LAN is the fixed `mik-private` address list** (127/8, 10/8,
+  172.16/12, 192.168/16, 169.254/16) instead of a guessed `MikLanSubnet`:
+  - the "mik: router to LAN" mangle matches `dst-address-list=mik-private`,
+    so the router stays reachable from every private range, not from one
+    guessed subnet (on 1.2.7 the printed rule had a stale subnet);
+  - the panel's `dst-nat` requires `src-address-list=mik-private` instead of
+    `in-interface-list=LAN` — no interface list to have wrong or empty;
+  - the container's egress is denied into private space by
+    `dst-address-list=!mik-private`.
+- **The container's egress is no longer filtered by port.** The accept pair
+  (tcp/udp × `MikContainerToWanPorts`/`MikExtraWanPorts`) is replaced by one
+  accept to any non-private destination and the existing default deny.
+  Ports belong to whoever runs the node and are never knowable in advance;
+  the old list failed silently (the engine redialed forever, nothing logged)
+  and marked real configs `port blocked` in the panel. The trade — a
+  compromised image can now reach the internet on any port, but never the
+  LAN — is written down in `docs/security.md`.
+- `MikAllowContainerToLan=true` now widens that single accept to everything
+  and removes the deny rule, instead of adding a separate LAN rule.
+- **Panel:** `ALLOWED_PORTS` is gone from the image and removed from the
+  container env on re-import; rows no longer show `port blocked` and Test /
+  Connect are enabled for every parseable entry.
+
+### Upgrade
+
+Re-import `v2raymik.rsc`: the ≤1.2.x port rules, the LAN-scoped dst-nat and
+the old `ALLOWED_PORTS` env are removed by comment/key, and the new rules are
+added in their place. `/container/repull` picks up the new image.
+
 ## 1.2.7 - 2026-11-13
 
 ### Fixed

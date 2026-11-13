@@ -12,10 +12,11 @@ kernel, next to your firewall.
 
 What this project does about it:
 
-- The container subnet is **default deny** in the forward chain. It may reach
-  the WAN on the transport ports (default: the Cloudflare proxy ports plus 53,
-  TCP and UDP) and nothing else. It may not reach the LAN unless you
-  explicitly opt in.
+- The container subnet is **default deny** in the forward chain: it may
+  reach any public destination (its transport is the product's whole job)
+  and no private range — RFC1918, loopback and link-local are refused by
+  the fixed `mik-private` list. It may reach the LAN only with the explicit
+  `MikAllowContainerToLan` opt-in.
 - The container gets no WAN-exposed ports. Nothing is forwarded to it.
 - No secrets live in the repository or the image, and the outbound file is the
   operator's own file on the operator's own disk.
@@ -37,9 +38,11 @@ login screen.
 
 What keeps that bounded to your LAN:
 
-- **One door, on the LAN.** The container listens on `:8080`; the only
-  exposure is the `dst-nat` in `router/v2raymik.rsc`, which is scoped to
-  `in-interface-list=LAN`. There is no WAN rule to forget to remove, and no
+- **One door, from private space only.** The container listens on `:8080`; the
+  only exposure is the `dst-nat` in `router/v2raymik.rsc`, which requires the
+  source to be in the fixed `mik-private` address list (RFC1918 + link-local).
+  That list needs no interface names and no per-router guessing: a source that
+  is not private is refused. There is no WAN rule to forget to remove, and no
   login page to brute-force.
 - **No secrets in responses.** The list carries label, protocol, host and
   port — never a UUID, key or full link. The active outbound lives in
@@ -66,68 +69,63 @@ container keeps working.
 Do not expose the port beyond the LAN. There is no TLS and no credential in
 front of it.
 
-## The container's egress allowlist
+## The container's egress
 
-The container subnet is **default-deny**. Three rules in the router script
-decide everything it can reach:
+Since 1.3.0 the container's egress is filtered by **destination class, not by
+port**. Two rules decide everything it can reach:
 
 | Rule | Effect |
 | --- | --- |
-| accept `172.17.0.0/24 → WAN` on `MikContainerToWanPorts` (tcp) | the transport's TCP ports |
-| accept `172.17.0.0/24 → WAN` on `MikContainerToWanPorts` (udp) | UDP transports, DNS |
-| **drop** `172.17.0.0/24 → anything` | everything else |
+| accept `172.17.0.0/24 → !mik-private` | any public destination, any port |
+| **drop** `172.17.0.0/24 → anything` | private space (RFC1918, loopback, link-local) |
 
-### Why ports and not "allow the server's IP"
+The `mik-private` list is fixed and typed into the script once — there is no
+`MikLanSubnet` to guess wrong, and it covers every private range rather than
+your one LAN. With `:global MikAllowContainerToLan true` the accept becomes
+unconditional and the drop rule is removed: the container can then reach the
+LAN too, which is an explicit opt-in.
 
-- **The endpoint is not stable.** CDN-fronted and rotating endpoints resolve to
-  different addresses, so an address-based rule silently rots while the config
-  still looks right. Ports do not rot the same way.
-- **Ports are a coarse but honest boundary.** The container needs exactly one
-  outbound service: its transport. Everything else it might do — scanning the
-  LAN, reaching a C2, joining a botnet, being used as an open relay — is
-  outbound traffic, and outbound traffic is what this rule removes.
+### Why the port allowlist is gone
 
-### Why not allow every port
+It was removed in 1.3.0, and the reasons are worth keeping on record:
 
-A container on RouterOS is not a sandbox: it shares the router's kernel. If the
-image or the registry is ever compromised, the blast radius is decided by these
-rules, not by the image's good behaviour. An open egress turns a compromised
-image into a usable proxy or scanner on a residential IP; a three-port
-allowlist turns it into a broken container.
+- **The ports are not knowable in advance.** A node's port belongs to whoever
+  runs the node. Providers use 22001, 8443, 30000-something — anything. An
+  allowlist that must be edited before every new provider is a list that is
+  always wrong, and it fails silently: the engine redials forever, the router
+  logs nothing, and the symptom is "the internet is slow / half broken".
+- **It solved the wrong problem.** The panel marked non-allowlisted rows
+  `port blocked` and refused to connect them — a guard against a config the
+  operator chose to import. The operator is the trust boundary here.
+- **Ports do not contain the private networks.** What an open egress actually
+  endangers is the LAN and router-adjacent space, and that is what
+  `mik-private` denies — the boundary the old allowlist only approximated.
 
-This is least privilege, applied to the one network path the container owns.
+### What the trade-off costs
 
-### The default list
+A container on RouterOS is not a sandbox: it shares the router's kernel. If
+the image or the registry is ever compromised, the blast radius is decided by
+these two rules. Since 1.3.0 a compromised image **can reach the internet on
+any port** from your IP — it cannot reach the LAN, the router's private
+address space, or the panel's data, but it can talk outward. On a product
+whose whole job is reaching arbitrary ports on arbitrary servers, filtering
+outbound ports meant filtering the product itself.
 
-`MikContainerToWanPorts` defaults to:
+If you run this on a hostile network and want the old behaviour back, it is
+your file: the two rules above are ordinary firewall entries — tighten them
+by hand after the import.
 
-```
-443,80,8080,8880,2052,2053,2082,2083,2086,2087,2095,2096,8443,53
-```
+### If a provider's port does not connect
 
-That is every port Cloudflare's proxy accepts, plus 53 for the container's
-own resolver. It covers REALITY/TLS on 443, xhttp behind a CDN, and WebSocket
-on the CDN's alternative ports — the configurations most people actually run.
-
-### If your provider uses another port
-
-Find the port in the link (`@host:PORT`) or in the container log:
+It is no longer the allowlist. Check the usual suspects in the container log:
 
 ```
 /log print where topics~"container" and message~"dialing"
 ```
 
-then set `MikExtraWanPorts` in your copy of the import variables and
-re-import `v2raymik.rsc`; the script adds the accept pair *and* appends the
-ports to the container's `ALLOWED_PORTS`. That second list is not decoration —
-the admin page compares each entry's port against it and marks non-allowlisted
-rows `port blocked`. RouterOS accepts at most **15 ports in one `dst-port`
-list**; the default list has 14, which is what the `(extra)` pair exists for.
-
-A tunnel whose port is missing does not fail loudly: the engine keeps
-redialling, the router logs nothing, and the symptom is "the internet is slow
-/ half broken". That is why the port list is documented here rather than left
-implicit.
+Repeated `dialing to tcp:<ip>:<port>` with no answer means the endpoint is
+unreachable from your network (blocking, DNS, a dead node) — not a port the
+router refuses.
 
 ## Failure behaviour (no fallback)
 

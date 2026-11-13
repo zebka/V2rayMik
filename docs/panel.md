@@ -2,8 +2,9 @@
 
 The container serves a small panel on the LAN, on `MikAdminLanPort`
 (default 8081). There is no password — anyone on the LAN can use it. It is
-reachable only through the `dst-nat` in `v2raymik.rsc`, scoped to
-`in-interface-list=LAN`. There is no WAN path and no login page. If that is
+reachable only through the `dst-nat` in `v2raymik.rsc`, which requires the
+source to be a private (RFC1918) address — no interface list to configure.
+There is no WAN path and no login page. If that is
 not acceptable for your network, block the port in the forward chain instead.
 
 ```
@@ -24,12 +25,10 @@ http://<router-lan-ip>:8081/        # MikAdminLanPort
   automatically if the new node does not come up. Expect ~2–3 seconds of
   dropped connections during the switch.
 
-## Two things the panel refuses to do on its own
+## One thing the panel refuses to do on its own
 
-- It will not connect a config whose port is outside the egress allowlist.
-  Those rows say `port blocked`. Add the port to `MikExtraWanPorts` and
-  re-import. See `docs/security.md`.
-- It will not open itself to the WAN. The only exposure is the LAN `dst-nat`.
+It will not open itself to the WAN. The only exposure is the `dst-nat`,
+which answers only a private source address.
 
 ## Engines per node
 

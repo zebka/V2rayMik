@@ -33,11 +33,12 @@ assignees: ""
 /container/print
 ```
 
-## Did you change the port allowlist?
+## Does the endpoint connect at all?
 
-<!-- If your transport uses a port outside 443,80,2052,2053,2082,2083,2086,2087,
-     2095,2096,8080,8443,8880,53 it must be added. See docs/security.md. -->
+<!-- Since 1.3.0 there is no port allowlist: every port is allowed. A dead
+     dial is an endpoint problem — see docs/troubleshooting.md. -->
 
-- [ ] the port is in `MikContainerToWanPorts`
+- [ ] the same port answers from another network / another client
+- [ ] the container log shows `resolve-failed` or a repeated `dialing`
 
 Please redact UUIDs, keys, server addresses and the device serial.

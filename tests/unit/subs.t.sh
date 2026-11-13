@@ -33,17 +33,15 @@ assert_eq "$row" "Node A|vless|203.0.113.9|443" "label decoded from the fragment
 
 subs_entry 'garbage' >/dev/null 2>&1 && fail "garbage parsed as a link"
 
-# --- port_ok ----------------------------------------------------------------
-port_allowed 443 "443,80,2053" || fail "443 should be allowed"
-port_allowed 3001 "443,80,2053" && fail "3001 should be blocked"
-port_allowed 53 "443,53" || fail "last element must match"
-
 # --- JSON list ---------------------------------------------------------------
-out=$(subs_list "$D/plain.txt" "443,80,53" "abc123")
+# No port allowlist since 1.3.0: a port the panel would have called "blocked"
+# (3001) is a normal entry now, and no entry carries port_ok at all.
+out=$(subs_list "$D/plain.txt")
 echo "$out" | jq -e '.entries | length == 2' >/dev/null || fail "list should have 2 usable entries"
 echo "$out" | jq -e '.entries[0].label == "Good"' >/dev/null || fail "first label"
-echo "$out" | jq -e '.entries[0].port_ok == true' >/dev/null || fail "443 must be allowed"
-echo "$out" | jq -e '.entries[1].port_ok == false' >/dev/null || fail "3001 must be blocked"
+echo "$out" | jq -e '.entries[0].port == "443"' >/dev/null || fail "443 is listed"
+echo "$out" | jq -e '.entries[1].port == "3001"' >/dev/null || fail "3001 is listed, no allowlist"
+echo "$out" | jq -e 'all(.entries[]; has("port_ok") | not)' >/dev/null || fail "port_ok is gone"
 echo "$out" | jq -e '.entries[0].host == "203.0.113.9"' >/dev/null || fail "host"
 # the index is the raw line number, so /cgi-bin/test's sed lands on the same line
 echo "$out" | jq -e '.entries[1].i == 2' >/dev/null || fail "index must be the raw line number"
@@ -52,7 +50,7 @@ echo "$out" | grep -q '11111111' && fail "list leaked a UUID"
 
 # a subscription often carries placeholder rows that point at localhost
 printf '%s\n' 'ss://YWVzLTI1Ni1nY206cGFzcw==@127.0.0.1:1080#stats' > "$D/placeholder.txt"
-assert_eq "$(subs_list "$D/placeholder.txt" "1080" | jq '.entries | length')" "0" "loopback placeholder dropped"
+assert_eq "$(subs_list "$D/placeholder.txt" | jq '.entries | length')" "0" "loopback placeholder dropped"
 assert_eq "$(subs_count "$D/placeholder.txt")" "0" "loopback placeholder not counted"
 
 assert_eq "$(subs_count "$D/plain.txt")" "2" "count counts usable links"
@@ -92,7 +90,7 @@ assert_match "$(subs_reject_reason "$D/junk.txt")" "bytes" \
   printf '%s\n' 'vless://11111111-1111-4111-8111-111111111111@203.0.113.9:443?type=tcp&security=tls&sni=s.test#Plain';
   printf '%s\n' 'hy2://pw@198.51.100.7:22001?sni=h.test#HY2';
   printf '%s\n' 'tuic://abc:def@192.0.2.5:10443?sni=t.test#TUIC'; } > "$D/mixed.txt"
-out=$(subs_list "$D/mixed.txt" "443,22001,10443")
+out=$(subs_list "$D/mixed.txt")
 printf '%s' "$out" | jq -e '.entries | length == 4' >/dev/null || fail 'mixed list must keep all four rows'
 printf '%s' "$out" | jq -e '.entries[0].engine == "xray"' >/dev/null || fail 'xhttp row must be tagged xray'
 printf '%s' "$out" | jq -e '.entries[1].engine == "sing-box"' >/dev/null || fail 'vless/tcp row must be tagged sing-box'

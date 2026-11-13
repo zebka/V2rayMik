@@ -16,7 +16,7 @@ assert_eq "${STATE_FILE:-}" "$DATA_DIR/state.json" "STATE_FILE defaults into DAT
 
 for fn in json_escape gen_of read_body form_get url_decode \
           lock_try lock_release link_to_outbound endpoint_of resolve_endpoint \
-          is_ipv4 detect_egress detect_gateway subs_decode subs_entry port_allowed \
+          is_ipv4 detect_egress detect_gateway subs_decode subs_entry \
           engine_of_link link_to_xray_outbound xray_endpoint_of xray_pin xray_config; do
   command -v "$fn" >/dev/null 2>&1 || fail "missing function: $fn"
 done

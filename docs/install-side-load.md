@@ -28,7 +28,8 @@ layers named `<hash>.tar` — the shape RouterOS accepted on 7.25.1.
 
 ## 2. Upload
 
-Through SMB to the disk you configured as `MikDisk` (e.g. `/usb2`), or drag the
+Through SMB to the router's disk (`MikDisk` is detected at import — check
+`/file print` for its name, e.g. `flash`), or drag the
 file into Winbox's Files panel. Put it at the path your install uses:
 `usb2/v2raymik.tar`.
 

@@ -31,11 +31,10 @@ esac
 
 # Admin UI state lives with the container's persistent root-dir.
 DATA_DIR=${DATA_DIR:-/data}
-ALLOWED_PORTS=${ALLOWED_PORTS:-443,80,8080,8880,2052,2053,2082,2083,2086,2087,2095,2096,8443,53}
 STATE_FILE=${STATE_FILE:-$DATA_DIR/state.json}
 STATUS_FILE=${STATUS_FILE:-$DATA_DIR/status.json}
 CHECK_URL=${CHECK_URL:-http://connectivitycheck.gstatic.com/generate_204}
-export DATA_DIR ALLOWED_PORTS STATE_FILE CHECK_URL
+export DATA_DIR STATE_FILE CHECK_URL
 
 # Link parsing, route planning, admin helpers and the test harness live in lib/
 # so the tests can source them.

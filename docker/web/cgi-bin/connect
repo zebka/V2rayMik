@@ -17,8 +17,6 @@ link=$(subs_decode "$SUB_FILE" | sed -n "$((idx + 1))p")
 engine=$(engine_of_link "$link")
 row=$(subs_entry "$link") || fail_json "400 Bad Request" "unparseable link"
 label=${row%%|*}
-port=${row##*|}
-port_allowed "$port" "$ALLOWED_PORTS" || fail_json "409 Conflict" "port $port is blocked by the egress allowlist"
 
 if [ "$engine" = "xray" ]; then
   ob=$(link_to_xray_outbound "$link" 2>/dev/null) || fail_json "400 Bad Request" "unsupported link"

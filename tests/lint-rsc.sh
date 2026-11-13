@@ -63,16 +63,29 @@ need() { grep -qF "$1" "$f" || err "$f: missing invariant: $1"; }
 need 'dst-address-type=!local'                # everything, not a list
 need 'mik: never mark the container'         # the transport must not carry itself
 need 'mik: masquerade to container'          # the container sees only the veth peer
-need 'mik: container default deny'           # the egress allowlist exists
+need 'mik: container default deny'           # the container is default-deny
 need 'mik: MSS clamp (router output)'        # router-originated traffic needs it
-need 'in-interface-list=LAN'                 # the panel stays on the LAN
+need 'src-address-list=mik-private'          # the panel stays on private sources
+need 'dst-address-list=!mik-private'         # the container stays out of private space
 
-# Names that left the project and must not come back.
-for pat in iran-ips MikFailOpen MikFallbackGw MikRefreshRouterDirect MikTable \
+# Names that left the project and must not come back. Read with `$`: the
+# migration sections still name what they migrate away from, in comments and
+# in the ALLOWED_PORTS env removal, and that is deliberate.
+for pat in '$MikWan' '$MikLanSubnet' '$MikContainerToWanPorts' '$MikExtraWanPorts' \
+           iran-ips MikFailOpen MikFallbackGw MikRefreshRouterDirect MikTable \
            'mikrotik-xray-gateway' 'xray-gw' 'veth-xray' '/xray-data' \
            'xray-auto-route' 'royal-xray-gateway' ; do
-  if grep -qF "$pat" "$f"; then err "$f: stale reference to '$pat'"; fi
+  if grep -qF "$pat" "$f"; then err "$f: stale reference to $pat"; fi
 done
+
+# The interface list and the port allowlist are gone; a live rule using them
+# would be a regression (a comment naming them is how migrations read).
+if grep -vE '^[[:space:]]*#' "$f" | grep -qE 'in-interface-list=[A-Za-z]'; then
+  err "$f: a rule still matches on an interface list"
+fi
+if grep -vE '^[[:space:]]*#' "$f" | grep -qE 'dst-port=\$Mik(ExtraWanPorts|ContainerToWanPorts)'; then
+  err "$f: a rule still filters on a port knob"
+fi
 
 # --- the engine split must be everywhere it is used ---------------------------
 # xray.sh defines the engine branch; entrypoint and xtest must call it.

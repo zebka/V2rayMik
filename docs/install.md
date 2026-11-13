@@ -15,7 +15,7 @@ missing, so an existing install is left running.
 To pin a fixed release instead of `main`, point the URL at a tag:
 
 ```rsc
-/tool fetch url="https://raw.githubusercontent.com/zebka/V2rayMik/v1.2.7/router/v2raymik.rsc" dst-path=v2raymik.rsc; /import file-name=v2raymik.rsc
+/tool fetch url="https://raw.githubusercontent.com/zebka/V2rayMik/v1.3.0/router/v2raymik.rsc" dst-path=v2raymik.rsc; /import file-name=v2raymik.rsc
 ```
 
 If the router cannot reach GitHub, download `router/v2raymik.rsc` from the
@@ -67,22 +67,12 @@ or a share link in the container environment:
 
 (or `set` on the existing entry if you already added one). Do not set both.
 
-### The egress allowlist
+### The port in that link
 
-The port in that link must be in `MikContainerToWanPorts` (default: every
-Cloudflare proxy port plus 53, TCP and UDP). A provider on a non-standard port
-needs one line — see "The container's egress allowlist" in `docs/security.md`.
-Hysteria2/TUIC are UDP, so their port has to be there as well.
-
-Extra ports go in `MikExtraWanPorts`:
-
-```rsc
-:global MikExtraWanPorts "6161,22001"
-/import file-name=v2raymik.rsc
-```
-
-Re-importing rebuilds both allowlist rules, so a port added there survives an
-upgrade. A port added by hand in `/ip firewall filter` does not.
+Any port works: since 1.3.0 there is no egress allowlist. The container may
+reach any public destination; private ranges stay blocked. If a provider's
+port does not connect, it is the endpoint, not the router — see
+"The container's egress" in `docs/security.md`.
 
 ## Full install on a device that already runs an older release
 

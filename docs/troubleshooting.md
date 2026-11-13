@@ -8,26 +8,23 @@ Symptom → cause → fix. Start with the container log:
 /container/shell [find where name="v2raymik"]
 ```
 
-## The one that catches everyone: the port
-
-A transport whose port is not in `MikContainerToWanPorts` (or, for extra
-ports, `MikExtraWanPorts`) produces **no error**. The engine redials forever,
-the router logs nothing, and the symptom is "the tunnel is broken".
+## Repeated dialing and nothing else
 
 ```
 /log print where topics~"container" and message~"dialing"
 ```
 
 If you see the same `dialing to tcp:<ip>:<port>` every few seconds and nothing
-else, that port is the answer. Add it with `MikExtraWanPorts`, re-import
-`v2raymik.rsc`. Remember RouterOS accepts at most 15 ports per rule — that is
-why the extra pair of rules exists.
+else, the endpoint is unreachable from your network — since 1.3.0 there is no
+port allowlist that could be the cause. The usual suspects: the node is dead,
+the port is blocked upstream, DNS resolves wrong (`resolve-failed` below), or
+your network filters that destination. Nothing in the router needs editing.
 
 ## Symptom table
 
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
-| Repeated `dialing to …` and nothing else | port missing from the egress allowlist | add it, re-import `v2raymik.rsc` |
+| Repeated `dialing to …` and nothing else | endpoint unreachable (dead node, upstream block, DNS) | verify the port from another network; there is no allowlist to extend |
 | Container stops immediately, `missing-config` | neither `NODE_LINK` nor `/etc/sing-box/outbound.json` is set | set one of them |
 | `conflicting-config` | both were set | unset one |
 | `invalid-outbound` / `invalid-config` | the outbound is a full config, contains `inbounds`, or sing-box rejects it | give one outbound object; `sing-box check -c` locally shows the real error |
@@ -43,7 +40,7 @@ why the extra pair of rules exists.
 | LAN is tunnelled but the router is not | router-originated traffic not masqueraded towards the veth | the install adds `masquerade out-interface=veth-mik`; check it exists |
 | Wrong exit IP from a LAN client | the container subnet got marked | the "never mark the container" rule must sit first and have counters |
 | DDNS name points at the exit | `/ip cloud` publishes the exit, by design — the tunnel carries everything, including `cloud.mikrotik.com` | if you need the router reachable under that name from outside, move that traffic out by hand, or accept it; there is no exemption anymore |
-| `filesystem not mounted` from `/container` | `tmpdir` or `root-dir` points at a missing disk | fix `MikDisk`; the import recreates `tmpdir` |
+| `filesystem not mounted` from `/container` | `tmpdir` or `root-dir` points at a missing disk | the import detects the disk; if you pinned `MikDisk` yourself, unset it or point it at an existing one and re-import |
 | Container restarts in a loop | the engine exits: bad UUID/key, unreachable server | lower `restart-max-count`, read one log entry |
 | Router cannot ping `172.17.0.2` | the veth is in a bridge (broken layout on 7.25.1) | keep the address directly on the veth, as the import does |
 | The router is unreachable after import | the tunnel came up and your management path goes through it | see "When you are locked out" |

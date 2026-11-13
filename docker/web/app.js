@@ -64,7 +64,7 @@ function renderRows() {
     const speed = res.mbps ? res.mbps : "—";
     tr.innerHTML =
       "<td class='num'>" + (e.i + 1) + "</td>" +
-      "<td>" + esc(e.label) + (e.engine ? " <span class='pill' title='core'>" + esc(e.engine) + "</span>" : "") + (e.port_ok ? "" : " <span class='pill bad'>port blocked</span>") + "</td>" +
+      "<td>" + esc(e.label) + (e.engine ? " <span class='pill' title='core'>" + esc(e.engine) + "</span>" : "") + "</td>" +
       "<td class='muted'>" + esc(e.host) + ":" + esc(e.port) + "</td>" +
       "<td class='num'>" + delay + "</td>" +
       "<td>" + country + "</td>" +
@@ -73,12 +73,12 @@ function renderRows() {
     const cell = tr.lastElementChild;
     const testBtn = document.createElement("button");
     testBtn.textContent = "Test";
-    testBtn.disabled = !e.port_ok || BUSY;
+    testBtn.disabled = BUSY;
     testBtn.onclick = () => testOne(e.i);
     const connBtn = document.createElement("button");
     connBtn.textContent = "Connect";
     connBtn.className = "primary";
-    connBtn.disabled = !e.port_ok || BUSY;
+    connBtn.disabled = BUSY;
     connBtn.onclick = () => connect(e.i);
     cell.append(testBtn, connBtn);
     tb.append(tr);
@@ -126,7 +126,6 @@ $("testAll").onclick = async () => {
   setBusy(true);
   for (const e of ENTRIES.slice()) {
     if (CANCELLED) break;
-    if (!e.port_ok) continue;
     $("testMsg").textContent = "testing #" + (e.i + 1) + " of " + ENTRIES.length + "…";
     try {
       const r = await api("test", { i: e.i, gen: GEN });

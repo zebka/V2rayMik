@@ -124,13 +124,16 @@ tunnel to the container. The bypass entries are removed when their config does
 not need them, and `99-uninstall.rsc` never sees them (they live inside the
 container).
 
-## 8. Ports outside the allowlist
+## 8. Ports outside the allowlist — removed in 1.3.0
 
-A candidate whose port is not in `XrayContainerToWanPorts` will "test" as dead:
-RouterOS' forward chain drops it silently. The UI parses the port, marks such
-entries **blocked by the egress allowlist**, refuses to connect to them, and
-shows the exact one-line command that adds the port. It does not widen the
-allowlist itself — that boundary is the operator's (§ security).
+Earlier UIs marked a candidate whose port was not in `XrayContainerToWanPorts`
+**blocked by the egress allowlist** and refused to connect it. That was wrong:
+a node's port is chosen by whoever runs the node, and a list the operator must
+edit before every new provider is a list that is always wrong — it failed
+silently (the engine redialed forever, the router logged nothing). Since
+1.3.0 the router filters the container's egress by destination class only
+(`mik-private` is refused), the panel has no `port_ok` field, and every
+parseable row is testable. See § security for the trade.
 
 ## 9. What "connect" means, and what happens when it fails
 
@@ -195,8 +198,8 @@ The HTTP process lives next to the transport, so:
 - `04-admin.rsc` (new): `dst-nat` LAN → `172.17.0.2:8080`, and a comment-documented
   place in the firewall for the LAN-only restriction. Idempotent, removed by
   `99-uninstall.rsc`.
-- The container's egress allowlist already covers 80/443 for the subscription and
-  the speed file.
+- The container's egress is unrestricted towards public destinations since 1.3.0,
+  so the subscription fetch and the speed file need no port rules.
 - Nothing else changes: the world route, mangle, MSS and NAT are untouched.
 
 ## 13. Image changes
@@ -224,7 +227,8 @@ The HTTP process lives next to the transport, so:
    drop, not a leak, because the world route stays pointed at the container.
 3. **Admin plane:** subscription, resolver and test dials get their own `/32`
    bypasses, so the page works even when the active tunnel is dead (§7).
-4. **Ports outside the allowlist:** labelled and refused, never auto-widened (§8).
+4. **Ports:** the allowlist was removed in 1.3.0; every parseable row is
+   testable and connectable (§8).
 5. **`ADMIN_PASSWORD`:** from the container env; when absent the UI is disabled and
    Xray keeps running — no crash loop (§10).
 6. **Index safety:** a `gen` hash guards every mutating call (§10).

@@ -69,7 +69,7 @@ rollback.
 - `docs/install.md` — install, upgrade, side-loading, mirrors, rollback
 - `docs/architecture.md` — packet flow, engines, the two `/1` routes
 - `docs/panel.md` — the LAN admin page: subscriptions, testing, switching
-- `docs/security.md` — egress allowlist, what fail-closed means, credentials
+- `docs/security.md` — container egress boundaries, what fail-closed means, credentials
 - `docs/troubleshooting.md` — common failures and their fixes
 - `docs/benchmarks.md` — measured throughput on the reference device
 - `docs/migration.md` — moving from 1.0.x

@@ -81,5 +81,5 @@ chmod 600 "$tmp"
 mv -f "$tmp" "$SUB_FILE"
 
 gen=$(gen_of "$SUB_FILE")
-list=$(subs_list "$SUB_FILE" "$ALLOWED_PORTS")
+list=$(subs_list "$SUB_FILE")
 ok_json "{\"ok\":true,\"gen\":\"$(json_escape "$gen")\",\"count\":$count,\"list\":$list}"

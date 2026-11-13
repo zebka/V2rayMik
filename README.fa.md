@@ -54,7 +54,7 @@
 - `docs/install.md` — نصب، ارتقا، side-load، آینه‌ها، rollback
 - `docs/architecture.md` — مسیر بسته، موتورها، چرا دو مسیر `/1`
 - `docs/panel.md` — صفحه‌ی مدیریت LAN: سابسکریپشن، تست، سوییچ
-- `docs/security.md` — allowlist خروجی، fail-closed، credentials
+- `docs/security.md` — مرز خروجی کانتینر، fail-closed، credentials
 - `docs/troubleshooting.md` — خرابی‌های معمول و راه‌حل
 - `docs/benchmarks.md` — سرعت اندازه‌گیری‌شده روی دستگاه مرجع
 - `docs/migration.md` — انتقال از ۱.۰.x
