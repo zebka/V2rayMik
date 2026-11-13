@@ -166,12 +166,18 @@
   # --- container and its plumbing ------------------------------------------
   :if ([:len [/container find where name=$MikContainerName]] > 0) do={
     :do { /container stop [find where name=$MikContainerName] } on-error={}
-    :for i from=1 to=30 do={
-      :if ([:len [/container find where name=$MikContainerName and running]] > 0) do={
-        :delay 1s
+    :local removed false
+    :for i from=1 to=40 do={
+      :if ($removed = false) do={
+        :do {
+          /container remove [find where name=$MikContainerName]
+          :set removed true
+        } on-error={ :delay 1s }
       }
     }
-    /container remove [find where name=$MikContainerName]
+    :if ($removed = false) do={
+      :error "v2raymik: the container did not stop in time; run /container stop v2raymik, wait, then import again"
+    }
   }
   :if ([:len [/container envs find where list=$MikContainerName]] > 0) do={
     /container envs remove [find where list=$MikContainerName]

@@ -1,4 +1,13 @@
 # Changelog
+## 1.3.3 - 2026-11-14
+
+### Fixed
+
+- **Uninstall no longer aborts on a container that is still stopping.** The
+  1.3.2 wait checked the container's state once and then removed it anyway.
+  Uninstall now retries the removal for up to 40 seconds and stops with a
+  clear message if the container never goes away.
+
 ## 1.3.2 - 2026-11-14
 
 Reinstall works straight after an uninstall, in the same terminal.
