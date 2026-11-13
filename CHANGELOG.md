@@ -35,6 +35,10 @@ subnets, and the egress port allowlist is gone.
 - **Panel:** `ALLOWED_PORTS` is gone from the image and removed from the
   container env on re-import; rows no longer show `port blocked` and Test /
   Connect are enabled for every parseable entry.
+- **A fresh install now starts the container.** After the image pull finishes,
+  RouterOS leaves the just-added container `stopped` forever (7.25.1) — the
+  import now waits for the pull and starts it, so a first install needs no
+  manual `/container start`.
 
 ### Upgrade
 

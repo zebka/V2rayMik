@@ -259,9 +259,12 @@
 }
 
 # --- container ---------------------------------------------------------------
-# Adding the container starts the image pull; it is not started automatically.
+# Adding the container starts the image pull; the pull runs in the background
+# and nothing starts the container when it is done (measured on 7.25.1: a
+# freshly added container sits "stopped" forever until started by hand).
 # Two paths: pull from a registry (MikImage) or side-load a docker-archive tar
 # already uploaded to the disk (MikImageFile). The file path wins when set.
+:local fresh false
 :if ([:len $MikImageFile] > 0) do={
   :if ([:len [/container find where name=$MikContainerName]] = 0) do={
     /container add name=$MikContainerName file=$MikImageFile interface=$MikVeth \
@@ -269,6 +272,7 @@
       envlist=$MikContainerName start-on-boot=yes restart-policy=always \
       check-certificate=$MikCheckCertificate mountlists=MOUNT_MIK_DATA \
       memory-high=100663296 logging=yes
+    :set fresh true
   }
 } else={
   :if ([:len [/container find where name=$MikContainerName]] = 0) do={
@@ -277,6 +281,32 @@
       envlist=$MikContainerName start-on-boot=yes restart-policy=always \
       check-certificate=$MikCheckCertificate mountlists=MOUNT_MIK_DATA \
       memory-high=100663296 logging=yes
+    :set fresh true
+  }
+}
+
+# Start a just-added container as soon as the pull has produced a startable
+# one, retrying while the pull is still running. Up to ~3 minutes; on a very
+# slow link the pull can outlast this — run /container start by hand then.
+:if ($fresh) do={
+  :log info "v2raymik: waiting for the image pull to finish, then starting the container"
+  :local started false
+  :for i from=1 to=40 do={
+    :if ($started = false) do={
+      :do {
+        /container start [find where name=$MikContainerName]
+        :delay 2s
+        :if ([:len [/container find where name=$MikContainerName and stopped]] = 0) do={
+          :set started true
+        }
+      } on-error={ :delay 3s }
+    }
+    :if ($started = false) do={ :delay 2s }
+  }
+  :if ($started = true) do={
+    :log info "v2raymik: container started"
+  } else={
+    :log warning "v2raymik: the image pull is still running; run /container start $MikContainerName once it finishes"
   }
 }
 
@@ -464,5 +494,5 @@
     dst-port=$MikAdminLanPort to-ports=$MikAdminPort
 }
 
-:log info "v2raymik: installed. Wait for /container/print status=stopped growing to running, then open http://<router>:$MikAdminLanPort/"
+:log info "v2raymik: installed; the panel comes up at http://<router>:$MikAdminLanPort/ once the container is running"
 }
