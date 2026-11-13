@@ -3,7 +3,8 @@
 #   Install / upgrade:   /import file-name=v2raymik.rsc
 #   Uninstall:           :global MikMode "uninstall"
 #                        /import file-name=v2raymik.rsc
-#                        (open a new terminal afterwards; MikMode stays set in this one)
+#                        (MikMode is reset to "install" when the uninstall finishes,
+#                        so a reinstall in the same terminal works without a new one)
 #
 # Re-importing is safe and is how upgrades work: objects are created only when
 # missing, and firewalled ports re-apply the values below.
@@ -206,6 +207,7 @@
   }
 
   :log info "v2raymik: uninstall finished"
+  :global MikMode "install"
 } else={
 
 # ==========================================================================
