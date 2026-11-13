@@ -1,4 +1,13 @@
 # Changelog
+## 1.3.4 - 2026-11-14
+
+### Fixed
+
+- **A PCIe or NVMe disk is detected.** Auto-detect did not know `pcie1` (and
+  `pcie2`), so on a router with an M.2/PCIe disk the container, its data and
+  the image landed on the small internal flash. `pcie1`/`pcie2` are now
+  candidates, ahead of flash.
+
 ## 1.3.3 - 2026-11-14
 
 ### Fixed

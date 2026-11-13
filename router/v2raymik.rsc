@@ -58,7 +58,7 @@
 # (measured on 7.25.1: `/file add name="nodisk/x"` succeeds and leaves junk).
 :if ([:typeof $MikDisk] = "nothing") do={
   :local found ""
-  :foreach d in={"usb1";"usb2";"usb3";"sata1";"sata2";"nvme1";"mmc1";"sd1";"nand1";"flash";"data"} do={
+  :foreach d in={"usb1";"usb2";"usb3";"sata1";"sata2";"nvme1";"pcie1";"pcie2";"mmc1";"sd1";"nand1";"flash";"data"} do={
     :if ([:len $found] = 0) do={
       :if ([:len [/file find where name=$d and type="directory"]] > 0) do={
         :set found $d
