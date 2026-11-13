@@ -229,8 +229,14 @@ xray_endpoint_of() {
   printf '%s:%s\n' "$addr" "$port"
 }
 
-# is_json <string>
-is_json() { printf '%s' "$1" | jq -e . >/dev/null 2>&1 || return 1; }
+# is_json — accepts either an argument or, with no arguments, stdin.
+is_json() {
+  if [ "$#" -ge 1 ]; then
+    printf '%s' "$1"
+  else
+    cat
+  fi | jq -e . >/dev/null 2>&1 || return 1
+}
 
 # xray_pin <outbound-json> <ipv4> — prints the outbound with the endpoint
 # pinned to the resolved address. Dialing by name would re-resolve inside the

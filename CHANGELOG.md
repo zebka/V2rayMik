@@ -1,4 +1,20 @@
 # Changelog
+## 1.2.3 - 2026-11-13
+
+### Fixed
+
+- **`is_json` only accepted an argument but was piped one instead**: with
+  `set -u`, calling it on stdin printed "1: parameter not set" and every
+  Xray outbound looked invalid. It now accepts either an argument or stdin.
+
+### History
+
+- 1.2.0: test fixture had one brace too many; CI stopped the release.
+- 1.2.1: fixture fixed; the Xray render was empty (`jq` without `-n` runs
+  zero times with no input documents); CI stopped the release again.
+- 1.2.2: `-n` fixed and the release kept failing in the Xray section on
+  `is_json`, the bug above. The release has still never shipped an image.
+
 ## 1.2.2 - 2026-11-13
 
 ### Fixed
