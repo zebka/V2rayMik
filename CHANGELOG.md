@@ -39,6 +39,11 @@ subnets, and the egress port allowlist is gone.
   RouterOS leaves the just-added container `stopped` forever (7.25.1) — the
   import now waits for the pull and starts it, so a first install needs no
   manual `/container start`.
+- **The container's egress is NAT'd by the project itself.** The tunnel's
+  transport dial left with the container's address as source and only worked
+  on routers whose whole-WAN masquerade happened to cover it; one explicit
+  `src-address=$MikSubnet` masquerade (`mik: container egress`) now ships
+  with the install, so the tunnel comes up on a bare firewall too.
 
 ### Upgrade
 

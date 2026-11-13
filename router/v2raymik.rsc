@@ -464,13 +464,21 @@
 }
 
 # --- NAT ----------------------------------------------------------------------
-# One rule covers everything that enters the container: LAN clients and the
-# router's own traffic. Measured on 7.25.1: the router's own packets left with
-# the WAN address as source and were dropped inside the container, while the
-# same packets masqueraded to the veth address went through.
+# Two rules. The first covers everything that enters the container: LAN
+# clients and the router's own traffic. Measured on 7.25.1: the router's own
+# packets left with the WAN address as source and were dropped inside the
+# container, while the same packets masqueraded to the veth address went
+# through. The second NATs the container's own egress — the tunnel's
+# transport — which leaves with the container's address as source and is
+# dropped upstream unless masqueraded. A typical router's whole-WAN
+# masquerade happens to cover it; the project does not rely on that.
 :if ([:len [/ip firewall nat find where comment="mik: masquerade to container"]] = 0) do={
   /ip firewall nat add chain=srcnat action=masquerade out-interface=$MikVeth \
     comment="mik: masquerade to container"
+}
+:if ([:len [/ip firewall nat find where comment="mik: container egress"]] = 0) do={
+  /ip firewall nat add chain=srcnat action=masquerade src-address=$MikSubnet \
+    comment="mik: container egress"
 }
 
 # --- admin page, private sources only ------------------------------------------
