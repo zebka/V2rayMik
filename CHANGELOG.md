@@ -1,4 +1,25 @@
 # Changelog
+## 1.3.1 - 2026-11-14
+
+Disk detection works on partitioned USB storage and fails with the names
+that are actually there.
+
+### Fixed
+
+- **A partitioned USB stick is now detected.** RouterOS mounts a formatted,
+  partitioned drive as `usb2-part1`, not `usb2` — the auto-detect only
+  matched the bare name and fell back to the small internal flash, and an
+  explicit `MikDisk "usb2"` stopped the import with "does not exist" on a
+  router where the stick was sitting right there. The detect now tries
+  `<disk>` and `<disk>-part1` per candidate (usb1–3, sata1/2, nvme1, mmc1,
+  sd1, nand1, flash, data).
+- The MikDisk validation error lists the mounts that exist on the router
+  (`existing mounts: usb2-part1 flash ...`), so the right name is visible
+  without guessing.
+- Prefer auto-detect over pinning `MikDisk` on USB storage: on some hardware
+  the same stick enumerates as usb1 after a reboot and a pinned name breaks
+  the next import.
+
 ## 1.3.0 - 2026-11-13
 
 Zero-config: the import no longer names one of your interfaces, disks or

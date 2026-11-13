@@ -47,22 +47,37 @@
 
 # Sensible defaults; override before the import in the same terminal session.
 # MikDisk is the one knob that varies per device, so it is detected: the first
-# candidate that exists as a disk directory. Set it yourself only to pin a
-# specific disk — then it must exist, and the import stops with a clear error
-# instead of quietly creating a junk directory under a name that is not there
+# candidate that exists as a disk directory, with the partitioned mount
+# (`<disk>-part1`) as the fallback — a formatted USB stick usually mounts as
+# `usb2-part1`, not `usb2`. Pinning MikDisk on USB storage is fragile: on some
+# hardware the same stick enumerates as usb1 after a reboot. Auto-detect is
+# the stable choice. Set it yourself only to pin a specific disk — then it
+# must exist, and the import stops with an error that lists what IS there,
+# instead of quietly creating a junk directory under a name that is not
 # (measured on 7.25.1: `/file add name="nodisk/x"` succeeds and leaves junk).
 :if ([:typeof $MikDisk] = "nothing") do={
   :local found ""
-  :foreach d in={"usb1";"usb2";"usb3";"sata1";"sata2";"mmc1";"sd1";"nand1";"flash";"data"} do={
+  :foreach d in={"usb1";"usb2";"usb3";"sata1";"sata2";"nvme1";"mmc1";"sd1";"nand1";"flash";"data"} do={
     :if ([:len $found] = 0) do={
-      :if ([:len [/file find where name=$d and type="directory"]] > 0) do={ :set found $d }
+      :if ([:len [/file find where name=$d and type="directory"]] > 0) do={
+        :set found $d
+      } else={
+        :if ([:len [/file find where name=($d . "-part1") and type="directory"]] > 0) do={
+          :set found ($d . "-part1")
+        }
+      }
     }
   }
   :global MikDisk $found
 } else={
   :if ([:len $MikDisk] > 0) do={
     :if ([:len [/file find where name=$MikDisk and type="directory"]] = 0) do={
-      :error ("v2raymik: MikDisk " . $MikDisk . " does not exist on this router; unset :global MikDisk and import again to auto-detect")
+      :local dirs ""
+      :foreach f in=[/file find where type="directory"] do={
+        :local n [/file get $f name]
+        :if ([:len [:find $n "/"]] = 0) do={ :set dirs ($dirs . " " . $n) }
+      }
+      :error ("v2raymik: MikDisk " . $MikDisk . " does not exist on this router; existing mounts:" . $dirs . " - unset :global MikDisk and import again to auto-detect")
     }
   }
 }

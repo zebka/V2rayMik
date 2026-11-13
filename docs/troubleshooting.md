@@ -41,7 +41,7 @@ your network filters that destination. Nothing in the router needs editing.
 | Tunnel is up, engine logs `accepted`, nothing comes back | the container's own dial is not NAT'd | the install adds `masquerade src-address=$MikSubnet` (`mik: container egress`); check it exists — on routers without a whole-WAN masquerade the transport cannot dial without it |
 | Wrong exit IP from a LAN client | the container subnet got marked | the "never mark the container" rule must sit first and have counters |
 | DDNS name points at the exit | `/ip cloud` publishes the exit, by design — the tunnel carries everything, including `cloud.mikrotik.com` | if you need the router reachable under that name from outside, move that traffic out by hand, or accept it; there is no exemption anymore |
-| `filesystem not mounted` from `/container` | `tmpdir` or `root-dir` points at a missing disk | the import detects the disk; if you pinned `MikDisk` yourself, unset it or point it at an existing one and re-import |
+| `filesystem not mounted` from `/container` | `tmpdir` or `root-dir` points at a missing disk | the import detects the disk (a partitioned stick mounts as `usb2-part1`); the MikDisk validation error lists every mount that exists — pick one of those or unset the global and re-import |
 | Container restarts in a loop | the engine exits: bad UUID/key, unreachable server | lower `restart-max-count`, read one log entry |
 | Router cannot ping `172.17.0.2` | the veth is in a bridge (broken layout on 7.25.1) | keep the address directly on the veth, as the import does |
 | The router is unreachable after import | the tunnel came up and your management path goes through it | see "When you are locked out" |

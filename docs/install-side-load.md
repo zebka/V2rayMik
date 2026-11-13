@@ -29,19 +29,25 @@ layers named `<hash>.tar` — the shape RouterOS accepted on 7.25.1.
 ## 2. Upload
 
 Through SMB to the router's disk (`MikDisk` is detected at import — check
-`/file print` for its name, e.g. `flash`), or drag the
-file into Winbox's Files panel. Put it at the path your install uses:
-`usb2/v2raymik.tar`.
+`/file print where type=directory` for its name), or drag the
+file into Winbox's Files panel. Put it at the path your install uses, e.g.
+`flash/v2raymik.tar`.
+
+A formatted, partitioned USB stick mounts as `usb2-part1`, not `usb2` —
+the bare `usb2` name is the unpartitioned device and is not a usable
+directory. Use whatever name `/file print where type=directory` shows,
+and prefer auto-detect over pinning `MikDisk`: on some hardware the same
+stick enumerates as usb1 after a reboot.
 
 ## 3. Point the container at the file
 
 `v2raymik.rsc` uses `MikImageFile` when it is set, otherwise it pulls
-`MikImage` from a registry:
+`MikImage` from a registry. The import starts the container itself once
+the image is in — no manual `/container/start` needed:
 
 ```
-:global MikImageFile "usb2/v2raymik.tar"
+:global MikImageFile "usb2-part1/v2raymik.tar"
 /import file-name=v2raymik.rsc
-/container/start [find where name="v2raymik"]
 ```
 
 ## Pulling through an Iranian mirror
