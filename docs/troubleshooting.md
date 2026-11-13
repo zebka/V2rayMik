@@ -26,6 +26,7 @@ your network filters that destination. Nothing in the router needs editing.
 | --- | --- | --- |
 | Repeated `dialing to …` and nothing else | endpoint unreachable (dead node, upstream block, DNS) | verify the port from another network; there is no allowlist to extend |
 | Container stops immediately, `missing-config` | neither `NODE_LINK` nor `/etc/sing-box/outbound.json` is set | set one of them |
+| Log says `no node configured yet: open http://<router LAN address>:8081/` | the container is running and waiting for a node | this is not an error: open the panel at `http://<router LAN address>:8081/` and add a subscription or node link |
 | `conflicting-config` | both were set | unset one |
 | `invalid-outbound` / `invalid-config` | the outbound is a full config, contains `inbounds`, or sing-box rejects it | give one outbound object; `sing-box check -c` locally shows the real error |
 | `unsupported-link: <scheme>` | the link covers vless/vmess/trojan/ss/hysteria2/tuic | anything else: use the JSON outbound path |

@@ -1,4 +1,13 @@
 # Changelog
+## 1.3.7 - 2026-11-14
+
+### Changed
+
+- **Waiting for a node says what to do.** Instead of `missing-config: neither
+  NODE_LINK nor ... is set`, the log now reads `no node configured yet: open
+  http://<router LAN address>:8081/ , add a subscription or node link, and the
+  tunnel starts`. It repeats until a node is set, as before.
+
 ## 1.3.6 - 2026-11-14
 
 ### Changed

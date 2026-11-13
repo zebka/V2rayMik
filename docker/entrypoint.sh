@@ -238,7 +238,7 @@ build_active_config() {
   fi
 
   if [ ! -e "$NODE_OUTBOUND_FILE" ]; then
-    log "missing-config: neither NODE_LINK nor $NODE_OUTBOUND_FILE is set"
+    log "no node configured yet: open http://<router LAN address>:8081/ , add a subscription or node link, and the tunnel starts"
     return 1
   fi
   ob=$(cat "$NODE_OUTBOUND_FILE")
