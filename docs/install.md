@@ -1,5 +1,30 @@
 # Install guide
 
+## Install the RouterOS file
+
+One command on the router downloads the import file and runs it. Nothing to
+copy by hand:
+
+```rsc
+/tool fetch url="https://raw.githubusercontent.com/zebka/V2rayMik/main/router/v2raymik.rsc" dst-path=v2raymik.rsc; /import file-name=v2raymik.rsc
+```
+
+Re-running the same line is the upgrade path: objects are created only when
+missing, so an existing install is left running.
+
+To pin a fixed release instead of `main`, point the URL at a tag:
+
+```rsc
+/tool fetch url="https://raw.githubusercontent.com/zebka/V2rayMik/v1.2.7/router/v2raymik.rsc" dst-path=v2raymik.rsc; /import file-name=v2raymik.rsc
+```
+
+If the router cannot reach GitHub, download `router/v2raymik.rsc` from the
+release page, move it onto the router (Winbox **Files**, or `/file`), and:
+
+```rsc
+/import file-name=v2raymik.rsc
+```
+
 ## Get the image
 
 Multi-arch on Docker Hub (use a mirror if `ghcr.io` is unreachable from your network):
@@ -110,7 +135,7 @@ See `docs/install-side-load.md` for building and uploading a tarball.
 ## Upgrading to a newer release
 
 ```rsc
-/import file-name=v2raymik.rsc
+/tool fetch url="https://raw.githubusercontent.com/zebka/V2rayMik/main/router/v2raymik.rsc" dst-path=v2raymik.rsc; /import file-name=v2raymik.rsc
 ```
 
 Re-importing is idempotent; existing objects are kept, missing ones are

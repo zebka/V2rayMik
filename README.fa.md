@@ -22,23 +22,25 @@
 
 ## نصب
 
-۱. فایل import را روی روتر ایمپورت کنید:
+یک خط روی روتر فایلِ import را دانلود و ایمپورت میکند؛ نیازی به کپی دستی نیست:
 
 ```rsc
-/import file-name=v2raymik.rsc
+/tool fetch url="https://raw.githubusercontent.com/zebka/V2rayMik/main/router/v2raymik.rsc" dst-path=v2raymik.rsc; /import file-name=v2raymik.rsc
 ```
 
 همه‌چیز (veth، mountها، کانتینر، جدول `mik-tunnel`، firewall، dst-nat) را می‌سازد. ایمپورتِ دوباره یعنی upgrade.
 
-۲. کانتینر را اجرا کنید:
+کانتینر را اجرا کنید و بگذارید بالا بیاید:
 
 ```rsc
 /container/start [find where name="v2raymik"]
 ```
 
-۳. از یک دستگاه روی همان LAN بروید به `http://<router>:8081/` (بدون پسورد). لینک سابسکریپشن را پیست کنید، **Test** بزنید و روی نودِ دلخواه **Connect** بزنید. همین؛ روتر و همه‌ی کلاینت‌های پشتِ آن از همان نود وصل می‌شوند.
+از یک دستگاه روی همان LAN بروید به `http://<router>:8081/` (بدون پسورد). لینک سابسکریپشن را پیست کنید، **Test** بزنید و روی نودِ دلخواه **Connect** بزنید. همین؛ روتر و همه‌ی کلاینت‌های پشتِ آن از همان نود وصل می‌شوند.
 
 برای حذف: `:global MikMode "uninstall"` و دوباره import. راهنمای کامل، آینه‌ی ایرانی، side-load و rollback در `docs/install.md`.
+
+اگر روتر به GitHub دسترسی ندارد، `router/v2raymik.rsc` را دانلود و دستی `import` کنید.
 
 ## پیش‌نیازها
 

@@ -27,28 +27,35 @@ Transports: TCP, WS, gRPC, HTTPUpgrade.
 
 ## Install
 
-1. Import the file once on the router:
+One line on the router downloads the import file and runs it. Nothing to copy:
 
-   ```
-   /import file-name=v2raymik.rsc
-   ```
+```
+/tool fetch url="https://raw.githubusercontent.com/zebka/V2rayMik/main/router/v2raymik.rsc" dst-path=v2raymik.rsc; /import file-name=v2raymik.rsc
+```
 
-   It creates the veth, the mounts, the container, the routing table, the
-   firewall and the LAN dst-nat. Re-importing is the upgrade path.
+That creates the veth, the mounts, the container, the routing table, the
+firewall and the LAN dst-nat. Running the same line again is the upgrade path.
 
-2. Start the container and wait for it to come up:
+Start the container and wait for it to come up:
 
-   ```
-   /container/start [find where name="v2raymik"]
-   ```
+```
+/container/start [find where name="v2raymik"]
+```
 
-3. Open `http://<router>:8081/` on a LAN device — no password. Paste a
-   subscription URL, press **Test**, and on the winning row press
-   **Connect**. That's it: the router and every LAN client behind it now
-   exit through the node you picked.
+Open `http://<router>:8081/` on a LAN device — no password. Paste a
+subscription URL, press **Test**, and on the winning row press **Connect**.
+That's it: the router and every LAN client behind it now exit through the
+node you picked.
 
-To uninstall, `:global MikMode "uninstall"` and import again. See
-`docs/install.md` for the full guide, the Iran mirror, and rollback.
+To uninstall:
+
+```
+:global MikMode "uninstall"; /import file-name=v2raymik.rsc
+```
+
+If the router cannot reach GitHub, download `router/v2raymik.rsc` and import
+it by hand. See `docs/install.md` for the full guide, the Iran mirror and
+rollback.
 
 ## Requirements
 
