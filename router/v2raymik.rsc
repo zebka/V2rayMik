@@ -90,7 +90,7 @@
   }
 
   # --- mangle ------------------------------------------------------------
-  :foreach c in={"mik: never mark the container";"mik: keep router-direct off the tunnel";"mik: MSS clamp";"mik: MSS clamp back";"mik: MSS clamp (router output)";"World -> mik (LAN)";"World -> mik (router)";"World -> tunnel";"World -> tunnel (router)"} do={
+  :foreach c in={"mik: never mark the container";"mik: router to LAN";"mik: keep router-direct off the tunnel";"mik: MSS clamp";"mik: MSS clamp back";"mik: MSS clamp (router output)";"World -> mik (LAN)";"World -> mik (router)";"World -> tunnel";"World -> tunnel (router)"} do={
     :if ([:len [/ip firewall mangle find where comment=$c]] > 0) do={
       /ip firewall mangle remove [find where comment=$c]
     }
@@ -254,6 +254,9 @@
 # --- routing ------------------------------------------------------------------
 # The container's own egress must never enter the tunnel, or the transport
 # carries itself. The accept must sit before every mark-routing rule.
+# Likewise the router's own traffic to the LAN must travel directly; with the
+# mark rules in place, a default install is otherwise unmanageable (SSH, ping,
+# Winbox and DNS answers all go into the tunnel and never come back).
 :local firstMark [:pick [/ip firewall mangle find where action=mark-routing] 0]
 :if ([:len [/ip firewall mangle find where comment="mik: never mark the container"]] = 0) do={
   :if ([:len $firstMark] > 0) do={
@@ -262,6 +265,15 @@
   } else={
     /ip firewall mangle add chain=prerouting src-address=$MikSubnet action=accept \
       comment="mik: never mark the container"
+  }
+}
+:if ([:len [/ip firewall mangle find where comment="mik: router to LAN"]] = 0) do={
+  :if ([:len $firstMark] > 0) do={
+    /ip firewall mangle add chain=output dst-address=$MikLanSubnet action=accept \
+      comment="mik: router to LAN" place-before=$firstMark
+  } else={
+    /ip firewall mangle add chain=output dst-address=$MikLanSubnet action=accept \
+      comment="mik: router to LAN"
   }
 }
 

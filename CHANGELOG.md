@@ -1,4 +1,15 @@
 # Changelog
+## 1.2.7 - 2026-11-13
+
+### Fixed
+
+- **The router was unreachable from its own LAN.** With the tunnel
+  installed, the router's own replies to any LAN address were routed
+  into the tunnel (as "!local" traffic), so the router never answered
+  ARP-adjacent ports: SSH, Winbox, ping, DNS, anything.
+  A "mik: router to LAN" accept now exempts the router's traffic to
+  MikLanSubnet in the output chain before any marking.
+
 ## 1.2.6 - 2026-11-13
 
 ### Fixed
