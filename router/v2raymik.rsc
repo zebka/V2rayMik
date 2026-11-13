@@ -165,7 +165,11 @@
   # --- container and its plumbing ------------------------------------------
   :if ([:len [/container find where name=$MikContainerName]] > 0) do={
     :do { /container stop [find where name=$MikContainerName] } on-error={}
-    :delay 3s
+    :for i from=1 to=30 do={
+      :if ([:len [/container find where name=$MikContainerName and running]] > 0) do={
+        :delay 1s
+      }
+    }
     /container remove [find where name=$MikContainerName]
   }
   :if ([:len [/container envs find where list=$MikContainerName]] > 0) do={
