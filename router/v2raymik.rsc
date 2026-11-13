@@ -332,6 +332,23 @@
   /ip firewall filter set $r dst-port=$MikContainerToWanPorts
 }
 
+# --- replies on established connections ----------------------------------------
+# A LAN client that reaches the panel (or any future published service) needs
+# the replies back. Devices with a stock "accept established" in the forward
+# chain already allow them; stripped-down configs do not, and then the
+# container's SYN-ACK hits "mik: container default deny" and the panel is
+# unreachable. Connection-state accepts only here, so a fresh container still
+# cannot reach out to the LAN.
+:if ([:len [/ip firewall filter find where comment="mik: container replies (established)"]] = 0) do={
+  :if ([:len $firstFwdDrop] > 0) do={
+    /ip firewall filter add chain=forward action=accept connection-state=established,related,untracked \
+      src-address=$MikSubnet comment="mik: container replies (established)" place-before=$firstFwdDrop
+  } else={
+    /ip firewall filter add chain=forward action=accept connection-state=established,related,untracked \
+      src-address=$MikSubnet comment="mik: container replies (established)"
+  }
+}
+
 # --- second pair of accept rules for extra ports (RouterOS caps at 15) --------
 :if ([:len $MikExtraWanPorts] > 0) do={
   :if ([:len [/ip firewall filter find where comment="mik: container tcp transport (extra)"]] = 0) do={

@@ -1,4 +1,17 @@
 # Changelog
+## 1.2.4 - 2026-11-13
+
+### Fixed
+
+- **The panel is unreachable on stripped-down RouterOS configs.** A LAN
+  client reaches the container through the dst-nat fine, but the
+  container's replies (SYN-ACK, then the rest) were dropped by
+  "mik: container default deny" on any device whose forward chain had
+  no stock "accept established" rule (CHR and custom exports).
+  The script now inserts an explicit established/related/untracked
+  accept for the container side itself, so the reply path works
+  regardless of the stock rules.
+
 ## 1.2.3 - 2026-11-13
 
 ### Fixed
