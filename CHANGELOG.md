@@ -1,4 +1,17 @@
 # Changelog
+## 1.3.8 - 2026-11-14
+
+### Added
+
+- **Automatic registry fallback on a fresh install.** The import pulls from the
+  official registry first. If the image has not started after the wait, it
+  switches to `MikRegistryFallback` (default `https://focker.ir`), recreates the
+  container and starts it again. It only runs when you did not set
+  `MikRegistryUrl` yourself and only on a fresh container. Set
+  `:global MikRegistryFallback ""` to turn it off.
+
+  Not yet tested on a router.
+
 ## 1.3.7 - 2026-11-14
 
 ### Changed

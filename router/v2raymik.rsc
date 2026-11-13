@@ -45,6 +45,7 @@
 :global MikAdminLanPort
 :global MikAllowContainerToLan
 :global MikBridge
+:global MikRegistryFallback
 
 # Sensible defaults; override before the import in the same terminal session.
 # MikDisk is the one knob that varies per device, so it is detected: the first
@@ -90,9 +91,13 @@
 :if ([:typeof $MikImage] = "nothing") do={ :global MikImage "azebka/v2raymik:latest" }
 :if ([:typeof $MikImageFile] = "nothing") do={ :global MikImageFile "" }
 :if ([:typeof $MikCheckCertificate] = "nothing") do={ :global MikCheckCertificate "yes" }
-# Registry used for the pull. docker.iranserver.com works in Iran; arvancloud
-# needs MikCheckCertificate "no" on 7.25.1.
+# Registry used for the pull. arvancloud needs MikCheckCertificate "no" on 7.25.1.
+# If you set MikRegistryUrl yourself, that registry is used and there is no
+# fallback. Otherwise the official registry is tried first and, if the image
+# does not start, MikRegistryFallback (focker.ir) is tried. "" turns it off.
+:local registryPinned ([:typeof $MikRegistryUrl] != "nothing")
 :if ([:typeof $MikRegistryUrl] = "nothing") do={ :global MikRegistryUrl "https://registry-1.docker.io" }
+:if ([:typeof $MikRegistryFallback] = "nothing") do={ :global MikRegistryFallback "https://focker.ir" }
 :if ([:typeof $MikAdminPort] = "nothing") do={ :global MikAdminPort "8080" }
 :if ([:typeof $MikAdminLanPort] = "nothing") do={ :global MikAdminLanPort "8081" }
 :if ([:typeof $MikAllowContainerToLan] = "nothing") do={ :global MikAllowContainerToLan false }
@@ -351,7 +356,42 @@
   :if ($started = true) do={
     :log info "v2raymik: container started"
   } else={
-    :log warning "v2raymik: the image pull is still running; run /container start $MikContainerName once it finishes"
+    :if ($registryPinned = false and [:len $MikRegistryFallback] > 0 and [:len $MikImageFile] = 0) do={
+      :log warning ("v2raymik: the official registry did not deliver the image; trying " . $MikRegistryFallback)
+      :do { /container stop [find where name=$MikContainerName] } on-error={}
+      :local gone false
+      :for i from=1 to=40 do={
+        :if ($gone = false) do={
+          :do {
+            /container remove [find where name=$MikContainerName]
+            :set gone true
+          } on-error={ :delay 1s }
+        }
+      }
+      /container/config/set registry-url=$MikRegistryFallback
+      /container add name=$MikContainerName remote-image=$MikImage interface=$MikVeth \
+        root-dir=$rootDir dns=1.1.1.1 \
+        envlist=$MikContainerName start-on-boot=yes restart-policy=always \
+        check-certificate=$MikCheckCertificate mountlists=MOUNT_MIK_DATA \
+        memory-high=100663296 logging=yes
+      :for i from=1 to=60 do={
+        :if ($started = false) do={
+          :do {
+            /container start [find where name=$MikContainerName]
+            :delay 2s
+            :if ([:len [/container find where name=$MikContainerName and stopped]] = 0) do={
+              :set started true
+            }
+          } on-error={ :delay 3s }
+        }
+        :if ($started = false) do={ :delay 2s }
+      }
+    }
+    :if ($started = true) do={
+      :log info "v2raymik: container started"
+    } else={
+      :log warning "v2raymik: the image pull is still running; run /container start $MikContainerName once it finishes"
+    }
   }
 }
 
