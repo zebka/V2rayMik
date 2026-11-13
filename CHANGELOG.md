@@ -1,4 +1,17 @@
 # Changelog
+## 1.2.1 - 2026-11-13
+
+### Fixed
+
+- **The 1.2.0 CI refused to ship the release**, correctly. The Xray side
+  rendered its config with a bare `jq -c` filter that produced no output on
+  error and no diagnostics when the outbound was not JSON at all. The config
+  now renders the same way the sing-box side does (outbound validated with
+  `jq -e`, rendered via `--slurpfile`), so a broken Xray outbound fails with
+  an error instead of an empty file.
+- **The Xray unit-test fixture had one brace too many**, which is what the
+  failing test actually pointed at. Balanced.
+
 ## 1.2.0 - 2026-11-13
 
 Everything in this release went in one direction: fewer moving parts, one

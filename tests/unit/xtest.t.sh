@@ -74,7 +74,7 @@ sing-box check -c /tmp/xt-hy.json >/dev/null 2>&1 || fail "sing-box rejected the
 # --- the xray side -------------------------------------------------------------
 command -v xray >/dev/null 2>&1 || fail "xray binary missing from the image"
 
-XOUT='{"protocol":"vless","tag":"proxy","settings":{"vnext":[{"address":"a.test","port":443,"users":[{"id":"u","encryption":"none"}]}]},"streamSettings":{"network":"xhttp","security":"reality","realitySettings":{"serverName":"a.test","publicKey":"pbk","shortId":"sid","fingerprint":"chrome","spiderX":""}},"xhttpSettings":{"path":"/x","mode":"auto"}}}'
+XOUT='{"protocol":"vless","tag":"proxy","settings":{"vnext":[{"address":"a.test","port":443,"users":[{"id":"u","encryption":"none"}]}]},"streamSettings":{"network":"xhttp","security":"reality","realitySettings":{"serverName":"a.test","publicKey":"pbk","shortId":"sid","fingerprint":"chrome","spiderX":""}},"xhttpSettings":{"path":"/x","mode":"auto"}}'
 xp=$(xray_config "$XOUT" 10810)
 printf '%s' "$xp" | jq -e '.inbounds[0].protocol == "socks"' >/dev/null || fail "xray plan has no socks inbound"
 printf '%s' "$xp" | jq -e '.inbounds[0].port == 10810' >/dev/null || fail "xray plan wrong port"

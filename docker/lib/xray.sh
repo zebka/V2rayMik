@@ -248,9 +248,18 @@ xray_pin() {
 # xray_config <outbound-json> <port> — a full xray config with a local SOCKS5
 # inbound. Xray is the outlet; sing-box keeps the TUN.
 xray_config() {
-  printf '%s' "$1" | jq -c --argjson port "$2" \
+  printf '%s' "$1" | jq -e . >/dev/null 2>&1 || {
+    echo "xray_config: the outbound is not valid JSON" >&2
+    return 2
+  }
+  tmp=$(mktemp)
+  printf '%s' "$1" > "$tmp"
+  jq -c --argjson port "$2" --slurpfile ob "$tmp" \
     '{log:{loglevel:"warning"},
       inbounds:[{protocol:"socks", listen:"127.0.0.1", port:$port,
                  settings:{auth:"noauth", udp:true, ip:"127.0.0.1"}}],
-      outbounds:[.]}'
+      outbounds:[$ob[0]]}'
+  rc=$?
+  rm -f "$tmp"
+  return $rc
 }
