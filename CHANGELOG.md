@@ -1,4 +1,14 @@
 # Changelog
+## 1.3.5 - 2026-11-14
+
+### Fixed
+
+- **Disks are detected by their real file type.** RouterOS lists a whole
+  drive such as `pcie1` or `usb2` with type `disk`, not `directory`, so the
+  auto-detect never matched it and fell back to `flash`. Both types are now
+  accepted, in the detect, the explicit `MikDisk` check and the error's list
+  of existing mounts.
+
 ## 1.3.4 - 2026-11-14
 
 ### Fixed

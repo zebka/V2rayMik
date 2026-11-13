@@ -60,10 +60,10 @@
   :local found ""
   :foreach d in={"usb1";"usb2";"usb3";"sata1";"sata2";"nvme1";"pcie1";"pcie2";"mmc1";"sd1";"nand1";"flash";"data"} do={
     :if ([:len $found] = 0) do={
-      :if ([:len [/file find where name=$d and type="directory"]] > 0) do={
+      :if ([:len [/file find where name=$d and (type="directory" or type="disk")]] > 0) do={
         :set found $d
       } else={
-        :if ([:len [/file find where name=($d . "-part1") and type="directory"]] > 0) do={
+        :if ([:len [/file find where name=($d . "-part1") and (type="directory" or type="disk")]] > 0) do={
           :set found ($d . "-part1")
         }
       }
@@ -72,9 +72,9 @@
   :global MikDisk $found
 } else={
   :if ([:len $MikDisk] > 0) do={
-    :if ([:len [/file find where name=$MikDisk and type="directory"]] = 0) do={
+    :if ([:len [/file find where name=$MikDisk and (type="directory" or type="disk")]] = 0) do={
       :local dirs ""
-      :foreach f in=[/file find where type="directory"] do={
+      :foreach f in=[/file find where (type="directory" or type="disk")] do={
         :local n [/file get $f name]
         :if ([:len [:find $n "/"]] = 0) do={ :set dirs ($dirs . " " . $n) }
       }
