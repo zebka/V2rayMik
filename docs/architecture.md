@@ -161,3 +161,26 @@ fails loudly.
 One supervisor, one TUN, one or two engine processes. The image is bigger
 than a sing-box-only build (two engines, ~2×) and idles around 10–30 MiB of
 RSS on the reference device. Throughput numbers are in `benchmarks.md`.
+
+## Limitations
+
+- Container networking on this class of hardware is CPU-bound; do not expect
+  the server's line rate.
+- No IPv6 (the reference deployment has it disabled).
+- Both engines together cost ~2� the image size and disk of one; that is the
+  price of covering the whole link space.
+- UDP through an Xray-chained node travels via the SOCKS hop (best effort);
+  hysteria2/tuic are the better choice when the provider lets you pick.
+- One router, one active node. No per-user accounting and no multi-tenant
+  panel.
+- The container's root shares RouterOS's kernel. See docs/security.md
+  before deploying this on a device you do not control.
+
+## Roadmap
+
+- Upload throughput, multi-stream and reboot-recovery tests on the full-tunnel
+  build.
+- Live runs of Xray nodes on hardware.
+- Consume a provider's sing-box JSON subscription (\?format=json\) directly.
+- Per-node "last worked at" memory, so the panel can rank nodes by history.
+- Per-user connect/disconnect accounting (not a goal for this release series).

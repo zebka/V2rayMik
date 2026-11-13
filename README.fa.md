@@ -1,229 +1,63 @@
 # V2rayMik
 
-**sing-box** و **Xray** روی RouterOS میکروتیک. یک کانتینر، یک فایل ایمپورت، بدون قوانین حفظی.
+**sing-box** و **Xray** روی RouterOS میکروتیک — کافی فقط یک import داشته باشید.
 
 [![build](https://github.com/zebka/V2rayMik/actions/workflows/build.yml/badge.svg)](https://github.com/zebka/V2rayMik/actions/workflows/build.yml)
 [![Docker Hub](https://img.shields.io/docker/pulls/azebka/v2raymik)](https://hub.docker.com/r/azebka/v2raymik)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![English](https://img.shields.io/badge/readme-english-0a7)](README.md)
 
-کل ترافیک IPv4 دنیای یک روتر میکروتیک را از داخل **یک** کانتینر Alpine که موتورِ لازم را خودش انتخاب می‌کند (sing-box یا Xray) رد می‌کند. نه tun2socks، نه کانتینر دوم، نه فایل‌های geo.
+ترافیکِ روتر را از داخلِ یک کانتینر Alpine که Xray و sing-box دارد رد می‌کند. نه tun2socks، نه کانتینرِ دوم، نه فایل‌های geo. یک صفحه‌ی کوچک LAN هم برای سابسکریپشن و سوییچ نود سرو می‌کند — بدون نیاز به Winbox.
 
-> از **۱.۲.۰** به بعد ایمیج هم **Xray** و هم **sing-box** دارد؛ تفکیک ایران/خارج حذف شده و کل سمت روتر در **یک** فایل .rsc خلاصه شده که نصب و حذف را با هم دارد. نسخه‌های قبل از ۱.۲.۰ پنج فایل ایمپورت، تفکیک `iran-ips` و پسورد پنل داشتند؛ برای انتقال به `CHANGELOG.md` نگاه کنید.
-
-RouterOS از VLESS/REALITY/hysteria2 پشتیبانی نمی‌کند. این پروژه بدون این‌که روتر را از مقام تقسیم ترافیک خلع کند، همین شکاف را می‌بندد و یک صفحه‌ی کوچکِ LAN برای سابسکریپشن و تعویض نود سرو می‌کند.
-
-```
-کلاینت‌های LAN ─┐
-                ├─ هر مقصد IPv4 به‌جز سابنت کانتینر → از تونل
-خود روتر ───────┘
-                       /ip route در mik-tunnel: 0.0.0.0/0 → 172.17.0.2 (distance 1)
-                                  │
-                       veth-mik (172.17.0.2 ⇄ 172.17.0.1، بدون bridge)
-                                  │
-                       کانتینر eth0 172.17.0.2
-                       ip_forward=1، مسیرها: 0/1 + 128/1 → tun0، <endpoint>/32 → eth0
-                                  │
-                       tun0 (198.18.0.1/15، مالِ sing-box)
-                                  │
-                       خروجی sing-box ──┬─ مستقیم به نود (نودهای sing-box)
-                                        └─ SOCKS 127.0.0.1:10810 ← xray ← نود
-```
-
-## چرا این شکل
-
-- **TUN مالِ sing-box است.** RouterOS مسیر `/dev/net/tun` را داخل کانتینر باز می‌کند و sing-box خودش TUN را می‌سازد و مصرف می‌کند؛ یعنی tun2socks از مسیر حذف می‌شود — یک process، یک ایمیج.
-- **مسیرها صریح‌اند.** خود کانتینر دو مسیر `/1` و یک `/32/endpoint` می‌سازد؛ نشان دادن ترافیک به تونل بر اساس longest-prefix match است و بس.
-- **نه NAT داخل کانتینر، نه iptables.** کانتینر با همان کرنل RouterOS کار می‌کند و ماژول‌های netfilter آن مالِ ما نیستند. روتر LAN را به کانتینر masquerade می‌کند؛ کانتینر فقط `172.17.0.1` را می‌بیند.
-- **هر چه غیر محلی است از تونل می‌رود.** هیچ address-list ای «جهان» را تعریف نمی‌کند؛ چیزی برای به‌روز نگه‌داشتن یا تRot شدن نیست. اگر تونل قطع شود ترافیک drop می‌شود — fail-closed، بدون fallback به ISP.
-
-## موتورها: sing-box و Xray، برای هر نود
-
-ایمیج هر دو موتور را دارد و انتخاب موتور برای هر نود لحظه‌ی پارسِ لینک انجام می‌شود؛ به‌صورت دستی چیزی انتخاب نمی‌کنید.
+## چه نودهایی؟
 
 | نوع نود | موتور |
 | --- | --- |
-| `vless://` (REALITY، vision، ws/grpc/httpupgrade/tcp) | sing-box |
-| `vmess://`، `trojan://`، `ss://` | sing-box |
+| `vless://`، `vmess://`، `trojan://`، `ss://` | sing-box |
 | `hysteria2://`، `hy2://`، `tuic://` | sing-box |
-| هرکدام با `type=xhttp` یا `type=splithttp` | **Xray** |
-| `vless://…encryption=…` (vless پسِ-کوانتومی) | **Xray** |
+| `type=xhttp` / `splithttp` | **Xray** |
+| `vless://…encryption=…` | **Xray** |
 
-زیر کاپوت، یک نود Xray با یک Socks5 محلی روی `127.0.0.1:10810` اجرا می‌شود و sing-box (که صاحب TUN است) به آن chain می‌کند. هر دو موتور فقط برای نودی که استفاده می‌شود بالا هستند؛ تعویض نود، موتور را هم با خود عوض می‌کند. UDP از روی نود زنجیره‌ایِ Xray best effort است (از هاپ SOCKS رد می‌شود)؛ TCP مشکلی ندارد.
+هر دو موتور در ایمیج هست؛ انتخاب موتور برای هر نود خودکار است. تراسپورت‌ها: TCP، WebSocket، gRPC، HTTPUpgrade.
 
-پنل نشان می‌دهد هر تست یا اتصال فعال با کدام موتور اجرا شده است.
+## نصب
 
-Hysteria2 و TUIC از UDP هستند و سرویس‌دهنده‌ها معمولاً پورت خاص خودشان را انتخاب می‌کنند. آن پورت را قبل از ایمپورت به `MikExtraWanPorts` اضافه کنید:
+۱. فایل import را روی روتر ایمپورت کنید:
 
+```rsc
+/import file-name=v2raymik.rsc
 ```
-:global MikExtraWanPorts "22001,8443"
+
+همه‌چیز (veth، mountها، کانتینر، جدول `mik-tunnel`، firewall، dst-nat) را می‌سازد. ایمپورتِ دوباره یعنی upgrade.
+
+۲. کانتینر را اجرا کنید:
+
+```rsc
+/container/start [find where name="v2raymik"]
 ```
 
-اسکریپت‌ها یک قانون accept اضافه برای آن می‌سازند و پنل آن ردیف‌ها را از حالت blocked بیرون می‌آورد. بدون آن، handshake نود از روتر بیرون می‌رود و برنمی‌گردد و پنل `port blocked` گزارش می‌کند.
+۳. از یک دستگاه روی همان LAN بروید به `http://<router>:8081/` (بدون پسورد). لینک سابسکریپشن را پیست کنید، **Test** بزنید و روی نودِ دلخواه **Connect** بزنید. همین؛ روتر و همه‌ی کلاینت‌های پشتِ آن از همان نود وصل می‌شوند.
 
-لینک hysteria2 که هم `insecure=1` و هم `pinSHA256` دارد، با drop کردن pin پارس می‌شود: `insecure` یعنی خود سرویس‌دهنده verification را خاموش کرده و pinهای این لینک‌ها بعد از چرخش گواهی stale می‌شوند. لینکی که pin دارد و `insecure` ندارد pin را نگه می‌دارد — و اگر پین قابل decode نباشد خودِ لینک باید fail شود (قبلاً بی‌صدا pin را دور می‌انداختیم).
+برای حذف: `:global MikMode "uninstall"` و دوباره import. راهنمای کامل، آینه‌ی ایرانی، side-load و rollback در `docs/install.md`.
 
 ## پیش‌نیازها
 
-- RouterOS نسخه‌ی 7.24 به بالا (روی **7.25.1** اعتبارسنجی شده)، دستگاه arm64 یا x86 با پکیج **container**.
-- فعال بودن حالت container که به **دسترسی فیزیکی** نیاز دارد (`/system/device-mode/update container=yes` و تأیید روی خود دستگاه).
-- یک دیسک خارجی برای `root-dir` و `tmpdir`. فلش داخلی هم کوچک است هم فرسوده می‌شود.
-- DNS سالم روی روتر. اگر `:resolve twitter.com` مقدار `10.10.34.x` برمی‌گرداند، قبل از هر چیز DNS را درست کنید.
-- سرورِ دلخواه شما (vless، vmess، trojan، ss، hysteria2 یا tuic). هر نودی که سرویس‌دهنده‌تان به‌صورت share link بدهد کار می‌کند.
+- RouterOS 7.24+ با پکیج **container** (روی 7.25.1 تست شده)
+- فعال بودن حالت container — نیازمند دسترسی فیزیکی یک‌بار
+- یک دیسک خارجی برای root-dir کانتینر
+- سرور proxy خودتان (vless، vmess، trojan، ss، hysteria2، tuic)
 
-## اعتبارسنجی
+## مستندات
 
-روی hAP ax³ (arm64، یک گیگ) با RouterOS 7.25.1 و دیسک USB، روی نسخه‌ی **1.0.x** (پنج‌فایلی، با تفکیک) اندازه‌گیری شده. همه‌ی اعدادِ زیر مربوط به همان نسخه است؛ کارکرد full-tunnel نسخه‌ی ۱.۲.۰ هنوز روی سخت‌افزار نرفته و مسیر Xray با نود واقعی استفاده نشده:
-
-- هم ترافیک خود روتر و هم ترافیک LAN از تونل بیرون می‌رفت.
-- خروج در سه کشور با سه transport تأیید شد (VLESS+REALITY، VLESS روی WebSocket، VLESS خالص)، به‌علاوه‌ی یک Shadowsocks که TCP را رد می‌کرد ولی UDP را نه.
-- یک نود **hysteria2** (QUIC/UDP، obfs=salamander، گواهی pinned) ده مگابایت را در ۳.۲ ثانیه از همین کانتینر رد کرد: ≈۲۵ Mbps، خروج `loc=US`.
-- پنل یک سابسکریپشن را لود می‌کند، هر نود را تست می‌کند (تأخیر واقعی، کشور خروج، Mbps) و مسیر جهان را در حدود ۳ ثانیه عوض می‌کند.
-- با قطعِ نود انتخاب‌شده، ترافیک جهان متوقف می‌شد نه این‌که مستقیم برود (fail-closed).
-- کانتینر در حالت idle حدود ۱۰ تا ۲۲ MiB RSS مصرف می‌کند. جزئیات و دستورها در `docs/benchmarks.md`.
-
-چیزی که اعتبارسنجی نشده صراحتاً همان‌جا و در `CHANGELOG.md` نوشته شده است.
-
-## شروع سریع
-
-۰. **ایمیج را بگیرید.** مولتی‌آرچ روی Docker Hub (اگر `ghcr.io` از شبکه‌ی شما در دسترس نیست، آینهایر از آینه ای استفاده کنید):
-
-   ```
-   docker pull azebka/v2raymik:latest   # آخرین ریلیز
-   docker pull azebka/v2raymik:1.2.0    # پینِ repo + ایمیج با هم
-   docker pull ghcr.io/zebka/v2raymik:latest
-   ```
-
-   `latest` فقط هنگام push شدن tag ریلیز منتشر می‌شود و همیشه با فایل `VERSION` و ریلیز هم نسخه است؛ `:edge` بیلد خام `main` است. روی روتر، `v2raymik.rsc` خودش `remote-image=` را ست می‌کند؛ در ایران آینه بهتر جواب می‌دهد، مثلاً:
-
-   ```
-   :global MikRegistryUrl "https://docker.iranserver.com"
-   /import file-name=v2raymik.rsc
-   ```
-
-   (اگر CA آینه برای روتر قابل اعتماد نیست — نمونه‌ی معروف `docker.arvancloud.ir` روی 7.25.1 — `:global MikCheckCertificate "no"` هم اضافه کنید.) با `make image` ایمیج را محلی می‌سازید و `make save` برای side-load کردن tar خروجی می‌دهد (`docs/install-side-load.md`).
-
-۱. ایمیج را روی روتر برسانید — یا روتر خودش pull کند، یا tar را side-load کنید (`make save` و آپلود `dist/*.tar`).
-
-۲. خروجی خود را در جایی بگذارید که کانتینر بخواند. یا یک شیء sing-box outbound کامل:
-
-   ```
-   <disk>/v2raymik/etc/sing-box/outbound.json
-   ```
-
-   یا یک share link در environment کانتینر:
-
-   ```
-   /container/envs/add list=v2raymik key=NODE_LINK value="hysteria2://…"
-   ```
-
-   (اگر قبلاً یک ورودی دارید از `set` استفاده کنید.) هر دو را هم‌زمان ست نکنید؛ مسیر JSON هر outbound سازگار با sing-box را قبول می‌کند و نودهایی که به Xray نیاز دارند از روی link انتخاب می‌شوند.
-
-   **پورتی که در link آمده باید داخل `MikContainerToWanPorts` باشد** (پیش‌فرض: همه‌ی پورت‌های proxy کلودفلر به‌علاوه‌ی ۵۳؛ هم TCP و هم UDP پوشش داده می‌شود). سرویس‌دهنده‌ای با پورت غیر استاندارد به یک خط تغییر نیاز دارد — بخش «egress allowlist» در `docs/security.md` را ببینید. Hysteria2/TUIC از UDP هستند؛ پورت آن‌ها هم باید آن‌جا باشد.
-
-۳. فقط یک import:
-
-   ```
-   /import file-name=v2raymik.rsc
-   ```
-
-   همه‌چیز را می‌سازد (veth، mountها، کانتینر، جدول `mik-tunnel`، قوانین mangle، firewall، dst-nat) و re-import همان مسیرِ upgrade است. پیش‌فرض‌ها در بالای همان فایل هستند؛ هر کدام را که می‌خواهید در همان نشست ترمینال و قبل از import override کنید (`MikWan`، `MikDisk`، `MikImage`، …).
-
-۴. کانتینر را start کنید و لاگ را ببینید:
-
-   ```
-   /container/start [find where name="v2raymik"]
-   /log print where topics~"container"
-   ```
-
-۵. از یک کلاینت LAN بررسی کنید: `curl https://ifconfig.me` باید آدرس سرور شما را چاپ کند.
-
-۶. اختیاری، پنل: از یک دستگاه داخل LAN بروید به `http://<router-lan-ip>:8081/` — بدون پسورد. لینک سابسکریپشن را پیست کنید (یا یک تک‌لینک)، **Test all** بزنید و روی نود دلخواه **Connect** بزنید. بخش «پنل مدیریت» را ببینید.
-
-بازگشت عقب (rollback) هم با همان فایل است: `:global MikMode "uninstall"` و import کنید.
-
-<!-- old-name-start -->
-## انتقال از نسخه‌های ≤ ۱.۰.x (mikrotik-xray-gateway)
-
-نسخه‌ی ۱.۲.۰ چیدمان پنج‌فایلی، تفکیک جغرافیایی، پسورد و اسکژduler خودکار را حذف می‌کند. برای انتقال:
-
-۱. `:global MikMode "uninstall"` سپس `/import file-name=` فایلِ **جدید** `router/v2raymik.rsc` — حالت uninstall آن بقایای ۱.x را هم پاک می‌کند (جدول `to-world`، مسیرهای `mik-world`/`mik-fallback`، قوانین قدیمی MSS، `MOUNT_MIK_DATA`). به اسکریپت‌های قدیمی نیاز ندارید.
-۲. یک ترمینال جدید باز کنید (چون `MikMode` در همین نشست `uninstall` می‌ماند) و `/import file-name=v2raymik.rsc` را بزنید.
-۳. `state.json` منتقل نمی‌شود؛ یک بار نود را در پنل انتخاب کنید.
-
-شاخه‌های `/usb2/xray-gw` و `/usb2/xray-data` دست‌نخورده می‌مانند.
-<!-- old-name-end -->
-
-## رفتار در خرابی
-
-fail-closed. جدول `mik-tunnel` همه‌چیز را با **یک** مسیر و distance ۱ و از طریق کانتینر حمل می‌کند. اگر تونل قطع شود مسیر هست ولی gateway پاسخی نمی‌دهد؛ ترافیک drop می‌شود و چیزی به ISP لو نمی‌رود. از ۱.۲.۰ به بعد هیچ fallback ای وجود ندارد (نسخه‌های قبلی می‌توانستند به ISP برگردند؛ همان روی هر قطعی مثل یک نشتی بی‌صدا بود، پس حذف شد).
-
-اگر این مبادله مناسب شما نیست، این نسخه را مستقر نکنید.
-
-## پنل مدیریت
-
-همان کانتینر یک پنل کوچک روی LAN سرو می‌کند: سابسکریپشن‌ها، تست هر کانفیگ و تعویض نود فعال. **پسورد ندارد** — هر کسی روی LAN می‌تواند از آن استفاده کند. فقط از طریق `dst-nat` در `MikAdminLanPort` و فقط روی interface listِ LAN در دسترس است؛ هیچ مسیر WAN و هیچ صفحه‌ی لاگینی وجود ندارد. اگر این برای شبکه‌ی شما قابل قبول نیست، پورت را در forward chain مسدود کنید.
-
-```
-http://<router-lan-ip>:8081/        # MikAdminLanPort
-```
-
-- **Subscription**: آدرس سابسکریپشن v2ray (base64 یا لینک‌های ساده) یا یک تک‌لینک را پیست کنید. به‌صورت محلی parse می‌شود؛ چیز بیرونی نمی‌رود. ریدایرکت حداکثر سه بار و فقط به `https://` دنبال می‌شود؛ downgrade به http پذیرفته نیست.
-- **Test**: هر کانفیگ برای خودش یک موتور موقت با mixed inbound می‌گیرد، بعد یک بررسی `generate_204` و دانلود ۱۰ مگابایتی. تونل اصلی در این لحظه فعال می‌ماند. «Test all» لیست را پیمایش می‌کند؛ «Cancel» متوقفش می‌کند. نتیجه نشان می‌دهد کدام موتور اجرا شده است (sing-box یا xray).
-- **Connect**: ترافیک روتر به آن کانفیگ موکول می‌شود. خودِ تعویض verify می‌شود (TUN بالا، مسیرها درست، 204 از داخل تونل) و اگر نود جدید بالا نیاید به‌صورت خودکار به قبلی برمی‌گردد. حدود ۲–۳ ثانیه قطع اتصال انتظار داشته باشید.
-
-دو کار برای پنل ممنوع است:
-
-- کانفیگی که پورتش بیرون از egress allowlist است را Connect نمی‌کند؛ آن ردیف‌ها `port blocked` می‌گویند — اول پورت را اضافه کنید (بخش «egress allowlist» در `docs/security.md`).
-- خودش را هیچ‌وقت به WAN باز نمی‌کند؛ تنها مسیر `dst-nat`ِ LAN است.
-
-## عملکرد اندازه‌گیری‌شده
-
-از خود روتر، نمونه‌های کوچک روی لینک‌های مصرفی — مرتبه‌ی بزرگی، نه مشخصات فنی. همه روی نسخه‌ی ۱.۰.x (تفکیک) اندازه‌گیری شده و نسخه‌ی full-tunnel هنوز اندازه‌گیری نشده:
-
-| تست | نتیجه |
-| --- | --- |
-| `tool fetch` فایل ۹.۵ MiB، تک‌استریم (بیلد اولیه) | **≈ ۱۳ Mbps** |
-| تست ۱۰ مگابایتی خود پنل، سه نود روی همان دستگاه | **۳۰–۳۸ Mbps** |
-| یک نود hysteria2، ده مگابایت از همان روش پنل | **≈ ۲۵ Mbps** |
-| OpenVPN/TCP بر همان دستگاه، برای مقایسه (`iperf3`) | ~۱۴ Mbps دان / ~۱۵.۸ Mbps آپ |
-
-کانتینر گلوگاه این سناریو نیست. جدول کامل، دستورها و سلول‌های اندازه‌گیری‌نشده در `docs/benchmarks.md` است.
-
-## نقشه‌ی راه
-
-- تست سرعت آپلود، چنداستریم و بازیابی بعد از reboot روی بیلد full-tunnel.
-- تست زنده‌ی نودهای Xray روی سخت‌افزار.
-- مصرف سابسکریپشن sing-box JSON سرویس‌دهنده (`?format=json`) به‌شکل مستقیم.
-- «آخرین اتصال موفق» برای هر نود، تا پنل بر اساس تاریخچه نودها را رتبه‌بندی کند.
-
-## ساختار
-
-```
-docker/           ایمیج، entrypoint (هر دو موتور)، هلپرهای link/xray/route،
-                  CGI پنل، خود پنل (index.html + app.js)
-router/           v2raymik.rsc — کل سمت روتر، نصب و حذف
-docs/             معماری، امنیت، عیب‌یابی، بنچمارک‌ها، side-load، dockerhub،
-                  design/ (سند پنل)
-server/           کانفیگ مرجع سرور REALITY (خارج از محدوده)
-tests/            تست‌های unit (POSIX sh) و lint ایستا
-```
-
-## محدودیت‌ها
-
-- شبکه‌ی کانتینری روی این کلاس از سخت‌افزار CPU-bound است؛ انتظار line rate سرور را نداشته باشید.
-- بدون IPv6 (رفرنس با IPv6 غیرفعال است).
-- دو موتور با هم ≈دو برابر حجم و دیسک یک موتور می‌گیرند؛ این بهای پوشش کل لینک‌هاست.
-- UDP روی نود زنجیره‌ایِ Xray از هاپ SOCKS می‌گذرد (best effort)؛ اگر سرویس‌دهنده اجازه بدهد hysteria2/tuic گزینه‌ی بهتری است.
-- یک روتر، یک نود فعال. بدون حسابداری per-user و بدون پنل چندمستأجری.
-- root کانتینر روی همان کرنل RouterOS کار می‌کند. قبل از استقرار روی دستگاهی که کنترلش دست شما نیست `docs/security.md` را بخوانید.
-
-## کمک گرفتن
-
-- اول `docs/troubleshooting.md` را بخوانید؛ با سه دستوری شروع می‌شود که اکثر سؤال‌ها را جواب می‌دهد.
-- هنگام گزارش مشکل، خروجی این‌ها را ضمیمه کنید: `/container/print`، `/log print where topics~"container"` (۵۰ خط آخر)، `/ip route print where routing-table=mik-tunnel` و خروجی `state` پنل.
-- هیچ‌وقت کانفیگ سالم، آدرس سابسکریپشن یا هر چیز محرمانه‌ای را داخل issue نریزید.
-- هر چیزی که بوی مشکل امنیتی بدهد به `SECURITY.md` (advisory خصوصی) می‌رود، نه issue عمومی.
+- `docs/install.md` — نصب، ارتقا، side-load، آینه‌ها، rollback
+- `docs/architecture.md` — مسیر بسته، موتورها، چرا دو مسیر `/1`
+- `docs/panel.md` — صفحه‌ی مدیریت LAN: سابسکریپشن، تست، سوییچ
+- `docs/security.md` — allowlist خروجی، fail-closed، credentials
+- `docs/troubleshooting.md` — خرابی‌های معمول و راه‌حل
+- `docs/benchmarks.md` — سرعت اندازه‌گیری‌شده روی دستگاه مرجع
+- `docs/migration.md` — انتقال از ۱.۰.x
+- `docs/dockerhub.md` — صفحه‌ی Docker Hub
+- `docs/design/admin-ui.md` — سند طراحی پنل
 
 ## لایسنس
 
