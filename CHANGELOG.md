@@ -1,4 +1,18 @@
 # Changelog
+## 1.3.2 - 2026-11-14
+
+Reinstall works straight after an uninstall, in the same terminal.
+
+### Fixed
+
+- **Uninstall then install no longer fails.** `:global MikMode "uninstall"`
+  stayed set in the terminal, so the next import ran the uninstall again and
+  never installed. The uninstall now resets `MikMode` to `install` when it
+  finishes.
+- **Uninstall waits for the container to stop** before removing it. A fixed
+  3-second delay was not enough, and `/container remove` refused a container
+  that was still running.
+
 ## 1.3.1 - 2026-11-14
 
 Disk detection works on partitioned USB storage and fails with the names
