@@ -105,7 +105,7 @@
   }
 
   # --- firewall filter ---------------------------------------------------
-  :foreach c in={"mik: container tcp transport";"mik: container udp transport";"mik: container tcp transport (extra)";"mik: container udp transport (extra)";"mik: container to LAN (opt-in)";"mik: container default deny"} do={
+  :foreach c in={"mik: container tcp transport";"mik: container udp transport";"mik: container tcp transport (extra)";"mik: container udp transport (extra)";"mik: container to LAN (opt-in)";"mik: container default deny";"mik: container replies (established)"} do={
     :if ([:len [/ip firewall filter find where comment=$c]] > 0) do={
       /ip firewall filter remove [find where comment=$c]
     }
@@ -165,9 +165,8 @@
     }
   }
 
-  :log info "v2raymik: uninstall complete; the device is back to its defaults"
-  :error "v2raymik uninstall finished"
-}
+  :log info "v2raymik: uninstall finished"
+} else={
 
 # ==========================================================================
 # INSTALL / UPGRADE
@@ -441,3 +440,4 @@
 }
 
 :log info "v2raymik: installed. Wait for /container/print status=stopped growing to running, then open http://<router>:$MikAdminLanPort/"
+}

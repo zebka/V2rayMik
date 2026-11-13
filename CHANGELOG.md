@@ -1,4 +1,13 @@
 # Changelog
+## 1.2.6 - 2026-11-13
+
+### Fixed
+
+- **Uninstall did not remove the "mik: container replies (established)"
+  rule** added in 1.2.4 for the panel return path on stripped-down
+  configs. The uninstall filter list now includes it, so an uninstall
+  leaves no project rules behind.
+
 ## 1.2.5 - 2026-11-13
 
 ### Fixed
