@@ -1,7 +1,7 @@
 # Admin UI: subscriptions, testing, selecting a config
 
 Status: implemented (0.2.0–0.4.0). Kept as the design record; the current
-behaviour is described in the README and `CHANGELOG.md`. As of 1.1.0 the panel
+behaviour is described in the README and `CHANGELOG.md`. As of 1.2.0 the panel
 is passwordless (anyone on the LAN), the `iran-ips` split is gone, and `Xray`
 means the Xray engine, which runs as a local SOCKS outlet chained under
 sing-box rather than owning the TUN.
@@ -60,6 +60,7 @@ PID 1: entrypoint (shell supervisor)
 | `/cgi/sub` | POST | save a subscription URL or pasted links, return the parsed list |
 | `/cgi/test` | POST | test one config by index; returns `{code, ms, mbps, error}` |
 | `/cgi/connect` | POST | make one config active, restart Xray, return the new state |
+| `/cgi/power` | POST | `state=stop\|start`: bypass the tunnel by flag, not by signal |
 
 Rules:
 

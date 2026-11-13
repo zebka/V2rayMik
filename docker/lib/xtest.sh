@@ -46,14 +46,59 @@ xtest_wait_port() {
   return 1
 }
 
-# xtest_measure <port> — prints "<code> <ms> <mbps> <country>" for one probe.
+# xtest_reason <curl-exit> <http-code> [engine-log] [engine] — one sentence an
+# operator can act on. curl's exit status names what broke on the way to the
+# node; the engine's last line names what the node itself answered (a REALITY
+# key that does not match, a wrong password, a dial timeout). The log is
+# optional so the shape can be checked without running anything; the engine
+# defaults to sing-box.
+xtest_reason() {
+  xr_crc=${1:-0}
+  xr_code=${2:-0}
+  xr_log=${3:-/tmp/xtest.log}
+  xr_eng=${4:-sing-box}
+  case "$xr_crc" in
+    0)   xr_why="the check answered http $xr_code" ;;
+    5|6) xr_why="cannot resolve the check host" ;;
+    7)   xr_why="connection refused" ;;
+    28)  xr_why="timed out after ${CHECK_MAX_TIME:-8}s" ;;
+    35)  xr_why="tls handshake failed" ;;
+    52)  xr_why="empty reply" ;;
+    56)  xr_why="connection reset" ;;
+    97)  xr_why="the proxy could not open the connection" ;;
+    *)   xr_why="curl exit $xr_crc" ;;
+  esac
+  [ "$xr_code" = "0" ] || [ "$xr_crc" = "0" ] || xr_why="$xr_why (http $xr_code)"
+  # sing-box writes colour even into a file; drop the escapes, then the
+  # "connection: ... using outbound/vless[proxy]:" preamble, which never differs
+  # and only pushes the reason out of the visible part.
+  xr_slog=$(tail -n 1 "$xr_log" 2>/dev/null | tr -d '\r' \
+            | awk '{ gsub(/\033\[[0-9;]*m/, ""); print }' \
+            | sed -e 's/.*using outbound\/[^:]*: //' | cut -c1-160)
+  if [ -n "$xr_slog" ]; then
+    printf '%s; %s: %s' "$xr_why" "$xr_eng" "$xr_slog" | tr '|' ' '
+  else
+    printf '%s' "$xr_why" | tr '|' ' '
+  fi
+}
+
+# xtest_measure <port> [engine-log] — prints pipe-delimited "code|ms|mbps|country|err".
+# country and err are empty on success; err may contain spaces but never a pipe.
 xtest_measure() {
   port=$1
+  engine_log=${2:-/tmp/xtest.log}
+  engine_name=${3:-sing-box}
+  # Keep curl's exit status and its own words: a bare `000` in the panel is
+  # indistinguishable between a dead node, a poisoned DNS answer and a proxy
+  # that refused the tunnel. `-w` still prints "000 <time>" when the check
+  # fails, so the output is always one line.
   out=$(curl -s -o /dev/null --max-time "$CHECK_MAX_TIME" \
         --socks5-hostname "127.0.0.1:$port" \
-        -w '%{http_code} %{time_total}' "$CHECK_URL" 2>/dev/null || echo "0 0")
+        -w '%{http_code} %{time_total}' "$CHECK_URL" 2>/tmp/xtest.curl)
+  crc=$?
   code=${out%% *}
   secs=${out##* }
+  [ -n "$out" ] || { code=0; secs=0; }
   # expr exits 1 when the result is 0; keep the value, drop the status
   code=$(expr "${code:-0}" + 0 2>/dev/null || true)
   [ -n "$code" ] && [ "$code" -eq "$code" ] 2>/dev/null || code=0
@@ -61,10 +106,11 @@ xtest_measure() {
 
   mbps=0
   country=""
+  err=""
   if [ "$code" = "204" ]; then
     bps=$(curl -s -o /dev/null --max-time "$SPEED_MAX_TIME" \
           --socks5-hostname "127.0.0.1:$port" \
-          -w '%{speed_download}' "$SPEED_URL" 2>/dev/null || echo 0)
+          -w '%{speed_download}' "$SPEED_URL" 2>/dev/null || true)
     mbps=$(awk -v b="${bps:-0}" 'BEGIN { printf "%.1f", b * 8 / 1000000 }')
 
     # Where does that node actually exit? Cloudflare's trace answers with
@@ -74,13 +120,15 @@ xtest_measure() {
     trace=$(curl -sL --max-time "$TRACE_MAX_TIME" --socks5-hostname "127.0.0.1:$port" \
             "$TRACE_URL" 2>/dev/null || true)
     country=$(trace_country "$trace")
+  else
+    err=$(xtest_reason "$crc" "$code" "$engine_log" "$engine_name")
   fi
 
-  printf '%s %s %s %s\n' "${code:-0}" "${ms:-0}" "${mbps:-0}" "${country:-}"
+  printf '%s|%s|%s|%s|%s\n' "${code:-0}" "${ms:-0}" "${mbps:-0}" "${country:-}" "${err}"
 }
 
-# xtest_run <index> — prints {"code":204,"ms":123,"mbps":12.3,...} or an error.
-# Assumes the caller holds the lock. Engine is chosen per link.
+# xtest_run <index> — prints {"code":204,"ms":123,"mbps":12.3,"engine":...}
+# or an error. Assumes the caller holds the lock. Engine is chosen per link.
 xtest_run() {
   idx=$1
   link=$(subs_decode "$SUB_FILE" | sed -n "$((idx + 1))p")
@@ -174,18 +222,22 @@ xtest_run() {
   trap cleanup EXIT INT TERM
 
   if ! xtest_wait_port "$XTEST_PORT" "$xpid"; then
+    err=$(tail -n 1 /tmp/xtest.log 2>/dev/null | tr -d '\r' \
+          | awk '{ gsub(/\033\[[0-9;]*m/, ""); print }' | sed -e 's/.*using outbound\/[^:]*: //' | cut -c1-160 | tr '|' ' ')
+    [ -n "$err" ] && err="; engine: $err"
     cleanup
-    printf '{"code":0,"ms":0,"mbps":0,"error":"node did not start","engine":"%s"}' "$engine"
+    printf '{"code":0,"ms":0,"mbps":0,"error":"node did not start%s","engine":"%s"}' "$(json_escape "$err")" "$engine"
     return 0
   fi
 
-  result=$(xtest_measure "$XTEST_PORT")
-  code=$(printf '%s' "$result" | awk '{print $1}')
-  ms=$(printf '%s' "$result" | awk '{print $2}')
-  mbps=$(printf '%s' "$result" | awk '{print $3}')
-  country=$(printf '%s' "$result" | awk '{print $4}')
+  result=$(xtest_measure "$XTEST_PORT" /tmp/xtest.log "$engine")
+  code=$(printf '%s' "$result" | cut -d'|' -f1)
+  ms=$(printf '%s' "$result" | cut -d'|' -f2)
+  mbps=$(printf '%s' "$result" | cut -d'|' -f3)
+  country=$(printf '%s' "$result" | cut -d'|' -f4)
+  err=$(printf '%s' "$result" | cut -d'|' -f5-)
 
   cleanup
-  printf '{"code":%s,"ms":%s,"mbps":%s,"country":"%s","error":"","engine":"%s"}' \
-    "${code:-0}" "${ms:-0}" "${mbps:-0}" "${country:-}" "$engine"
+  printf '{"code":%s,"ms":%s,"mbps":%s,"country":"%s","error":"%s","engine":"%s"}' \
+    "${code:-0}" "${ms:-0}" "${mbps:-0}" "${country:-}" "$(json_escape "$err")" "$engine"
 }

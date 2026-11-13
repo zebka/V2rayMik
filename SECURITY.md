@@ -22,7 +22,7 @@ subscription URL.
 ## What is not a vulnerability
 
 - The admin panel has no password and is reachable from the LAN by design; that
-  is the documented 1.1.0 panel, not a bug. If a LAN user switching your exit
+  is the documented 1.2.0 panel, not a bug. If a LAN user switching your exit
   node is not acceptable for you, block the port in the forward chain.
 - `v2raymik.rsc` is scoped to `in-interface-list=LAN` for the panel's
   `dst-nat`. If you forward the port to the WAN, that is your change.

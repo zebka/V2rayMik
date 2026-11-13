@@ -1,11 +1,15 @@
 # Changelog
-
-## 1.1.0 - 2026-11-13
+## 1.2.0 - 2026-11-13
 
 Everything in this release went in one direction: fewer moving parts, one
 file on the router, one door on the LAN — and two engines so no config range
 is out of reach. If you upgrade from 1.0.x, read the migration note at the
 bottom before importing.
+
+This release also merges the parallel 1.1.x line (1.1.0–1.1.2), published
+while this rework was in flight: those fixes are carried over, and the
+1.1.0 Stop button is deliberately not. 1.2.0 is fail-closed with no fallback
+at all - the split and the auto-route that powered Stop are gone.
 
 ### Breaking
 
@@ -79,9 +83,11 @@ bottom before importing.
 - **The test harness leaked a sing-box and a `/32` bypass** if it was killed
   mid-test; cleanup is now wired to EXIT/INT/TERM.
 - **Dead code removed** (`reapply_endpoint_route`, never called).
-- **The subscription fetch no longer follows redirects and caps at 2 MB**,
-  and refuses hosts that look private — the panel is reachable by anyone on
-  the LAN, so its one free-form URL is now a narrow one.
+- **The subscription fetch is hardened end to end**: a cap of 2 MB, HTTPS-only
+  redirects (max 3, downgrades refused), private hosts refused, and a plain
+  browser User-Agent — a "v2ray" one is dropped silently by some provider
+  edges and DPI. A failed fetch names its own error instead of a bare
+  "could not fetch".
 
 ### Changed
 
@@ -106,6 +112,133 @@ bottom before importing.
 2. Open a new terminal, `:global MikMode` is gone, and
    `/import file-name=v2raymik.rsc` installs the new shape.
 3. `state.json` is not carried over; pick the node in the panel once.
+
+### Merged from the 1.1.x line
+
+- Everything from 1.1.2, 1.1.1 and 1.1.0 is in this release; 1.2.0 supersedes
+  that line: the fetch sends a plain browser User-Agent (a v2ray-flavoured one
+  is dropped by provider edges and DPI with zero bytes back), a failed test
+  names curl exit and the engine last line, a failed import no longer wipes a
+  cached list, and a sing-box JSON profile link is named instead of called
+  broken.
+- The 1.1.0 Stop button (bypass.flag, the health bypass=1 field, the
+  scheduler, the ISP fallback route) is not carried over. It was a deliberate
+  use-the-ISP-now switch; 1.2.0 made the opposite decision: no fallback
+  exists anywhere in the design, only fail-closed drop. If that switch
+  matters, it is a separate feature to debate.
+
+## 1.1.2 — 2026-11-07
+
+### Fixed
+
+- **A subscription no longer hangs because of our own name.** The fetch sent
+  `User-Agent: v2raymik-admin`. Measured against a real provider panel: no UA,
+  `curl/x` and `clash/x` answer `200` in ~0.4 s, while `v2raymik-admin`,
+  `v2raymik` and `v2rayNG/1.8.5` get **no answer at all** until the timeout —
+  a User-Agent containing `v2ray` is dropped silently, by DPI or by the
+  provider's edge. The panel now sends a plain browser User-Agent. Before this,
+  the operator saw "the subscription does not import at all" while pasting one
+  of its nodes by hand worked, which points away from the fetch.
+- **A sing-box JSON profile is named instead of being called broken.** Some
+  panels hand out a sing-box profile at the subscription URL. It is a valid
+  subscription that this panel cannot eat (it wants links), so the message now
+  says exactly that: `that link is a sing-box JSON profile, not a list of links;
+  pick the v2ray/links subscription in the provider panel`. An unrecognised
+  payload reports its byte size and line count, and an HTML answer is still
+  named as a block or login page.
+
+## 1.1.1 — 2026-11-07
+
+### Fixed
+
+- **A failed test now says why.** The panel used to answer a bare
+  `{"code":0,"ms":0,"mbps":0,"country":"","error":""}` for every kind of failure —
+  a dead endpoint, a refused port, a poisoned DNS answer and a node whose REALITY
+  key no longer matches all looked identical, and the web page printed
+  `unreachable`. `xtest` now keeps curl's exit status, reports the real elapsed
+  time instead of `0` for fast failures, and appends the engine's last line with
+  its terminal colour and the `using outbound/...` preamble stripped. What the
+  operator sees is one sentence: `timed out after 8s`, `connection refused`,
+  `the proxy could not open the connection; sing-box: reality verification
+  failed`, `the check answered http 403`.
+- **A failed import no longer wipes the working list.** `sub` replaced
+  `/data/sub.txt` first and parsed afterwards, so a provider that answered with a
+  login page or an empty payload left the panel with zero configs and nothing to
+  test. The payload is now parsed in `sub.tmp`, and only a payload with at least
+  one usable link replaces the cached list.
+- **The subscription fetch names its own failure.** `-f` collapsed an HTTP 403, a
+  bad certificate and a poisoned DNS answer into `could not fetch the
+  subscription`. The fetch now reports the HTTP status (`the subscription
+  answered HTTP 403`), curl's exit code and first line (`could not fetch: curl 6
+  Could not resolve host: ...`), and recognises an HTML page (`the subscription
+  returned a web page, not configs`), which is what a block page or an expired
+  login looks like.
+
+No behaviour changed for a config that tests fine: the check URL, the speed
+measurement and the exit-country lookup are the same.
+
+## 1.1.0 — 2026-11-07
+
+### Added
+
+- **Stop, from the panel.** A Stop button makes the router send traffic out
+  through the ISP *on purpose*: the container writes `/data/bypass.flag` and
+  `health` then answers `selected=0`, so the router's scheduler takes the branch
+  it already takes for a dead node. `sing-box` is **not** killed and `tun0` stays
+  up, so the container's healthcheck and `restart-policy=always` never fire —
+  a deliberate stop must not look like a crash, or `stop-on-unhealthy` would
+  restart exactly what was stopped. Start removes the flag and traffic returns to
+  the node still recorded in `state.json`; connecting a config clears the flag
+  too. The flag lives on the disk, so a stop survives a reboot.
+  New endpoint: `POST /cgi-bin/power` with `state=stop|start`.
+- `health` answers a fourth field, `bypass=0|1`. The router's scheduler ignores
+  it (it reads `selected=`, `up=`, `live=`), so an old scheduler keeps working
+  against a new image; it is there so a raw fetch says *why* a node that is up is
+  not selected.
+
+### Changed
+
+- **The world route now follows the panel in ~10 seconds, both ways.** The
+  scheduler ticks every **10 s** instead of 30 s, and **one** sample decides in
+  each direction instead of three good samples before returning to the tunnel.
+  This removes the damping on purpose: returning took 60–90 s, longer than a page
+  load waits, and the cost of a node that wobbles is two route flips rather than a
+  minute on the ISP.
+- `live.cache` in `health` is valid for **5 s** instead of 20 s, so a 10 s poll
+  always gets a fresh probe; the probe timeout dropped from 4 s to 3 s so the
+  whole answer fits inside the router's 4 s fetch.
+- `health` counts the Stop flag as "not selected". Both a stopped tunnel and a
+  dead node fall back to the ISP, which is the same thing the router has to do in
+  either case.
+
+### Fixed
+
+- **The panel says what the router is actually doing.** The world-route line was
+  hard-wired to "tunnel" unless Stop was pressed, so a router with no node chosen
+  or with `tun0` down claimed a tunnel that was not there. It now reads
+  "ISP, no node chosen", "ISP, tunnel down", "tunnel" or
+  "ISP, stopped on purpose", and the Stop button is disabled while there is
+  nothing to stop.
+- The "testing…" pill was visible all the time: `.pill` sets
+  `display:inline-block`, which beats the browser's own `[hidden]` rule.
+- The page paints its own `Canvas` background instead of relying on the browser's
+  default, so it stays readable in a webview that makes the page transparent.
+
+### Upgrading
+
+`05-auto-route.rsc` only creates what is missing, so an existing install keeps its
+30 s scheduler and its 3-sample return — and prints a warning saying so on import.
+On a router that already runs it:
+
+```
+/system script remove [find where name="mik-auto-route"]
+/system scheduler remove [find where name="mik-auto-route"]
+/import file-name=05-auto-route.rsc
+```
+
+The image has to move too: Stop is a container change, and with a 1.0.x image the
+panel has no Stop button at all. With the new image and an old router script, Stop
+works but Start takes the old 60–90 s to come back.
 
 ## 1.0.1 — 2026-11-06
 

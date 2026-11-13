@@ -40,6 +40,30 @@ warp=off')" "US" "trace country"
 assert_eq "$(trace_country '<html><head><title>301 Moved Permanently</title></head></html>')" \
   "" "redirect body yields no country"
 
+# --- failure wording --------------------------------------------------------
+# A bare `000` in the panel told the operator nothing. The reason must name the
+# side that broke, and the engine's own words must survive the trip.
+assert_eq "$(xtest_reason 97 0 /dev/null)" \
+  "the proxy could not open the connection" "proxy refused the tunnel"
+assert_eq "$(xtest_reason 7 0 /dev/null)" "connection refused" "direct refusal"
+assert_eq "$(xtest_reason 28 0 /dev/null)" "timed out after 8s" "timeout is named"
+assert_eq "$(xtest_reason 0 403 /dev/null)" "the check answered http 403" "answered but wrong"
+assert_eq "$(xtest_reason 6 0 /dev/null)" "cannot resolve the check host" "dns failure"
+
+LOG=/tmp/xtest-reason.log
+# sing-box writes colour into the file and prefixes the line with the outbound
+# that was used; neither belongs in front of the reason.
+printf '%s\n' "$(printf '\033')[31mERROR$(printf '\033')[0m[0000] [[38;5;186m2456567597$(printf '\033')[0m 196ms] connection: open connection to connectivitycheck.gstatic.com:80 using outbound/vless[proxy]: reality verification failed" > "$LOG"
+reason=$(xtest_reason 97 0 "$LOG")
+assert_match "$reason" "reality verification failed" "engine's reason is kept"
+assert_match "$reason" "^the proxy could not open the connection; sing-box: " "reason is framed"
+assert_no_match "$reason" "using outbound" "outbound preamble removed"
+assert_no_match "$reason" "38;5" "terminal colour removed"
+
+# a missing log must not turn into a trailing empty clause
+assert_eq "$(xtest_reason 97 0 /tmp/does-not-exist.log)" \
+  "the proxy could not open the connection" "no log, no suffix"
+
 # a hysteria2 node must produce a plan sing-box accepts too
 HY='{"type":"hysteria2","server":"a.test","server_port":22001,"password":"p","tls":{"enabled":true,"server_name":"bing.com"}}'
 plan=$(xtest_plan "$HY" 10801)

@@ -12,9 +12,9 @@ Put a MikroTik RouterOS device's traffic through **one** Alpine container
 running the proxy engines it needs. No tun2socks, no second container, no
 geo files.
 
-> Since **1.1.0** the image carries **Xray** as well as **sing-box**, the
+> Since **1.2.0** the image carries **Xray** as well as **sing-box**, the
 > split by geography is gone, and the whole router-side setup is one import
-> file with install and uninstall in it. Versions before 1.1.0 used five
+> file with install and uninstall in it. Versions before 1.2.0 used five
 > import files, an `iran-ips` split and a password on the panel; see
 > `CHANGELOG.md` for what changed and how to move.
 
@@ -109,7 +109,7 @@ now fails the link instead of vanishing silently.
 ## Verified
 
 Measured on a hAP ax³ (arm64, 1 GB) with RouterOS 7.25.1, USB storage and the
-1.0.x (five-file, split) build. Everything below is that build; the 1.1.0
+1.0.x (five-file, split) build. Everything below is that build; the 1.2.0
 full-tunnel rework has not had a hardware run yet, and the Xray path has not
 been used with a live node:
 
@@ -135,7 +135,7 @@ What is not verified is written down as such there and in `CHANGELOG.md`.
 
    ```
    docker pull azebka/v2raymik:latest   # newest release
-   docker pull azebka/v2raymik:1.1.0    # pin repo + image together
+   docker pull azebka/v2raymik:1.2.0    # pin repo + image together
    docker pull ghcr.io/zebka/v2raymik:latest
    ```
 
@@ -211,7 +211,7 @@ Rollback is the same file: `:global MikMode "uninstall"`, import, done.
 <!-- old-name-start -->
 ## Moving from ≤ 1.0.x (mikrotik-xray-gateway)
 
-1.1.0 removes the five-file layout, the split, the password and the
+1.2.0 removes the five-file layout, the split, the password and the
 auto-route scheduler. To move:
 
 1. `:global MikMode "uninstall"` then `/import file-name=` the *new*
@@ -230,7 +230,7 @@ The old `/usb2/xray-gw` and `/usb2/xray-data` directories are not touched.
 Fail-closed. The table `mik-tunnel` carries everything, with one route, at
 distance 1, via the container. When the tunnel is down the route is still
 there but the gateway answers nothing — traffic is dropped, and nothing
-leaks to the ISP. There is no fallback at all since 1.1.0 (earlier releases
+leaks to the ISP. There is no fallback at all since 1.2.0 (earlier releases
 could fall back to the ISP; that behaved like a silent ISP leak on every
 outage, so it was removed).
 
@@ -250,8 +250,8 @@ http://<router-lan-ip>:8081/        # MikAdminLanPort
 ```
 
 - **Subscription**: paste a v2ray subscription URL (base64 or plain links) or a
-  single link. Parsed locally; nothing leaves the router. Redirects are not
-  followed (enter the final `https://` URL).
+  single link. Parsed locally; nothing leaves the router. Redirects are followed
+  (max three, and only to `https://`; a downgrade to plain http is refused).
 - **Test**: each config gets its own short-lived engine with a mixed inbound,
   then a `generate_204` check and a 10 MB download. The live tunnel keeps
   running throughout. "Test all" walks the list; "Cancel" stops it.

@@ -64,7 +64,7 @@ function renderRows() {
     const speed = res.mbps ? res.mbps : "—";
     tr.innerHTML =
       "<td class='num'>" + (e.i + 1) + "</td>" +
-      "<td>" + esc(e.label) + (e.port_ok ? "" : " <span class='pill bad'>port blocked</span>") + "</td>" +
+      "<td>" + esc(e.label) + (e.engine ? " <span class='pill' title='core'>" + esc(e.engine) + "</span>" : "") + (e.port_ok ? "" : " <span class='pill bad'>port blocked</span>") + "</td>" +
       "<td class='muted'>" + esc(e.host) + ":" + esc(e.port) + "</td>" +
       "<td class='num'>" + delay + "</td>" +
       "<td>" + country + "</td>" +

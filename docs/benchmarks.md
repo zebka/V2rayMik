@@ -1,7 +1,7 @@
 # Benchmarks
 
 > **Read this first.** Every number below was measured on the 1.0.x build —
-> the five-file layout with the `iran-ips` split, sing-box only. Since 1.1.0
+> the five-file layout with the `iran-ips` split, sing-box only. Since 1.2.0
 > the gateway is full-tunnel, carries **two engines**, and has no ISP
 > fallback; nothing here transfers automatically. The image is bigger (both
 > cores) and likely uses more RSS. Re-measure on your own hardware before

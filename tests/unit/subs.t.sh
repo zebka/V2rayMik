@@ -4,6 +4,7 @@ set -eu
 . "$(dirname "$0")/../lib/assert.sh"
 . ${APP_DIR:-/app}/lib/admin.sh
 . ${APP_DIR:-/app}/lib/links.sh
+. ${APP_DIR:-/app}/lib/xray.sh
 . ${APP_DIR:-/app}/lib/subs.sh
 
 D=/tmp/substest
@@ -56,3 +57,43 @@ assert_eq "$(subs_count "$D/placeholder.txt")" "0" "loopback placeholder not cou
 
 assert_eq "$(subs_count "$D/plain.txt")" "2" "count counts usable links"
 assert_eq "$(subs_count "$D/missing.txt")" "0" "missing file counts zero"
+
+# --- why a payload was rejected ----------------------------------------------
+# The operator has to be able to tell a dead provider from a wrong URL, so the
+# wording is part of the interface.
+printf '%s\n' '<html><body>login</body></html>' > "$D/page.html"
+assert_match "$(subs_reject_reason "$D/page.html")" "web page" "an HTML answer is named"
+
+# a sing-box profile is a valid subscription this panel cannot eat; saying so
+# stops the hunt for a bug that is a wrong link.
+cat > "$D/profile.json" <<'JSON'
+{
+  "dns": { "final": "local-dns" },
+  "inbounds": [ { "type": "tun" } ],
+  "outbounds": [ { "type": "vless", "server": "203.0.113.9", "server_port": 443 } ]
+}
+JSON
+assert_match "$(subs_reject_reason "$D/profile.json")" "sing-box JSON profile" \
+  "a sing-box profile is named, not called broken"
+assert_match "$(subs_reject_reason "$D/profile.json")" "v2ray/links" \
+  "the profile message says what to use instead"
+
+assert_eq "$(subs_reject_reason "$D/missing.txt")" "the subscription was empty" \
+  "a missing file is called empty"
+: > "$D/empty.txt"
+assert_eq "$(subs_reject_reason "$D/empty.txt")" "the subscription was empty" \
+  "an empty file is called empty"
+
+printf '%s\n' 'nothing here' > "$D/junk.txt"
+assert_match "$(subs_reject_reason "$D/junk.txt")" "bytes" \
+  "an unknown payload reports its size"
+# --- dual engine in one list ---------------------------------------------
+{ printf '%s\n' 'vless://u@203.0.113.9:443?type=xhttp&path=/x&security=reality&sni=r.test&pbk=pub&sid=abcd#Rly';
+  printf '%s\n' 'vless://11111111-1111-4111-8111-111111111111@203.0.113.9:443?type=tcp&security=tls&sni=s.test#Plain';
+  printf '%s\n' 'hy2://pw@198.51.100.7:22001?sni=h.test#HY2';
+  printf '%s\n' 'tuic://abc:def@192.0.2.5:10443?sni=t.test#TUIC'; } > "$D/mixed.txt"
+out=$(subs_list "$D/mixed.txt" "443,22001,10443")
+printf '%s' "$out" | jq -e '.entries | length == 4' >/dev/null || fail 'mixed list must keep all four rows'
+printf '%s' "$out" | jq -e '.entries[0].engine == "xray"' >/dev/null || fail 'xhttp row must be tagged xray'
+printf '%s' "$out" | jq -e '.entries[1].engine == "sing-box"' >/dev/null || fail 'vless/tcp row must be tagged sing-box'
+printf '%s' "$out" | jq -e '.entries[2].engine == "sing-box"' >/dev/null || fail 'hysteria2 row must be tagged sing-box'

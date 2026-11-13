@@ -46,8 +46,10 @@ What keeps that bounded to your LAN:
   `/data/state.json` (mode 600) on the USB disk.
 - **No shell from the browser.** CGI parameters are integers and enums; the
   subscription URL is the single free-form string and it goes to `curl` with
-  `--proto '=http,https'`, **redirects are never followed**, a two-megabyte
-  cap, and a host that looks private/loopback/link-local is refused.
+  `--proto '=http,https'` (redirects max three, https only — plain http is
+  refused), a two-megabyte cap, a plain browser User-Agent (a `v2ray`-flavoured
+  one is silently dropped by some provider edges), and a host that looks
+  private/loopback/link-local is refused.
 - **One test at a time**, guarded by a lock directory with a 2-minute stale
   timeout, so a dead tab cannot pin the CPU.
 - **Failed switch → rollback.** State is written tentatively; if the new node
@@ -129,7 +131,7 @@ implicit.
 
 ## Failure behaviour (no fallback)
 
-Since 1.1.0 there is no secondary route: when the tunnel is down, marked
+Since 1.2.0 there is no secondary route: when the tunnel is down, marked
 traffic is dropped. Earlier releases could be configured to fall back to the
 ISP in that moment; that leaked the router's real address on every outage,
 and the trade-off was removed. If you need "internet regardless of who sees

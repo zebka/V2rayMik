@@ -5,7 +5,7 @@
 A MikroTik **RouterOS** egress gateway in **one** Alpine container: sing-box
 with its native TUN, and Xray as a local outlet for the link families sing-box
 cannot speak (xhttp/splithttp, vless `encryption=…`). It is built for routers,
-not for laptops — but since 1.1.0 the router no longer splits traffic by
+not for laptops — but since 1.2.0 the router no longer splits traffic by
 destination: everything not on the container subnet rides the tunnel, and there
 is no fallback to the ISP.
 
@@ -29,7 +29,7 @@ Platforms: `linux/amd64`, `linux/arm64`. Runs on RouterOS 7.24+ devices with the
 | Tag | Meaning |
 | --- | --- |
 | `latest` | the newest released version, and only that |
-| `1.1.0`, `1.0.1`, … | released versions, immutable, equal to the source tag |
+| `1.2.0`, `1.1.2`, `1.1.1`, `1.1.0`, `1.0.1`, … | released versions, immutable, equal to the source tag |
 | `edge` | the current `main` build, for testing only |
 | `1.14.4` | the sing-box release bundled in the image |
 
@@ -51,7 +51,7 @@ live in **one** file in the repository.
 2. Point the container at this image:
 
    ```
-   :global MikImage "azebka/v2raymik:1.1.0"
+   :global MikImage "azebka/v2raymik:1.2.0"
    /import file-name=v2raymik.rsc
    ```
 
