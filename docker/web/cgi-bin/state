@@ -1,8 +1,6 @@
 #!/bin/sh
 . /app/web/cgi-bin/_common
 
-require_auth
-
 gen=$(gen_of "$SUB_FILE")
 count=$(subs_count "$SUB_FILE")
 testing=false
@@ -10,13 +8,21 @@ lock_held && testing=true
 
 label=""
 index=-1
+engine=""
 if [ -f "$STATE_FILE" ]; then
   label=$(jq -r '.label // ""' "$STATE_FILE" 2>/dev/null)
   index=$(jq -r '.index // -1' "$STATE_FILE" 2>/dev/null)
+  engine=$(jq -r '.engine // "sing-box"' "$STATE_FILE" 2>/dev/null)
 fi
 
 tun=false
 [ -d /sys/class/net/tun0 ] && tun=true
+
+# The engine that is actually running, when the supervisor said something.
+run_engine=""
+if [ -f "$STATUS_FILE" ]; then
+  run_engine=$(jq -r '.engine // ""' "$STATUS_FILE" 2>/dev/null)
+fi
 
 # The image version is written at build time from the repository's VERSION file,
 # which is also the release tag. It is shown in the panel so the page itself
@@ -25,4 +31,4 @@ version=$(cat /app/VERSION 2>/dev/null || echo "dev")
 
 list=$(subs_list "$SUB_FILE" "$ALLOWED_PORTS")
 
-ok_json "{\"ok\":true,\"gen\":\"$(json_escape "$gen")\",\"count\":$count,\"label\":\"$(json_escape "$label")\",\"index\":$index,\"testing\":$testing,\"tun\":$tun,\"version\":\"$(json_escape "$version")\",\"list\":$list}"
+ok_json "{\"ok\":true,\"gen\":\"$(json_escape "$gen")\",\"count\":$count,\"label\":\"$(json_escape "$label")\",\"index\":$index,\"engine\":\"$(json_escape "$engine")\",\"run_engine\":\"$(json_escape "$run_engine")\",\"testing\":$testing,\"tun\":$tun,\"version\":\"$(json_escape "$version")\",\"list\":$list}"

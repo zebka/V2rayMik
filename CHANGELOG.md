@@ -1,5 +1,112 @@
 # Changelog
 
+## 1.1.0 - 2026-11-13
+
+Everything in this release went in one direction: fewer moving parts, one
+file on the router, one door on the LAN — and two engines so no config range
+is out of reach. If you upgrade from 1.0.x, read the migration note at the
+bottom before importing.
+
+### Breaking
+
+- **The Iran/foreign split is gone.** No `iran-ips`, no address lists, no
+  per-destination exceptions, no `router-direct` entries. Every IPv4
+  destination except the container subnet is carried by the tunnel.
+  Router-originated traffic included. The consequences are documented in
+  `docs/troubleshooting.md` (MikroTik DDNS will publish the exit address now)
+  and `docs/security.md`.
+- **There is no fallback route, at all.** `MikFailOpen` and `MikFallbackGw`
+  are gone. When the tunnel is down, marked traffic is dropped. This was a
+  deliberate choice for this release: a silent fall-back to the ISP leaked
+  the real address on every outage.
+- **The five `.rsc` files became one.** `router/00-vars.rsc` …
+  `router/05-auto-route.rsc`, `router/90-migrate-from-xray.rsc` and
+  `router/99-uninstall.rsc` were replaced by `router/v2raymik.rsc`:
+  `/import file-name=v2raymik.rsc` installs and upgrades,
+  `:global MikMode "uninstall"` + the same import removes everything the
+  project creates (including the legacy 1.x leftovers the old uninstall left
+  behind: the `MSS clamp back` and `MSS clamp (router output)` rules, the
+  extra transport pair, the `mik-tunnel`/`to-world` tables, `MOUNT_MIK_DATA`).
+- **`MikTable`, `MikRefreshRouterDirect` are gone** (one table, fixed name
+  `mik-tunnel`; nothing left to re-resolve).
+- **The auto-route scheduler is gone.** `mik-auto-route` and its
+  `/tool fetch` of `cgi-bin/health` are removed; `cgi-bin/health` and the
+  `/ip route` toggling it did are gone with them. The route in `mik-tunnel`
+  stays enabled; traffic drops while the tunnel is down.
+- **The panel is passwordless.** `MikAdminPassword`, `ADMIN_PASSWORD`,
+  sessions, cookies and the login page are all removed. Anyone on the LAN
+  can load a subscription and switch the node; the only exposure is the same
+  LAN `dst-nat` as before. If that is not acceptable, block the port on the
+  bridge instead of asking for a password back — the panel is honest about
+  what it is now.
+
+### Added
+
+- **Both engines, per node, automatically.** The image now carries sing-box
+  1.14.4 and Xray v26.11.9, both downloaded with sha256 verification against
+  the GitHub-reported digests (the base image is pinned by digest too).
+  - **sing-box** (default): hysteria2, tuic, vless/vmess/trojan/ss, REALITY,
+    ws/grpc/httpupgrade.
+  - **Xray**, picked automatically for: `type=xhttp|splithttp` and vless
+    `encryption=…` links. sing-box cannot speak those; Xray can.
+  - For an Xray node, xray runs as a local SOCKS5 outlet on 127.0.0.1 and
+    sing-box — which owns the TUN — chains to it. One TUN, both engines, no
+    second container, no second route set.
+  - The panel shows which engine a test or the active connection used, and
+    `state.json`/`status.json` record it.
+- **`MikroTik DDNS no longer silently breaks.** With nothing kept direct,
+  `/ip cloud` publishes the tunnel exit; this is now documented instead of
+  being handled by a special case.
+
+### Fixed
+
+- **`01-container.rsc` reopening used to clobber `registry-url`** back to
+  `docker.io` on every re-import, silently undoing the Iranian mirror the
+  docs recommend. The registry URL is a variable (`MikRegistryUrl`) now.
+- **`99-uninstall.rsc` left firewall rules and a routing table behind.**
+  The MSS clamp rules and the connected-route row survived every uninstall;
+  the new single file removes every object it and the old scripts created.
+- **`connect` could read a stale `status.json`** from the node it was just
+  replacing and roll back a healthy switch. It waits for a status written
+  after its own reload now.
+- **Failing to decode a hysteria2 `pinSHA256` no longer drops the pin
+  silently**; it says so and fails the link instead.
+- **`hex_to_b64` reported success on failure** when `xxd` was missing.
+- **`urldecode` turned a literal backslash into an escape**, mangling
+  passwords that contained one.
+- **`TUN_MTU` with a non-numeric value made the container crash-loop**; it
+  falls back to 1500.
+- **The test harness leaked a sing-box and a `/32` bypass** if it was killed
+  mid-test; cleanup is now wired to EXIT/INT/TERM.
+- **Dead code removed** (`reapply_endpoint_route`, never called).
+- **The subscription fetch no longer follows redirects and caps at 2 MB**,
+  and refuses hosts that look private — the panel is reachable by anyone on
+  the LAN, so its one free-form URL is now a narrow one.
+
+### Changed
+
+- **`index.html` no longer inlines its script**; the panel is served with a
+  `Content-Security-Policy` (`default-src 'self'`).
+- **CI pins every action by SHA**, and builds verify both engines run.
+
+### Not yet verified
+
+- The Xray path (xhttp/splithttp links, vless `encryption=…`) has no
+  live-device run behind it yet; the sing-box path is unchanged. Xray nodes
+  are tested by the same `xtest` harness, but treat them as experimental
+  until you measure them yourself.
+- The full-tunnel design has not been measured on hardware yet; the split
+  design's benchmarks (docs/benchmarks.md) do not transfer automatically.
+
+### Migration from 1.0.x
+
+1. Import the new file in uninstall mode to remove the old install:
+   `:global MikMode "uninstall"` then `/import file-name=v2raymik.rsc`.
+   (The old `99-uninstall.rsc` is not needed and leaving it out is fine.)
+2. Open a new terminal, `:global MikMode` is gone, and
+   `/import file-name=v2raymik.rsc` installs the new shape.
+3. `state.json` is not carried over; pick the node in the panel once.
+
 ## 1.0.1 — 2026-11-06
 
 ### Fixed

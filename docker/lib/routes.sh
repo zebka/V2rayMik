@@ -106,41 +106,9 @@ wait_for_tun() {
   return 1
 }
 
-# reapply_endpoint_route <host> <tun> <eth> — background loop; keeps the /32 in
-# step with DNS. Does nothing when ENDPOINT_IP pins the address: a multi-A or
-# CDN endpoint must be pinned, because only one address can hold the bypass.
-reapply_endpoint_route() {
-  host=$1
-  tun=${2:-tun0}
-  eth=${3:-eth0}
-  gw=${4:-}
-  [ -n "${ENDPOINT_IP:-}" ] && return 0
-  last=""
-  while :; do
-    sleep 300
-    ip=$(nslookup "$host" 2>/dev/null \
-         | awk '/^Address[ 0-9]*:/ {print $NF}' \
-         | grep -E '^[0-9]{1,3}(\.[0-9]{1,3}){3}$' \
-         | grep -v '^127\.' | head -n 1)
-    [ -n "$ip" ] || continue
-    [ "$ip" = "$last" ] && continue
-    if [ -n "$last" ]; then
-      ip route del "$last/32" >/dev/null 2>&1 || true
-    fi
-    if [ -n "$gw" ]; then
-      ip route replace "$ip/32" via "$gw" dev "$eth" || continue
-    else
-      ip route replace "$ip/32" dev "$eth" || continue
-    fi
-    last=$ip
-    echo "v2raymik: endpoint ${host} -> ${ip}" >&2
-  done
-}
-
 # verify_routes <tun> — the tunnel only works if traffic really enters the TUN.
-# The probe address must not be one of the admin-plane bypasses (1.1.1.1 and
-# 8.8.8.8 are routed out directly so the panel works with a dead node), otherwise
-# this check always fails and a healthy tunnel is reported as broken.
+# The probe address must be one that nothing else routes out of the container
+# (203.0.113.1 is TEST-NET-3, used only for this).
 verify_routes() {
   tun=$1
   probe=${VERIFY_PROBE:-203.0.113.1}

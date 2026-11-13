@@ -1,7 +1,6 @@
 #!/bin/sh
 . /app/web/cgi-bin/_common
 
-require_auth
 [ "${REQUEST_METHOD:-GET}" = "POST" ] || fail_json "405 Method Not Allowed" "POST only"
 
 if lock_held; then
@@ -15,15 +14,34 @@ links=$(form_get "$body" "links")
 mkdir -p "$DATA_DIR"
 tmp="$DATA_DIR/sub.tmp"
 
+# SSRF guards, since this is the one free-form string in the panel:
+#   - http/https only
+#   - redirects are never followed (a provider URL that redirects should be
+#     entered as the final https URL) — this closes the redirect-to-internal
+#     path entirely
+#   - two megabytes, enough for a few hundred links
+#   - the host may not look like a private/loopback/link-local address
+# DNS-rebinding past a public-looking name is still possible; the machine
+# behind this panel already trusts the LAN more than the WAN.
 if [ -n "$url" ]; then
   case "$url" in
     http://*|https://*) ;;
     *) fail_json "400 Bad Request" "url must be http or https" ;;
   esac
-  if ! curl -fsSL --proto '=http,https' --max-time 25 -A "v2raymik-admin" "$url" -o "$tmp" 2>/dev/null; then
-    rm -f "$tmp"
-    fail_json "502 Bad Gateway" "could not fetch the subscription"
-  fi
+  host=${url#*://}
+  host=${host%%/*}
+  host=${host%%:*}
+  case "$host" in
+    ''|localhost|127.*|0.0.0.0|10.*|192.168.*|169.254.*|172.16.*|172.17.*|172.18.*|172.19.*|172.2[0-9].*|172.3[01].*|\[::1\])
+      fail_json "400 Bad Request" "url host looks private" ;;
+  esac
+  code=$(curl -sS --proto '=http,https' --max-time 25 --max-filesize 2000000 \
+           -A "v2raymik-admin" -w '%{http_code}' -o "$tmp" "$url" 2>/dev/null) \
+    || { rm -f "$tmp"; fail_json "502 Bad Gateway" "could not fetch the subscription"; }
+  case "$code" in
+    2*) ;;
+    *) rm -f "$tmp"; fail_json "502 Bad Gateway" "subscription returned HTTP $code; redirects are not followed, enter the final https URL" ;;
+  esac
 elif [ -n "$links" ]; then
   printf '%s\n' "$links" > "$tmp"
 else

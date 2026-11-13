@@ -12,53 +12,62 @@ kernel, next to your firewall.
 
 What this project does about it:
 
-- The container subnet is **default deny** in the forward chain. It may reach the
-  WAN on `tcp/443`, `tcp/80` and `udp/443,53` (its transport) and nothing else.
-  It may not reach the LAN unless you explicitly opt in.
+- The container subnet is **default deny** in the forward chain. It may reach
+  the WAN on the transport ports (default: the Cloudflare proxy ports plus 53,
+  TCP and UDP) and nothing else. It may not reach the LAN unless you
+  explicitly opt in.
 - The container gets no WAN-exposed ports. Nothing is forwarded to it.
 - No secrets live in the repository or the image, and the outbound file is the
   operator's own file on the operator's own disk.
-- The image is built from `alpine` + the official sing-box release, with a pinned
-  version. No `curl | sh` at runtime, no third-party binaries.
+- The image is built from a digest-pinned `alpine` + the official sing-box and
+  Xray releases, **downloaded with sha256 verification** against the digests
+  GitHub publishes for each asset. No `curl | sh` at runtime, no third-party
+  binaries.
 
-What it cannot do: protect you from a malicious image, a compromised registry, or
-a RouterOS vulnerability. Pin the version you audited.
+What it cannot do: protect you from a malicious image, a compromised registry,
+or a RouterOS vulnerability. Pin the version you audited.
 
-## The admin page
+## The admin page (passwordless, by design)
 
-The panel is a second process in the same container: it shares the image with the
-transport, so its risk is the transport's risk. What keeps that bounded:
+The panel has **no password**. Anyone who can reach it can load a
+subscription, test every node, and switch what the router's traffic uses. That
+is the trade you accept by choosing a single-file, no-login panel; it is
+documented here because it is a real reduction in protection compared to a
+login screen.
 
-- **One door, on the LAN.** The container listens on `:8080`; the only exposure is
-  the `dst-nat` in `04-admin.rsc`, which is scoped to `in-interface-list=LAN`.
-  There is no WAN rule to forget to remove.
-- **Off by default.** No `ADMIN_PASSWORD`, no panel: the HTTP server does not
-  start, sing-box runs as usual, and the log says `admin-disabled`.
-- **Session cookie only**: `HttpOnly`, `SameSite=Strict`, 32 random hex chars,
-  2 h server-side expiry. No JWT, no client-side state worth stealing.
-- **Every mutation needs the `gen` hash** of the current config list, so a stale
-  tab cannot act on a shifted index. A missing or wrong hash is a `409`.
-- **No secrets in responses.** The list carries label, protocol, host and port —
-  never a UUID, key or full link. The active outbound lives in `/data/state.json`
-  (mode 600) on the USB disk.
+What keeps that bounded to your LAN:
+
+- **One door, on the LAN.** The container listens on `:8080`; the only
+  exposure is the `dst-nat` in `router/v2raymik.rsc`, which is scoped to
+  `in-interface-list=LAN`. There is no WAN rule to forget to remove, and no
+  login page to brute-force.
+- **No secrets in responses.** The list carries label, protocol, host and
+  port — never a UUID, key or full link. The active outbound lives in
+  `/data/state.json` (mode 600) on the USB disk.
 - **No shell from the browser.** CGI parameters are integers and enums; the
-  subscription URL is the single free-form string and it goes to `curl` as one
-  argv with `--proto '=http,https'`.
+  subscription URL is the single free-form string and it goes to `curl` with
+  `--proto '=http,https'`, **redirects are never followed**, a two-megabyte
+  cap, and a host that looks private/loopback/link-local is refused.
 - **One test at a time**, guarded by a lock directory with a 2-minute stale
   timeout, so a dead tab cannot pin the CPU.
 - **Failed switch → rollback.** State is written tentatively; if the new node
-  does not come up within 12 s the previous outbound is restored (or, on a first
-  switch, the state is dropped and the environment config returns).
+  does not come up in time, the previous outbound is restored (or, on a
+  first switch, the state is dropped and the environment config returns).
+- **The `gen` hash** of the current config list is required for Test and
+  Connect, so a stale tab cannot act on a shifted index.
 
-What it does *not* protect against: someone already on your LAN with the
-password, and the container image itself. The password is stored in the
-container's environment, which is visible in a RouterOS export — treat the router
-config as sensitive.
+What it does *not* protect against: anyone on your LAN, and the container
+image itself. If a LAN user switching your exit node is not acceptable, block
+`tcp/8081` in the forward chain — the panel disappears entirely and the
+container keeps working.
+
+Do not expose the port beyond the LAN. There is no TLS and no credential in
+front of it.
 
 ## The container's egress allowlist
 
-The container subnet is **default-deny**. Three rules in `03-firewall.rsc` decide
-everything it can reach:
+The container subnet is **default-deny**. Three rules in the router script
+decide everything it can reach:
 
 | Rule | Effect |
 | --- | --- |
@@ -78,12 +87,11 @@ everything it can reach:
 
 ### Why not allow every port
 
-A container on RouterOS is not a sandbox: it shares the router's kernel, and
-MikroTik's own documentation warns that a container compromise can become a
-RouterOS compromise. If the image or the registry is ever compromised, the
-blast radius is decided by these rules, not by the image's good behaviour. An
-open egress turns a compromised image into a usable proxy or scanner on a
-residential IP; a three-port allowlist turns it into a broken container.
+A container on RouterOS is not a sandbox: it shares the router's kernel. If the
+image or the registry is ever compromised, the blast radius is decided by these
+rules, not by the image's good behaviour. An open egress turns a compromised
+image into a usable proxy or scanner on a residential IP; a three-port
+allowlist turns it into a broken container.
 
 This is least privilege, applied to the one network path the container owns.
 
@@ -95,64 +103,48 @@ This is least privilege, applied to the one network path the container owns.
 443,80,8080,8880,2052,2053,2082,2083,2086,2087,2095,2096,8443,53
 ```
 
-That is every port Cloudflare's proxy accepts, plus 53 for the container's own
-resolver. It covers REALITY/TLS on 443, XHTTP behind a CDN, and WebSocket on the
-CDN's alternative ports — the configurations most people actually run.
+That is every port Cloudflare's proxy accepts, plus 53 for the container's
+own resolver. It covers REALITY/TLS on 443, xhttp behind a CDN, and WebSocket
+on the CDN's alternative ports — the configurations most people actually run.
 
 ### If your provider uses another port
 
-Add it. Find the port in the link (`@host:PORT`) or in the container log:
+Find the port in the link (`@host:PORT`) or in the container log:
 
 ```
 /log print where topics~"container" and message~"dialing"
 ```
 
-you will see `dialing to tcp:<ip>:<port>`. Then either edit
-`MikContainerToWanPorts` in `00-vars.rsc` and re-import `03-firewall.rsc`, or
-patch the live rule:
+then set `MikExtraWanPorts` in your copy of the import variables and
+re-import `v2raymik.rsc`; the script adds the accept pair *and* appends the
+ports to the container's `ALLOWED_PORTS`. That second list is not decoration —
+the admin page compares each entry's port against it and marks non-allowlisted
+rows `port blocked`. RouterOS accepts at most **15 ports in one `dst-port`
+list**; the default list has 14, which is what the `(extra)` pair exists for.
 
-```
-/ip firewall filter set [find where comment="mik: container tcp transport"] \
-  dst-port=443,80,2052,2053,2082,2083,2086,2087,2095,2096,8443,8080,8880,53,3001
-/ip firewall filter set [find where comment="mik: container udp transport"] \
-  dst-port=443,80,2052,2053,2082,2083,2086,2087,2095,2096,8443,8080,8880,53,3001
-```
+A tunnel whose port is missing does not fail loudly: the engine keeps
+redialling, the router logs nothing, and the symptom is "the internet is slow
+/ half broken". That is why the port list is documented here rather than left
+implicit.
 
-`03-firewall.rsc` re-applies the variable on every import, so the script and the
-device stay in step.
+## Failure behaviour (no fallback)
 
-A hysteria2 or TUIC node is **UDP**, on whatever port the provider chose, so the
-practical route is `MikExtraWanPorts` in `00-vars.rsc`: the scripts add one accept
-rule per protocol for it *and* append it to the container's `ALLOWED_PORTS`. That
-second list is not decoration — the admin page compares each entry's port against
-it and disables Test and Connect with a `port blocked` pill when it does not match,
-so a rule patched only in `/ip firewall filter` lets the traffic through while the
-panel still refuses the node.
+Since 1.1.0 there is no secondary route: when the tunnel is down, marked
+traffic is dropped. Earlier releases could be configured to fall back to the
+ISP in that moment; that leaked the router's real address on every outage,
+and the trade-off was removed. If you need "internet regardless of who sees
+us", that is a different product decision — make it deliberately, with your
+own route, not with a hidden default.
 
-RouterOS accepts at most **15 ports in one `dst-port` list**. The default list has
-14, which leaves room for exactly one exception. If you need more, add a second
-pair of accept rules (for example one for the CDN ports and one per provider)
-rather than trimming the first list.
-
-A tunnel whose port is missing does not fail loudly: sing-box keeps redialling, the
-router logs nothing, and the symptom is "the internet is slow / half broken".
-That is why the port list is documented here rather than left implicit.
-
-## What fail-open leaks
-
-With `MikFailOpen=true`, a dead tunnel means marked traffic silently takes the
-direct route. Your real address becomes visible to every destination that
-believed it was talking to the server. If that matters more than staying online,
-set it to `false`: marked traffic then blackholes while the tunnel is down.
-
-This is not a bug in either mode; it is the trade-off, and it is why the flag
-exists instead of a default baked into the scripts.
+The container itself is not tunnelled: the router's masquerade keeps the
+container subnet direct to the WAN, which is what keeps its own DNS, image
+pulls and subscription fetches independent of the tunnel state.
 
 ## What the server sees
 
 The router masquerades LAN → container, so the server sees the router, not
 individual clients. Per-client attribution stops at the router. If you need it,
-that is a deliberate change in `03-firewall.rsc`, not a setting.
+that is a deliberate change in the router script, not a setting.
 
 ## Credentials
 
@@ -161,8 +153,10 @@ that is a deliberate change in `03-firewall.rsc`, not a setting.
   you share that disk. Treat the disk as sensitive.
 - Do not commit an outbound file. The repo's `.gitignore` covers tarballs and
   scratch, not your files; keep them off the repo path entirely.
+- The panel shows no credential. The URL you paste is stored at
+  `/data/sub.txt` (mode 600) on the USB disk.
 
 ## Reporting
 
-Open an issue with the RouterOS version, the container log, and what you expected
-to happen. Do not paste UUIDs, server addresses or keys.
+Open an issue with the RouterOS version, the container log, and what you
+expected to happen. Do not paste UUIDs, server addresses or keys.

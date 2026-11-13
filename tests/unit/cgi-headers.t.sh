@@ -1,11 +1,11 @@
 #!/bin/sh
 # A CGI script with a BOM or CRLF fails silently: busybox httpd cannot exec it
-# (the shebang is no longer the first two bytes) and answers 404. That happened
-# once to `health`, so every script in the directory is now checked byte by byte.
+# (the shebang is no longer the first two bytes) and answers 404, so every
+# script in the directory is checked byte by byte.
 set -eu
 . "$(dirname "$0")/../lib/assert.sh"
 
-bin=${CGI_DIR:-/app/web/cgi-bin}
+bin=${CGI_DIR:-${APP_DIR:-/app}/web/cgi-bin}
 [ -d "$bin" ] || fail "missing $bin"
 
 for f in "$bin"/*; do

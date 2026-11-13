@@ -3,7 +3,7 @@
 set -eu
 . "$(dirname "$0")/../lib/assert.sh"
 
-E=/app/entrypoint.sh
+E=${APP_DIR:-/app}/entrypoint.sh
 
 OB=/tmp/ob.json
 cat > "$OB" <<'JSON'

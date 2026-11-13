@@ -10,7 +10,7 @@ upload.
 make save PLATFORM=linux/arm64
 ```
 
-This writes `dist/v2raymik-26.10.31.tar`. It must match the router's
+This writes `dist/v2raymik-1.14.4.tar` (the name follows `SING_BOX_VERSION`). It must match the router's
 architecture: `arm64` for hAP ax³, `arm` for older hEX, `amd64` for x86/CHR.
 
 BuildKit writes the archive with `blobs/sha256/…` paths. Some RouterOS versions
@@ -19,7 +19,7 @@ with a repository tag. Normalize it once (this is what was verified to import):
 
 ```sh
 docker run --rm -v "$PWD/dist:/w" quay.io/skopeo/stable copy \
-  docker-archive:/w/v2raymik-26.10.31.tar \
+  docker-archive:/w/v2raymik-1.14.4.tar \
   docker-archive:/w/v2raymik.tar:v2raymik:latest
 ```
 
@@ -34,13 +34,12 @@ file into Winbox's Files panel. Put it at the path your install uses:
 
 ## 3. Point the container at the file
 
-`01-container.rsc` uses `MikImageFile` when it is set, otherwise it pulls
+`v2raymik.rsc` uses `MikImageFile` when it is set, otherwise it pulls
 `MikImage` from a registry:
 
 ```
-/import file-name=00-vars.rsc
 :global MikImageFile "usb2/v2raymik.tar"
-/import file-name=01-container.rsc
+/import file-name=v2raymik.rsc
 /container/start [find where name="v2raymik"]
 ```
 
@@ -48,13 +47,13 @@ file into Winbox's Files panel. Put it at the path your install uses:
 
 `ghcr.io` and `docker.io` are usually unreachable from Iran, so the image cannot
 be pulled directly. Publish it to Docker Hub (the CI does this when
-`DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` secrets exist) and point RouterOS at a
+`DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` secrets exist) and point the import at a
 Docker Hub mirror instead:
 
 ```
-/container/config/set registry-url=https://docker.arvancloud.ir
-/container/set [find where name="v2raymik"] check-certificate=no
-/container/repull [find where name="v2raymik"]
+:global MikRegistryUrl "https://docker.arvancloud.ir"
+:global MikCheckCertificate "no"
+/import file-name=v2raymik.rsc
 ```
 
 Verified combinations on RouterOS 7.25.1:

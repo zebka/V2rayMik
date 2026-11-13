@@ -1,9 +1,14 @@
 #!/bin/sh
 # Shared preamble for every CGI. Not executable on purpose.
-. /app/lib/admin.sh
-. /app/lib/links.sh
-. /app/lib/routes.sh
-. /app/lib/subs.sh
+# The panel has no password; it is served to the LAN only, through the
+# router's dst-nat. Do not expose it beyond the LAN.
+# APP_DIR exists so the test suite can run outside the image.
+_APP=${APP_DIR:-/app}
+. "$_APP/lib/admin.sh"
+. "$_APP/lib/links.sh"
+. "$_APP/lib/routes.sh"
+. "$_APP/lib/subs.sh"
+. "$_APP/lib/xray.sh"
 
 DATA_DIR=${DATA_DIR:-/data}
 SUB_FILE=${SUB_FILE:-$DATA_DIR/sub.txt}
@@ -26,14 +31,4 @@ fail_json() {
   json_header
   printf '{"ok":false,"error":"%s"}' "$(json_escape "$2")"
   exit 0
-}
-
-cookie_sid() {
-  printf '%s' "${HTTP_COOKIE:-}" | sed -n 's/.*sid=\([0-9a-f]\{32\}\).*/\1/p'
-}
-
-# Sets SID, or answers 401 and exits.
-require_auth() {
-  SID=$(cookie_sid)
-  session_valid "$SID" || fail_json "401 Unauthorized" "auth required"
 }

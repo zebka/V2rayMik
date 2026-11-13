@@ -2,8 +2,8 @@
 # Task 5: split routes and endpoint handling.
 set -eu
 . "$(dirname "$0")/../lib/assert.sh"
-. /app/lib/links.sh
-. /app/lib/routes.sh
+. ${APP_DIR:-/app}/lib/links.sh
+. ${APP_DIR:-/app}/lib/routes.sh
 
 out=$(plan_routes 203.0.113.9 tun0 eth0)
 assert_eq "$(printf '%s\n' "$out" | sed -n 1p)" "ip route replace 203.0.113.9/32 dev eth0" "first route"
@@ -29,9 +29,9 @@ echo "default via 172.17.0.1 dev veth-mik"
 echo "198.18.0.0/15 dev tun0 scope link"
 EOF
 chmod +x /tmp/fakeip/ip
-out=$(PATH=/tmp/fakeip:$PATH sh -c '. /app/lib/links.sh; . /app/lib/routes.sh; detect_egress')
+out=$(PATH=/tmp/fakeip:$PATH sh -c '. ${APP_DIR:-/app}/lib/links.sh; . ${APP_DIR:-/app}/lib/routes.sh; detect_egress')
 assert_eq "$out" "veth-mik" "egress skips tun0"
-out=$(PATH=/tmp/fakeip:$PATH sh -c '. /app/lib/links.sh; . /app/lib/routes.sh; detect_gateway')
+out=$(PATH=/tmp/fakeip:$PATH sh -c '. ${APP_DIR:-/app}/lib/links.sh; . ${APP_DIR:-/app}/lib/routes.sh; detect_gateway')
 assert_eq "$out" "172.17.0.1" "gateway detected from the default route"
 
 # defaults
@@ -62,7 +62,7 @@ echo "nslookup was called for $*" >&2
 exit 1
 EOF
 chmod +x /tmp/nodns/nslookup
-out=$(PATH=/tmp/nodns:$PATH sh -c '. /app/lib/links.sh; . /app/lib/routes.sh; resolve_endpoint 203.0.113.9' 2>/dev/null)
+out=$(PATH=/tmp/nodns:$PATH sh -c '. ${APP_DIR:-/app}/lib/links.sh; . ${APP_DIR:-/app}/lib/routes.sh; resolve_endpoint 203.0.113.9' 2>/dev/null)
 assert_eq "$out" "203.0.113.9" "literal ipv4 endpoint"
 
 # an outbound with no endpoint (direct, block) is rejected, not rendered as ":"

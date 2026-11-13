@@ -18,7 +18,6 @@ assignees: ""
 - Device model and architecture: 
 - Image tag: 
 - Transport (vless / vmess / trojan / ss / json outbound) and port: 
-- `MikFailOpen`: true / false
 
 ## Container log
 
@@ -29,7 +28,7 @@ assignees: ""
 ## Relevant config
 
 ```
-/ip route print where routing-table=to-world
+/ip route print where routing-table=mik-tunnel
 /ip firewall filter print where comment~"mik"
 /container/print
 ```

@@ -2,7 +2,7 @@
 # Share-link parsing: every supported scheme becomes one sing-box outbound.
 set -eu
 . "$(dirname "$0")/../lib/assert.sh"
-. /app/lib/links.sh
+. ${APP_DIR:-/app}/lib/links.sh
 
 v='vless://11111111-1111-4111-8111-111111111111@203.0.113.9:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=www.microsoft.com&fp=chrome&pbk=artoBd_EJwWzPQ-eHFGlXzO0xbaWWUSwOPfCBq0FMt8&sid=ab12&type=tcp#name'
 out=$(link_to_outbound "$v")

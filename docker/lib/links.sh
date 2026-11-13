@@ -7,7 +7,9 @@
 # one shape, one renderer, one place to look.
 
 urldecode() {
-  printf '%b' "$(printf '%s' "$1" | sed -e 's/+/ /g' -e 's/%/\\x/g')"
+  # Backslashes are doubled first so a literal `\n` in a password does not
+  # become a newline; %XX decoding happens on what remains.
+  printf '%b' "$(printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/+/ /g' -e 's/%/\\x/g')"
 }
 
 # qs <query> <key> — prints the decoded value, or nothing.
@@ -33,13 +35,18 @@ qs() {
 link_fail() { echo "$1" >&2; exit 2; }
 
 # hex_to_b64 <hex> — sing-box wants base64 for a certificate pin, links use hex.
+# Fails loudly on undecodable input: a pin that silently vanishes is a node
+# that "works" with no verification at all.
 hex_to_b64() {
   [ -n "$1" ] || return 0
   case "$1" in
-    *[!0-9a-fA-F]*) return 0 ;;
+    *[!0-9a-fA-F]*) echo "bad-link: pinSHA256 is not hex" >&2; return 1 ;;
   esac
-  [ $(( ${#1} % 2 )) -eq 0 ] || return 0
-  printf '%s' "$1" | xxd -r -p 2>/dev/null | base64 2>/dev/null | tr -d '\n'
+  [ $(( ${#1} % 2 )) -eq 0 ] || { echo "bad-link: pinSHA256 length is odd" >&2; return 1; }
+  command -v xxd >/dev/null 2>&1 || { echo "bad-link: xxd is missing in this image" >&2; return 1; }
+  decoded=$(printf '%s' "$1" | xxd -r -p 2>/dev/null) || { echo "bad-link: cannot decode pinSHA256" >&2; return 1; }
+  printf '%s' "$decoded" | base64 2>/dev/null | tr -d '\n' || { echo "bad-link: cannot encode pinSHA256" >&2; return 1; }
+  return 0
 }
 
 # link_to_outbound <link> — prints one sing-box outbound object.
@@ -135,7 +142,9 @@ transport_settings() {
          + (if $host != "" then {host:$host} else {} end)'
       ;;
     xhttp|splithttp)
-      link_fail "unsupported-transport: $1 (sing-box has no xhttp; ask the provider for ws/grpc)"
+      # xray handles these; this function is the sing-box path. The engine
+      # picker never sends an xhttp node here — keep a loud error anyway.
+      link_fail "unsupported-transport: $1 (the xray engine handles this; sing-box cannot)"
       ;;
     *)
       link_fail "unsupported-transport: $1"
@@ -151,7 +160,7 @@ link_vless() {
   enc=$(qs "$2" encryption)
   case "$enc" in
     ""|none) ;;
-    *) link_fail "unsupported-link: vless encryption=$enc (vless extension)" ;;
+    *) link_fail "unsupported-link: vless encryption=$enc (handled by the xray engine, not the sing-box path)" ;;
   esac
 
   sec=$(qs "$2" security)
@@ -285,7 +294,17 @@ link_hysteria2() {
 
   sni=$(qs "$2" sni)
   insecure=$(qs "$2" insecure)
-  pin=$(hex_to_b64 "$(qs "$2" pinSHA256)")
+  pin=""
+  rawpin=$(qs "$2" pinSHA256)
+  if [ -n "$rawpin" ]; then
+    case "$insecure" in
+      # insecure is the provider's own statement that verification is off (and
+      # its pins go stale after a certificate rotation): drop the pin rather
+      # than the node.
+      1|true|TRUE|yes) pin="" ;;
+      *) pin=$(hex_to_b64 "$rawpin") || link_fail "bad-link: pinSHA256 is not valid hex" ;;
+    esac
+  fi
   # A provider that puts `insecure=1` next to a pin expects clients to skip
   # verification, and its pin is often stale: on the reference node the pin named
   # a key the server no longer presents, sing-box refused the handshake, and the

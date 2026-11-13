@@ -2,9 +2,9 @@
 # Task 4: subscription decoding and listing.
 set -eu
 . "$(dirname "$0")/../lib/assert.sh"
-. /app/lib/admin.sh
-. /app/lib/links.sh
-. /app/lib/subs.sh
+. ${APP_DIR:-/app}/lib/admin.sh
+. ${APP_DIR:-/app}/lib/links.sh
+. ${APP_DIR:-/app}/lib/subs.sh
 
 D=/tmp/substest
 rm -rf "$D"; mkdir -p "$D"

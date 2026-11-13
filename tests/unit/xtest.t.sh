@@ -2,10 +2,11 @@
 # The test plan and a bounded run.
 set -eu
 . "$(dirname "$0")/../lib/assert.sh"
-. /app/lib/admin.sh
-. /app/lib/links.sh
-. /app/lib/subs.sh
-. /app/lib/xtest.sh
+. ${APP_DIR:-/app}/lib/admin.sh
+. ${APP_DIR:-/app}/lib/links.sh
+. ${APP_DIR:-/app}/lib/xray.sh
+. ${APP_DIR:-/app}/lib/subs.sh
+. ${APP_DIR:-/app}/lib/xtest.sh
 
 OUT='{"type":"vless","server":"a.test","server_port":443,"uuid":"u"}'
 
@@ -45,3 +46,39 @@ plan=$(xtest_plan "$HY" 10801)
 printf '%s' "$plan" | jq -e '.outbounds[0].type == "hysteria2"' >/dev/null || fail "hy2 outbound lost"
 printf '%s' "$plan" > /tmp/xt-hy.json
 sing-box check -c /tmp/xt-hy.json >/dev/null 2>&1 || fail "sing-box rejected the hysteria2 test plan"
+
+# --- the xray side -------------------------------------------------------------
+command -v xray >/dev/null 2>&1 || fail "xray binary missing from the image"
+
+XOUT='{"protocol":"vless","tag":"proxy","settings":{"vnext":[{"address":"a.test","port":443,"users":[{"id":"u","encryption":"none"}]}]},"streamSettings":{"network":"xhttp","security":"reality","realitySettings":{"serverName":"a.test","publicKey":"pbk","shortId":"sid","fingerprint":"chrome","spiderX":""}},"xhttpSettings":{"path":"/x","mode":"auto"}}}'
+xp=$(xray_config "$XOUT" 10810)
+printf '%s' "$xp" | jq -e '.inbounds[0].protocol == "socks"' >/dev/null || fail "xray plan has no socks inbound"
+printf '%s' "$xp" | jq -e '.inbounds[0].port == 10810' >/dev/null || fail "xray plan wrong port"
+printf '%s' "$xp" | jq -e '.inbounds[0].listen == "127.0.0.1"' >/dev/null || fail "xray plan must listen on localhost"
+printf '%s' "$xp" | jq -e '.outbounds[0].protocol == "vless"' >/dev/null || fail "xray outbound not passed through"
+printf '%s' "$xp" | jq -e '.outbounds | length == 1' >/dev/null || fail "extra xray outbounds"
+
+assert_eq "$(engine_of_link 'vless://u@a.test:443?type=xhttp&security=reality&pbk=p&sni=b.test')" "xray" "xhttp goes to xray"
+assert_eq "$(engine_of_link 'vless://u@a.test:443?type=ws&security=tls&sni=b.test')" "sing-box" "ws stays on sing-box"
+assert_eq "$(engine_of_link 'hy2://p@a.test:443?sni=b.test')" "sing-box" "hysteria2 stays on sing-box"
+assert_eq "$(engine_of_link 'hysteria2://p@a.test:443?sni=b.test')" "sing-box" "hysteria2 alias stays on sing-box"
+assert_eq "$(engine_of_link 'tuic://i:p@a.test:443?sni=b.test')" "sing-box" "tuic stays on sing-box"
+assert_eq "$(engine_of_link 'vless://u@a.test:443?encryption=ml-kem-768&security=tls&sni=b.test')" "xray" "vless encryption goes to xray"
+
+xr=$(link_to_xray_outbound 'vless://u@a.test:443?type=xhttp&path=/sub&host=c.test&security=reality&sni=reality.test&pbk=pubkey&sid=abcd&fp=chrome')
+printf '%s' "$xr" | jq -e '.protocol == "vless"' >/dev/null || fail "xray vless protocol"
+printf '%s' "$xr" | jq -e '.settings.vnext[0].address == "a.test"' >/dev/null || fail "xray vless address"
+printf '%s' "$xr" | jq -e '.settings.vnext[0].users[0].encryption == "none"' >/dev/null || fail "xray vless encryption default"
+printf '%s' "$xr" | jq -e '.streamSettings.network == "xhttp"' >/dev/null || fail "xray xhttp network"
+printf '%s' "$xr" | jq -e '.streamSettings.security == "reality"' >/dev/null || fail "xray reality security"
+printf '%s' "$xr" | jq -e '.streamSettings.realitySettings.publicKey == "pubkey"' >/dev/null || fail "xray reality pbk"
+printf '%s' "$xr" | jq -e '.streamSettings.xhttpSettings.path == "/sub"' >/dev/null || fail "xray xhttp path"
+printf '%s' "$xr" | jq -e '.streamSettings.xhttpSettings.host == "c.test"' >/dev/null || fail "xray xhttp host"
+
+xr=$(link_to_xray_outbound 'vless://u@a.test:443?type=splithttp&path=/s&security=tls&sni=t.test&alpn=h2,http/1.1')
+printf '%s' "$xr" | jq -e '.streamSettings.network == "xhttp"' >/dev/null || fail "splithttp maps to xhttp"
+printf '%s' "$xr" | jq -e '.streamSettings.tlsSettings.alpn == ["h2","http/1.1"]' >/dev/null || fail "xray tls alpn"
+
+assert_eq "$(xray_endpoint_of "$XOUT")" "a.test:443" "xray endpoint_of"
+pinned=$(xray_pin "$XOUT" 203.0.113.9)
+printf '%s' "$pinned" | jq -e '.settings.vnext[0].address == "203.0.113.9"' >/dev/null || fail "xray_pin did not pin the vnext address"

@@ -2,7 +2,6 @@
 . /app/web/cgi-bin/_common
 . /app/lib/xtest.sh
 
-require_auth
 [ "${REQUEST_METHOD:-GET}" = "POST" ] || fail_json "405 Method Not Allowed" "POST only"
 
 body=$(read_body)
