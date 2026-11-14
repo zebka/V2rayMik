@@ -88,17 +88,7 @@ function renderRows() {
   });
 }
 
-function ago(ts) {
-  if (!ts) return "—";
-  const s = Math.max(0, Math.floor(Date.now() / 1000) - ts);
-  if (s < 60) return s + " s ago";
-  if (s < 3600) return Math.floor(s / 60) + " min ago";
-  if (s < 86400) return Math.floor(s / 3600) + " h ago";
-  return Math.floor(s / 86400) + " d ago";
-}
-
 function renderHealth(r) {
-  $("upSince").textContent = r.up_since ? ago(r.up_since) : (r.tun ? "—" : "down");
   $("problemState").textContent = r.problem || "none";
   $("problemState").className = r.problem ? "bad" : "ok";
   $("dnsState").textContent = r.dns_via_tunnel ? "through tunnel" : "not through tunnel";

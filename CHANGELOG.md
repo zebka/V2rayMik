@@ -1,4 +1,10 @@
 # Changelog
+## 1.3.17 - 2026-11-14
+
+### Changed
+
+- Health card: removed "Up since". Tunnel up/down is shown in the status row.
+
 ## 1.3.16 - 2026-11-14
 
 ### Fixed
