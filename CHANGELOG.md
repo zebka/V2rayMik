@@ -1,4 +1,12 @@
 # Changelog
+## 1.3.23 - 2026-11-15
+
+### Removed
+
+- "Test all" and "Cancel" are gone from the panel. Each config has its own
+  **Test** button; testing a large list in one shot burned too much traffic
+  (10 × 200 MB before).
+
 ## 1.3.22 - 2026-11-15
 
 ### Added

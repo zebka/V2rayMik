@@ -20,7 +20,8 @@ http://<router-lan-ip>:8081/        # MikAdminLanPort
   then a `generate_204` check and a download of a 10–200 MB file (your choice,
 default 50 MB; Cloudflare refuses ≥ 100 MB in one request, so larger sizes are
 downloaded in chunks and summed). The live tunnel keeps
-  running throughout. "Test all" walks the list; "Cancel" stops it.
+  running throughout. Each config has its own **Test** button; there is
+  no "test all" mode.
   The result shows which engine ran (sing-box or Xray).
 - **Connect**: the router's traffic moves to that config. The switch is
   verified (TUN up, routes right, 204 through the tunnel) and rolls back

@@ -3,7 +3,6 @@
 let GEN = "";
 let ENTRIES = [];
 let TESTED = {};
-let CANCELLED = false;
 let BUSY = false;
 let CONTAINER_NAME = "v2raymik";
 
@@ -101,8 +100,6 @@ function renderHealth(r) {
 function setBusy(b) {
   BUSY = b;
   $("busy").hidden = !b;
-  $("testAll").disabled = b;
-  $("cancel").disabled = !b;
   renderRows();
 }
 
@@ -136,25 +133,6 @@ async function testOne(i) {
     setBusy(false);
   }
 }
-
-$("testAll").onclick = async () => {
-  if (BUSY) return;
-  CANCELLED = false;
-  setBusy(true);
-  for (const e of ENTRIES.slice()) {
-    if (CANCELLED) break;
-    $("testMsg").textContent = "testing #" + (e.i + 1) + " of " + ENTRIES.length + "…";
-    try {
-      const r = await api("test", { i: e.i, gen: GEN, mb: SIZE() });
-      TESTED[e.i] = r;
-      renderRows();
-    } catch (_) { break; }
-  }
-  $("testMsg").textContent = CANCELLED ? "cancelled" : "done";
-  setBusy(false);
-};
-
-$("cancel").onclick = () => { CANCELLED = true; $("cancel").disabled = true; };
 
 $("testSize").value = SIZE();
 $("testSize").onchange = (e) => localStorage.setItem("testSize", e.target.value);

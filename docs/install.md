@@ -19,7 +19,7 @@ missing, so an existing install is left running.
 To pin a fixed release instead of `main`, point the URL at a tag:
 
 ```rsc
-/tool fetch url="https://raw.githubusercontent.com/zebka/V2rayMik/v1.3.22/router/v2raymik.rsc" dst-path=v2raymik.rsc; /import file-name=v2raymik.rsc
+/tool fetch url="https://raw.githubusercontent.com/zebka/V2rayMik/v1.3.23/router/v2raymik.rsc" dst-path=v2raymik.rsc; /import file-name=v2raymik.rsc
 ```
 
 If the router cannot reach GitHub, download `router/v2raymik.rsc` from the
@@ -142,7 +142,7 @@ Should print your server's address, not yours.
 ## The panel
 
 Open `http://<router-lan-ip>:8081/` from any LAN device — no password, no
-login page. Paste a subscription URL (or a single link), press **Test all**,
+login page. Paste a subscription URL (or a single link), press the **Test** button on the winning row, then **Connect**.
 and on the winning row press **Connect**. See `docs/panel.md`.
 
 ## Failure behaviour
