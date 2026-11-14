@@ -68,7 +68,6 @@ Verified combinations on RouterOS 7.25.1:
 | Mirror | Works | Note |
 | --- | --- | --- |
 | `docker.arvancloud.ir` | yes | needs `check-certificate=no` (CA not in RouterOS) |
-| `focker.ir` | registry reachable | use after the official registry fails; not pull-tested here |
 | `docker.iranserver.com` | yes | needs `check-certificate=no`; pulled 1.1.0 and 1.1.1 on arm64 (8 layers, ~30–45 s) |
 | `ghcr.repo.mirrory.ir` | no | returns 504 on our 15 MB layer |
 

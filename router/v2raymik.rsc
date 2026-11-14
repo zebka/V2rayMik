@@ -92,13 +92,14 @@
 :if ([:typeof $MikImage] = "nothing") do={ :global MikImage "azebka/v2raymik:latest" }
 :if ([:typeof $MikImageFile] = "nothing") do={ :global MikImageFile "" }
 :if ([:typeof $MikCheckCertificate] = "nothing") do={ :global MikCheckCertificate "yes" }
-# Registry used for the pull. arvancloud needs MikCheckCertificate "no" on 7.25.1.
-# If you set MikRegistryUrl yourself, that registry is used and there is no
-# fallback. Otherwise the official registry is tried first and, if the image
-# does not start, MikRegistryFallback (focker.ir) is tried. "" turns it off.
+# Registry used for the pull. If you set MikRegistryUrl yourself, that registry
+# is used and there is no fallback. Otherwise the official registry is tried
+# first and, if the image does not start, MikRegistryFallback is tried. The
+# fallback is reached with certificate checks off (arvancloud needs that on
+# 7.25.1). "" turns the fallback off.
 :local registryPinned ([:typeof $MikRegistryUrl] != "nothing")
 :if ([:typeof $MikRegistryUrl] = "nothing") do={ :global MikRegistryUrl "https://registry-1.docker.io" }
-:if ([:typeof $MikRegistryFallback] = "nothing") do={ :global MikRegistryFallback "https://focker.ir" }
+:if ([:typeof $MikRegistryFallback] = "nothing") do={ :global MikRegistryFallback "https://docker.arvancloud.ir" }
 :if ([:typeof $MikAdminPort] = "nothing") do={ :global MikAdminPort "8080" }
 :if ([:typeof $MikAdminLanPort] = "nothing") do={ :global MikAdminLanPort "8081" }
 :if ([:typeof $MikAllowContainerToLan] = "nothing") do={ :global MikAllowContainerToLan false }
@@ -361,7 +362,7 @@
     :log info "v2raymik: container started"
   } else={
     :if ($registryPinned = false and [:len $MikRegistryFallback] > 0 and [:len $MikImageFile] = 0) do={
-      :log warning ("v2raymik: the official registry did not deliver the image; trying " . $MikRegistryFallback)
+      :log warning ("v2raymik: the official registry did not deliver the image; trying " . $MikRegistryFallback . " with certificate checks off")
       :do { /container stop [find where name=$MikContainerName] } on-error={}
       :local gone false
       :for i from=1 to=40 do={

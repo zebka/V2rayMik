@@ -1,4 +1,19 @@
 # Changelog
+## 1.3.15 - 2026-11-14
+
+### Fixed
+
+- The import fallback used `focker.ir`, which does not work for this project.
+  It now uses `docker.arvancloud.ir`, which was confirmed to pull on RouterOS
+  7.25.1 with certificate checks off.
+- `docs/install-side-load.md` no longer lists `focker.ir`.
+
+### Known limit
+
+- A manual `/container/repull` does not fall back to another registry. The
+  fallback only runs on a fresh import. Switch `registry-url` by hand for a
+  repull.
+
 ## 1.3.14 - 2026-11-14
 
 ### Added
@@ -71,7 +86,7 @@ router.
 
 - **Automatic registry fallback on a fresh install.** The import pulls from the
   official registry first. If the image has not started after the wait, it
-  switches to `MikRegistryFallback` (default `https://focker.ir`), recreates the
+  switches to `MikRegistryFallback` (default `https://docker.arvancloud.ir`), recreates the
   container and starts it again. It only runs when you did not set
   `MikRegistryUrl` yourself and only on a fresh container. Set
   `:global MikRegistryFallback ""` to turn it off.

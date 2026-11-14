@@ -15,7 +15,7 @@ missing, so an existing install is left running.
 To pin a fixed release instead of `main`, point the URL at a tag:
 
 ```rsc
-/tool fetch url="https://raw.githubusercontent.com/zebka/V2rayMik/v1.3.14/router/v2raymik.rsc" dst-path=v2raymik.rsc; /import file-name=v2raymik.rsc
+/tool fetch url="https://raw.githubusercontent.com/zebka/V2rayMik/v1.3.15/router/v2raymik.rsc" dst-path=v2raymik.rsc; /import file-name=v2raymik.rsc
 ```
 
 If the router cannot reach GitHub, download `router/v2raymik.rsc` from the
@@ -39,14 +39,14 @@ docker pull ghcr.io/zebka/v2raymik:latest
 the `VERSION` file and the newest release here; `:edge` is the raw `main` build.
 In Iran the official registry is often unreachable. On a fresh install the
 import pulls from the official registry first. If the container does not
-start, it switches to `https://focker.ir` by itself, once, and logs
-`trying https://focker.ir`. This fallback is not yet tested on a router.
+start, it switches to `https://docker.arvancloud.ir` by itself, once, and logs
+`trying https://docker.arvancloud.ir`.
 
 To skip the official registry and use a mirror from the start, or to turn the
 fallback off, set the variables before the import:
 
 ```rsc
-:global MikRegistryUrl "https://focker.ir"
+:global MikRegistryUrl "https://docker.arvancloud.ir"
 :global MikRegistryFallback ""
 /import file-name=v2raymik.rsc
 ```
