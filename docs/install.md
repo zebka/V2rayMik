@@ -1,5 +1,9 @@
 # Install guide
 
+Not sure about your disk name, port, or registry? Build the setup block in the
+browser first: <https://zebka.github.io/V2rayMik/>. It only writes `:global`
+lines; nothing is sent to a server. See `docs/generator.md`.
+
 ## Install the RouterOS file
 
 One command on the router downloads the import file and runs it. Nothing to

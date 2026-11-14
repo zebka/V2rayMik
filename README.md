@@ -74,6 +74,10 @@ If the router cannot reach GitHub, download `router/v2raymik.rsc` and import
 it by hand. The image is pulled from the official registry first. If that
 fails, set a mirror and import again (`docs/install.md`, "Get the image").
 
+Not sure about your disk name or registry? Build the setup block in the
+browser: <https://zebka.github.io/V2rayMik/>. It only writes `:global` lines;
+nothing is sent to a server.
+
 See `docs/install.md` for the full guide, the Iran mirror and rollback.
 
 ## Requirements
