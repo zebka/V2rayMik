@@ -1,4 +1,10 @@
 # Changelog
+## 1.3.10 - 2026-11-14
+
+### Fixed
+
+- The panel's `testing...` badge no longer shows when no test is running.
+
 ## 1.3.9 - 2026-11-14
 
 ### Added
