@@ -8,12 +8,13 @@
 
 XTEST_PORT=${XTEST_PORT:-10800}
 CHECK_URL=${CHECK_URL:-http://connectivitycheck.gstatic.com/generate_204}
-SPEED_URL=${SPEED_URL:-https://speed.cloudflare.com/__down?bytes=10000000}
+SPEED_BYTES=${SPEED_BYTES:-50000000}
+SPEED_URL=${SPEED_URL:-https://speed.cloudflare.com/__down?bytes=$SPEED_BYTES}
 # Which country the node exits in. This must be the HTTPS URL: Cloudflare answers
 # `http://1.1.1.1/cdn-cgi/trace` with a 301 to HTTPS, and the redirect body has no
 # `loc=` line, so a plain-HTTP trace reports nothing while the node is fine.
 TRACE_URL=${TRACE_URL:-https://1.1.1.1/cdn-cgi/trace}
-SPEED_MAX_TIME=${SPEED_MAX_TIME:-15}
+SPEED_MAX_TIME=${SPEED_MAX_TIME:-60}
 CHECK_MAX_TIME=${CHECK_MAX_TIME:-8}
 TRACE_MAX_TIME=${TRACE_MAX_TIME:-6}
 

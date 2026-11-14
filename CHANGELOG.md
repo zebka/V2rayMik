@@ -1,4 +1,12 @@
 # Changelog
+## 1.3.20 - 2026-11-14
+
+### Changed
+
+- The speed test downloads 50 MB (was 10 MB). Set `SPEED_BYTES` to change it.
+  The time limit rose from 15 s to 60 s, so slow nodes are not reported as
+  failures. A 50 MB download on a 10 Mbps node takes about 40 s.
+
 ## 1.3.19 - 2026-11-14
 
 ### Fixed

@@ -17,7 +17,7 @@ http://<router-lan-ip>:8081/        # MikAdminLanPort
   single link. Parsed locally; nothing leaves the router. Redirects are
   followed (max three, https only; a downgrade to plain http is refused).
 - **Test**: each config gets its own short-lived engine with a mixed inbound,
-  then a `generate_204` check and a 10 MB download. The live tunnel keeps
+  then a `generate_204` check and a 50 MB download. The live tunnel keeps
   running throughout. "Test all" walks the list; "Cancel" stops it.
   The result shows which engine ran (sing-box or Xray).
 - **Connect**: the router's traffic moves to that config. The switch is
