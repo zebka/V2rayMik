@@ -22,6 +22,38 @@ http://<router-lan-ip>:8081/        # MikAdminLanPort
   running throughout. Each config has its own **Test** button; there is
   no "test all" mode.
   The result shows which engine ran (sing-box or Xray).
+
+## How the speed test works
+
+For every config a separate engine — sing-box or Xray, whichever the link
+needs — starts inside the container with a SOCKS inbound on `127.0.0.1:10800`.
+The candidate does not touch the live tunnel:
+
+1. **Endpoint resolution.** The node's hostname is resolved through the
+   container's resolver. Private and reserved answers (`10.x`, `172.16–31.x`,
+   `192.168.x`, `100.64/10` and so on — the classic poisoned-DNS answer) are
+   refused, and the public resolvers `1.1.1.1` and `8.8.8.8` are asked as well.
+   The resolved address is pinned into the outbound; the engine never
+   re-resolves, so a CDN node is tested on the same address the router will
+   dial.
+2. **Bypass route.** For the duration of the test a `/32` route pins the node
+   address to the real egress interface, so the test traffic does not loop
+   into the live tunnel. The route is deleted afterwards (unless the live
+   config already owned it).
+3. **Latency check.** `http://connectivitycheck.gstatic.com/generate_204`
+   through the temporary engine. This is the number shown in milliseconds.
+4. **Download.** `speed.cloudflare.com/__down?bytes=<N>` through the same
+   engine. You pick 10, 50 or 99 MB (default 50). The reported value is the
+   effective rate for the whole download (bytes × 8 / seconds), not the
+   instantaneous peak, and a small file skews low because the link is still
+   ramping up — which is why 99 MB reads higher than 10 MB for the same node.
+5. **Exit country.** `1.1.1.1/cdn-cgi/trace` over HTTPS through the same
+   engine; the `loc=` line says in which country that node exits.
+
+The time limit scales with the chosen size (1 s per MB plus ~30 s of ramp,
+capped at 240 s). Only one test runs at a time; a stale lock is released when
+its owner has gone. The 10 MB test uses ~10 MB of traffic, the 99 MB test
+~99 MB per measured node.
 - **Connect**: the router's traffic moves to that config. The switch is
   verified (TUN up, routes right, 204 through the tunnel) and rolls back
   automatically if the new node does not come up. Expect ~2–3 seconds of
