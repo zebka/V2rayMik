@@ -1,4 +1,10 @@
 # Changelog
+## 1.3.12 - 2026-11-14
+
+### Changed
+
+- Panel header: removed the "LAN only · no password" line.
+
 ## 1.3.11 - 2026-11-14
 
 ### Changed
