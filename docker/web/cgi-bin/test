@@ -12,6 +12,7 @@ case "$idx" in ''|*[!0-9]*) fail_json "400 Bad Request" "bad index" ;; esac
 [ "$gen" = "$(gen_of "$SUB_FILE")" ] || fail_json "409 Conflict" "the list changed, reload"
 
 lock_try || fail_json "409 Conflict" "a test is already running"
+trap 'lock_release' EXIT
 
 result=$(xtest_run "$idx")
 

@@ -77,14 +77,20 @@ resolve_endpoint() {
   fi
   i=0
   while [ "$i" -lt 10 ]; do
-    ip=$(nslookup "$host" 2>/dev/null \
-         | awk '/^Address[ 0-9]*:/ {print $NF}' \
-         | grep -E '^[0-9]{1,3}(\.[0-9]{1,3}){3}$' \
-         | grep -v '^127\.' | head -n 1)
-    if [ -n "$ip" ]; then
-      printf '%s\n' "$ip"
-      return 0
-    fi
+    # Local resolvers are sometimes poisoned: they answer with a private or
+    # filter address (10.x, 172.16-31.x, 192.168.x, 100.64/10). A real node is
+    # public, so those answers are skipped and the public resolvers are asked.
+    for server in "" 1.1.1.1 8.8.8.8; do
+      ip=$(nslookup "$host" $server 2>/dev/null \
+           | awk '/^Address[ 0-9]*:/ {print $NF}' \
+           | grep -E '^[0-9]{1,3}(\.[0-9]{1,3}){3}$' \
+           | grep -Ev '^(127|0|10)\.|^192\.168\.|^172\.(1[6-9]|2[0-9]|3[01])\.|^100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.|^169\.254\.' \
+           | head -n 1)
+      if [ -n "$ip" ]; then
+        printf '%s\n' "$ip"
+        return 0
+      fi
+    done
     i=$((i + 1))
     [ "$i" -lt 10 ] && sleep 3
   done

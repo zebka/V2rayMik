@@ -1,4 +1,15 @@
 # Changelog
+## 1.3.19 - 2026-11-14
+
+### Fixed
+
+- "a test is already running" stayed after a test was cut off, for example by
+  reloading the page. The lock is now released when its owner has exited, and
+  a test releases it on any exit.
+- The endpoint resolver could pin a private address (such as `10.10.34.35`)
+  from a poisoned local resolver. Private and reserved answers are now
+  skipped, and the public resolvers `1.1.1.1` and `8.8.8.8` are asked too.
+
 ## 1.3.18 - 2026-11-14
 
 ### Fixed

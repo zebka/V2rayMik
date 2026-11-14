@@ -83,8 +83,11 @@ lock_try() {
     printf '%s' "$$" > "$DATA_DIR/lock.d/pid"
     return 0
   fi
-  # stale lock: a test that died without cleaning up
-  if [ -n "$(find "$DATA_DIR/lock.d" -mmin +$((ADMIN_LOCK_TTL / 60 + 1)) 2>/dev/null)" ]; then
+  # stale lock: the request that took it has exited (for example, the page was
+  # reloaded while a test ran), or it has run past the time limit
+  owner=$(cat "$DATA_DIR/lock.d/pid" 2>/dev/null)
+  if [ -z "$owner" ] || ! kill -0 "$owner" 2>/dev/null \
+     || [ -n "$(find "$DATA_DIR/lock.d" -mmin +$((ADMIN_LOCK_TTL / 60 + 1)) 2>/dev/null)" ]; then
     rm -rf "$DATA_DIR/lock.d"
     mkdir "$DATA_DIR/lock.d" 2>/dev/null && { printf '%s' "$$" > "$DATA_DIR/lock.d/pid"; return 0; }
   fi
@@ -93,4 +96,7 @@ lock_try() {
 
 lock_held() { [ -d "$DATA_DIR/lock.d" ]; }
 
-lock_release() { rm -rf "$DATA_DIR/lock.d"; }
+lock_release() {
+  [ "$(cat "$DATA_DIR/lock.d/pid" 2>/dev/null)" = "$$" ] && rm -rf "$DATA_DIR/lock.d"
+  return 0
+}
