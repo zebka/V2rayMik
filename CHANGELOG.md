@@ -1,4 +1,12 @@
 # Changelog
+## 1.3.11 - 2026-11-14
+
+### Changed
+
+- Panel layout: a compact status line, a small versions line, the subscription
+  form folded away under a heading, and configs as plain rows with dividers
+  instead of boxed cards.
+
 ## 1.3.10 - 2026-11-14
 
 ### Fixed

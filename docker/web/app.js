@@ -62,16 +62,16 @@ function renderRows() {
     const country = res.country ? flag(res.country) + " " + esc(res.country) : "";
     const speed = res.mbps ? res.mbps + " Mbps" : "";
 
-    const card = document.createElement("div");
-    card.className = "item";
-    card.innerHTML =
-      '<div class="name">' + (e.i + 1) + ". " + esc(e.label) + "</div>" +
-      '<div class="meta muted">' + esc(e.host) + ":" + esc(e.port) +
-        (engine ? ' <span class="pill" title="core">' + esc(engine) + "</span>" : "") + "</div>" +
-      '<div class="meta">' + delay + (country ? "<span>" + country + "</span>" : "") +
-        (speed ? "<span>" + esc(speed) + "</span>" : "") + "</div>";
+    const row = document.createElement("div");
+    row.className = "cfg";
+    row.innerHTML =
+      '<div class="info"><div class="name">' + (e.i + 1) + ". " + esc(e.label) + "</div>" +
+      '<div class="host">' + esc(e.host) + ":" + esc(e.port) +
+        (engine ? ' · <span class="pill">' + esc(engine) + "</span>" : "") + "</div></div>" +
+      '<div class="result">' + delay +
+        (country ? " · " + country : "") + (speed ? " · " + esc(speed) : "") + "</div>";
     const actions = document.createElement("div");
-    actions.className = "actions";
+    actions.className = "btns";
     const testBtn = document.createElement("button");
     testBtn.textContent = "Test";
     testBtn.disabled = BUSY;
@@ -82,8 +82,8 @@ function renderRows() {
     connBtn.disabled = BUSY;
     connBtn.onclick = () => connect(e.i);
     actions.append(testBtn, connBtn);
-    card.append(actions);
-    box.append(card);
+    row.append(actions);
+    box.append(row);
   });
 }
 

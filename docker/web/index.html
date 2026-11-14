@@ -7,97 +7,96 @@
 <meta name="referrer" content="no-referrer">
 <title>V2rayMik</title>
 <style>
-  :root { color-scheme: light dark; --line:#8a8a8a40; --accent:#3b82f6; --bad:#dc2626; --good:#16a34a; }
+  :root { color-scheme: light dark; --line:#8a8a8a33; --accent:#3b82f6; --bad:#dc2626; --good:#16a34a; }
   * { box-sizing: border-box; }
-  body { margin:0; padding:1rem; font:15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  h1 { font-size:1.25rem; margin:0 0 .2rem; }
-  h2 { font-size:.95rem; margin:0; font-weight:600; }
-  .card { border:1px solid var(--line); border-radius:12px; padding:1rem; margin:0 0 .9rem; background:rgba(127,127,127,.04); }
-  .card-head { display:flex; justify-content:space-between; align-items:center; gap:.5rem; flex-wrap:wrap; margin-bottom:.75rem; }
-  .muted { opacity:.65; font-size:.85rem; }
+  body { margin:0; padding:1rem; font:14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; max-width:46rem; margin-inline:auto; }
+  h1 { font-size:1.1rem; margin:0; font-weight:700; }
+  h2 { font-size:.85rem; margin:0; font-weight:600; text-transform:uppercase; letter-spacing:.05em; opacity:.7; }
+  .muted { opacity:.6; font-size:.82rem; }
   .row { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
-  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(8.5rem,1fr)); gap:.6rem; }
-  .stat { border:1px solid var(--line); border-radius:10px; padding:.6rem .7rem; min-width:0; }
-  .stat .k { font-size:.72rem; opacity:.65; text-transform:uppercase; letter-spacing:.04em; }
-  .stat .v { font-size:1rem; font-weight:600; overflow-wrap:anywhere; margin-top:.15rem; }
-  .update-note { margin:.6rem 0 0; }
+  .head { display:flex; justify-content:space-between; align-items:baseline; gap:.5rem; flex-wrap:wrap; margin:.9rem 0 .4rem; }
+  .facts { display:flex; flex-wrap:wrap; gap:.3rem 1rem; font-size:.88rem; }
+  .facts b { font-weight:600; }
+  .panel { border-top:1px solid var(--line); padding-top:.5rem; margin-top:.6rem; }
+  .versions { display:flex; flex-wrap:wrap; gap:.3rem 1rem; align-items:center; font-size:.88rem; }
+  .update-note { margin:.4rem 0 0; font-size:.82rem; }
   .update-note.new { color:var(--accent); opacity:1; }
   input, textarea, button { font:inherit; }
-  input[type=text], input[type=password], textarea {
-    width:100%; padding:.5rem .6rem; border:1px solid var(--line); border-radius:8px; background:transparent; color:inherit;
+  input[type=text], textarea {
+    width:100%; padding:.45rem .6rem; border:1px solid var(--line); border-radius:8px; background:transparent; color:inherit;
   }
-  textarea { min-height:5.5rem; resize:vertical; }
-  button { padding:.45rem .8rem; border-radius:8px; border:1px solid var(--line); background:transparent; color:inherit; cursor:pointer; }
+  textarea { min-height:4.5rem; resize:vertical; }
+  button { padding:.3rem .7rem; border-radius:7px; border:1px solid var(--line); background:transparent; color:inherit; cursor:pointer; font-size:.88rem; }
   button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
-  button:disabled { opacity:.45; cursor:default; }
+  button:disabled { opacity:.4; cursor:default; }
   .ok { color:var(--good); } .bad { color:var(--bad); }
-  .pill { display:inline-block; padding:.05rem .45rem; border-radius:99px; border:1px solid var(--line); font-size:.78rem; }
+  .pill { display:inline-block; padding:0 .45rem; border-radius:99px; border:1px solid var(--line); font-size:.75rem; }
   [hidden] { display:none !important; }
-  .list { display:flex; flex-direction:column; gap:.6rem; }
-  .item { border:1px solid var(--line); border-radius:10px; padding:.7rem .8rem; display:flex; flex-direction:column; gap:.4rem; }
-  .item .name { font-weight:600; overflow-wrap:anywhere; }
-  .item .meta { display:flex; gap:.35rem .9rem; flex-wrap:wrap; align-items:center; font-size:.88rem; }
-  .item .actions { display:flex; gap:.5rem; margin-top:.2rem; flex-wrap:wrap; }
-  label.check { display:flex; gap:.4rem; align-items:center; font-size:.85rem; }
+  details summary { cursor:pointer; list-style:none; }
+  details summary::-webkit-details-marker { display:none; }
+  details summary h2::after { content:" ▾"; opacity:.6; }
+  details[open] summary h2::after { content:" ▴"; }
+  .configs { margin-top:.2rem; }
+  .cfg { display:flex; flex-wrap:wrap; align-items:center; gap:.3rem .8rem; padding:.55rem 0; border-top:1px solid var(--line); }
+  .cfg:first-child { border-top:0; }
+  .cfg .info { flex:1 1 12rem; min-width:0; }
+  .cfg .name { font-weight:600; overflow-wrap:anywhere; }
+  .cfg .host { font-size:.8rem; opacity:.6; overflow-wrap:anywhere; }
+  .cfg .result { font-size:.85rem; white-space:nowrap; }
+  .cfg .btns { display:flex; gap:.35rem; }
+  .sub-form { margin-top:.5rem; }
+  .sub-form .row { margin-top:.4rem; }
 </style>
 </head>
 <body>
-<h1>V2rayMik</h1>
-<p class="muted">Exit node selection for this router. Reachable from the LAN only — no password, no login.</p>
+<div class="head">
+  <h1>V2rayMik</h1>
+  <span class="muted">LAN only · no password</span>
+</div>
 
-<div id="app">
-  <div class="card">
-    <div class="card-head">
-      <h2>Status</h2>
-      <span id="busy" class="pill" hidden>testing...</span>
-    </div>
-    <div class="stats">
-      <div class="stat"><div class="k">Active node</div><div class="v" id="activeLabel">—</div></div>
-      <div class="stat"><div class="k">Engine</div><div class="v" id="engineState">—</div></div>
-      <div class="stat"><div class="k">Tunnel</div><div class="v" id="tunState">—</div></div>
-      <div class="stat"><div class="k">Configs</div><div class="v" id="countState">—</div></div>
+<div class="facts" id="app">
+  <span>Node <b id="activeLabel">—</b></span>
+  <span>Engine <b id="engineState">—</b></span>
+  <span>Tunnel <b id="tunState">—</b></span>
+  <span>Configs <b id="countState">—</b></span>
+  <span id="busy" class="pill" hidden>testing...</span>
+</div>
+
+<div class="panel">
+  <div class="head" style="margin:0 0 .3rem">
+    <h2>Versions</h2>
+    <button id="checkUpdate" type="button">Check for update</button>
+  </div>
+  <div class="versions">
+    <span>Container <b id="versionState">—</b></span>
+    <span>sing-box <b id="singboxState">—</b></span>
+    <span>Xray <b id="xrayState">—</b></span>
+  </div>
+  <p class="muted update-note" id="updateMsg">Compares with the newest release on GitHub. Changes nothing.</p>
+</div>
+
+<details class="panel sub-form">
+  <summary><h2>Subscription</h2></summary>
+  <form id="subForm">
+    <input id="subUrl" type="text" placeholder="https://.../sub  (base64 or plain links)">
+    <textarea id="subLinks" placeholder="or paste links: vless://, vmess://, hysteria2://..." style="margin-top:.4rem"></textarea>
+    <p class="row">
+      <button class="primary" type="submit">Load</button>
+      <span class="muted" id="subMsg"></span>
+    </p>
+  </form>
+</details>
+
+<div class="panel configs">
+  <div class="head" style="margin:0 0 .2rem">
+    <h2>Configs</h2>
+    <div class="row">
+      <button id="testAll">Test all</button>
+      <button id="cancel" disabled>Cancel</button>
     </div>
   </div>
-
-  <div class="card">
-    <div class="card-head">
-      <h2>Versions</h2>
-      <button id="checkUpdate" type="button">Check for update</button>
-    </div>
-    <div class="stats">
-      <div class="stat"><div class="k">Container</div><div class="v" id="versionState">—</div></div>
-      <div class="stat"><div class="k">sing-box</div><div class="v" id="singboxState">—</div></div>
-      <div class="stat"><div class="k">Xray</div><div class="v" id="xrayState">—</div></div>
-    </div>
-    <p class="muted update-note" id="updateMsg">Press "Check for update" to compare with the newest release on GitHub.</p>
-  </div>
-
-  <div class="card">
-    <div class="card-head">
-      <h2>Subscription</h2>
-    </div>
-    <form id="subForm">
-      <input id="subUrl" type="text" placeholder="https://.../sub  (v2ray base64 or plain links)">
-      <label class="muted" for="subLinks" style="display:block;margin:.6rem 0 .3rem">...or paste one or more links</label>
-      <textarea id="subLinks" placeholder="vless://...&#10;vmess://...&#10;hysteria2://..."></textarea>
-      <p class="row" style="margin:.6rem 0 0">
-        <button class="primary" type="submit">Load</button>
-        <span class="muted" id="subMsg"></span>
-      </p>
-    </form>
-  </div>
-
-  <div class="card">
-    <div class="card-head">
-      <h2>Configs</h2>
-      <div class="row">
-        <button id="testAll">Test all</button>
-        <button id="cancel" disabled>Cancel</button>
-      </div>
-    </div>
-    <p class="muted" id="testMsg" style="margin:0 0 .6rem"></p>
-    <div class="list" id="rows"><p class="muted">No configs yet.</p></div>
-  </div>
+  <p class="muted" id="testMsg" style="margin:0 0 .2rem;min-height:1.2em"></p>
+  <div id="rows"><p class="muted">No configs yet.</p></div>
 </div>
 
 <script src="app.js" defer></script>
