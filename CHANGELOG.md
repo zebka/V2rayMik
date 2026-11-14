@@ -1,4 +1,13 @@
 # Changelog
+## 1.3.25 - 2026-11-15
+
+### Added
+
+- The panel now explains the test under the size selector, as a collapsed
+  "How the test works" section: per-link engine on 127.0.0.1:10800, resolver
+  with private answers refused, /32 bypass, generate_204 check, the picked
+  download size, and the exit country.
+
 ## 1.3.24 - 2026-11-15
 
 ### Removed

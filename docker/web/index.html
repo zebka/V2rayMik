@@ -49,6 +49,8 @@
   .sub-form .row { margin-top:.4rem; }
   .size-pick { display:flex; align-items:center; gap:.5rem; font-size:.82rem; opacity:.75; margin:0 0 .5rem; }
   .size-pick select { width:auto; padding:.25rem 1.6rem .25rem .45rem; font-size:.82rem; }
+  .how-test { font-size:.8rem; opacity:.75; margin:-.2rem 0 .6rem; }
+  .how-test summary { cursor:pointer; width:max-content; }
 </style>
 </head>
 <body>
@@ -113,6 +115,10 @@
       <option value="99">99 MB</option>
     </select>
   </label>
+  <details class="how-test">
+    <summary>How the test works</summary>
+    <p>For every config a throwaway engine starts on 127.0.0.1:10800 (sing-box or Xray, per the link). The node's hostname is resolved through the container; private or poisoned answers are refused and 1.1.1.1 / 8.8.8.8 are also asked, then the address is pinned so nothing re-resolves. A temporary /32 route via the real interface stops the test from looping into the live tunnel. The test pings Google's <code>generate_204</code> (that's the ms number), downloads the size you picked from <code>speed.cloudflare.com</code>, and reads the exit country from <code>1.1.1.1/cdn-cgi/trace</code>. The speed is the effective rate of the whole download, so a bigger file reads higher. One test runs at a time.</p>
+  </details>
   <div id="rows"><p class="muted">No configs yet.</p></div>
 </div>
 
