@@ -130,7 +130,7 @@
     <button id="copyBtn" class="primary">Copy</button>
     <button id="downloadBtn">Download .rsc snippet</button>
   </div>
-  <p class="hint" style="margin-top:.7rem"><span class="ok">Next:</span> <code>/tool fetch url="https://raw.githubusercontent.com/zebka/V2rayMik/v1.3.21/router/v2raymik.rsc" dst-path=v2raymik.rsc; /import file-name=v2raymik.rsc</code> — paste your block at the very top, before the import.</p>
+  <p class="hint" style="margin-top:.7rem"><span class="ok">Next:</span> <code>/tool fetch url="https://raw.githubusercontent.com/zebka/V2rayMik/v1.3.22/router/v2raymik.rsc" dst-path=v2raymik.rsc; /import file-name=v2raymik.rsc</code> — paste your block at the very top, before the import.</p>
 </div>
 
 <script nonce="random123">
@@ -169,7 +169,7 @@
 
     if (out.length === 0) return '// All defaults selected — nothing to override. Paste the import line only.';
     out.unshift('// V2rayMik setup block. Edit, then import.');
-    out.push('// Import:\n// /tool fetch url="https://raw.githubusercontent.com/zebka/V2rayMik/v1.3.21/router/v2raymik.rsc" dst-path=v2raymik.rsc; /import file-name=v2raymik.rsc');
+    out.push('// Import:\n// /tool fetch url="https://raw.githubusercontent.com/zebka/V2rayMik/v1.3.22/router/v2raymik.rsc" dst-path=v2raymik.rsc; /import file-name=v2raymik.rsc');
     return out.join('\n');
   }
 

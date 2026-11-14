@@ -113,17 +113,35 @@ xtest_measure() {
   country=""
   err=""
   if [ "$code" = "204" ]; then
-    # A bigger file measures the steady rate: a small one ends while the link
-    # is still ramping up, so it reports less than the node can carry.
-    # Time limit: default scales with the size (1 s per MB plus 30 s of ramp),
-    # capped at 240 s and never under 30 s.
+    # Cloudflare refuses __down for bytes >= 100000000 (403). Download in
+    # chunks of 99,999,000 until the requested size is reached and report the
+    # aggregate: bps averaged over every chunk. Time budget is shared across
+    # the chunks.
     tmax=${SPEED_MAX_TIME:-$((bytes / 1000000 + 30))}
     [ "$tmax" -gt 240 ] && tmax=240
     [ "$tmax" -lt 30 ] && tmax=30
-    bps=$(curl -s -o /dev/null --max-time "$tmax" \
-          --socks5-hostname "127.0.0.1:$port" \
-          -w '%{speed_download}' "${SPEED_URL%bytes=*}bytes=$bytes" 2>/dev/null || true)
-    mbps=$(awk -v b="${bps:-0}" 'BEGIN { printf "%.1f", b * 8 / 1000000 }')
+    total_b=0
+    total_ms=0
+    budget_ms=$((tmax * 1000))
+    remaining=$bytes
+    while [ "$remaining" -gt 0 ] && [ "$total_ms" -lt "$budget_ms" ]; do
+      chunk=$remaining
+      [ "$chunk" -gt 99999000 ] && chunk=99999000
+      left_s=$(( (budget_ms - total_ms + 999) / 1000 ))
+      out=$(curl -s -o /dev/null --max-time "$left_s" \
+            --socks5-hostname "127.0.0.1:$port" \
+            -w '%{size_download} %{time_total}' "${SPEED_URL%bytes=*}bytes=$chunk" 2>/dev/null || true)
+      cb=${out%% *}
+      cs=${out##* }
+      case "$cb" in ''|*[!0-9]*) cb=0 ;; esac
+      ms=$(awk -v s="${cs:-0}" 'BEGIN { printf "%d", s * 1000 }')
+      total_b=$((total_b + cb))
+      total_ms=$((total_ms + ms))
+      remaining=$((bytes - total_b))
+      # An empty or failed chunk ends the loop instead of spinning
+      [ "$cb" -gt 0 ] || break
+    done
+    mbps=$(awk -v b="$total_b" -v t="$total_ms" 'BEGIN { if (t > 0) printf "%.1f", b * 8 / (t / 1000) / 1000000; else print "0.0" }')
 
     # Where does that node actually exit? Cloudflare's trace answers with
     # `loc=<country>` for the address it sees, queried through the same proxy.

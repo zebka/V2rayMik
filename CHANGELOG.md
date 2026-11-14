@@ -1,4 +1,21 @@
 # Changelog
+## 1.3.22 - 2026-11-15
+
+### Added
+
+- 99 MB speed-test size in the panel.
+
+### Fixed
+
+- 100 MB and 200 MB speed tests silently reported no speed. Cloudflare
+  refuses `__down` for bytes ≥ 100,000,000 with a 403 (a 1-byte body), so the
+  measured rate was ~0 and the panel showed only the delay. Sizes at or above
+  100 MB are now downloaded in 99,999,000-byte chunks and the rate is the
+  summed bytes over the summed time.
+- The fixed 60 s speed-download limit would not have fit a 100–200 MB test.
+  The limit now scales with the size (about 1 s per MB plus 30 s of ramp,
+  capped at 240 s).
+
 ## 1.3.21 - 2026-11-15
 
 ### Added
