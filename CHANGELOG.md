@@ -1,4 +1,11 @@
 # Changelog
+## 1.3.18 - 2026-11-14
+
+### Fixed
+
+- Long error text in a config row pushed the Test and Connect buttons out of
+  place. The result now sits on its own line under the config info and wraps.
+
 ## 1.3.17 - 2026-11-14
 
 ### Changed
