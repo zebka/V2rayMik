@@ -147,10 +147,10 @@ enable_forwarding() {
 # ---------------------------------------------------------------------------
 
 status_write() {
-  # $1 up|false  $2 label  $3 engine
+  # $1 up|false  $2 label  $3 engine  $4 last problem (optional)
   mkdir -p "$DATA_DIR"
-  printf '{"up":%s,"label":"%s","at":%s,"engine":"%s"}\n' \
-    "$1" "$(json_escape "${2:-}")" "$(date +%s)" "$(json_escape "${3:-}")" > "$STATUS_FILE.tmp" \
+  printf '{"up":%s,"label":"%s","at":%s,"engine":"%s","problem":"%s"}\n' \
+    "$1" "$(json_escape "${2:-}")" "$(date +%s)" "$(json_escape "${3:-}")" "$(json_escape "${4:-}")" > "$STATUS_FILE.tmp" \
     && mv -f "$STATUS_FILE.tmp" "$STATUS_FILE"
 }
 
@@ -321,9 +321,11 @@ supervise() {
         status_write true "$ACTIVE_LABEL" "$ENGINE"
       else
         log "route-not-installed: traffic is not entering $TUN_NAME"
+        status_write false "" "" "route-not-installed"
       fi
     else
       log "tun-not-ready: $TUN_NAME did not appear"
+      status_write false "" "" "tun-not-ready"
     fi
 
     wait "$xpid" || true

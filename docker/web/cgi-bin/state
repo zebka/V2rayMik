@@ -18,10 +18,24 @@ fi
 tun=false
 [ -d /sys/class/net/tun0 ] && tun=true
 
+# Only a tunnel that is up has a meaningful "since".
+[ "$tun" = true ] || up_since=0
+
 # The engine that is actually running, when the supervisor said something.
 run_engine=""
+up_since=0
+problem=""
 if [ -f "$STATUS_FILE" ]; then
   run_engine=$(jq -r '.engine // ""' "$STATUS_FILE" 2>/dev/null)
+  up_since=$(jq -r '.at // 0' "$STATUS_FILE" 2>/dev/null)
+  problem=$(jq -r '.problem // ""' "$STATUS_FILE" 2>/dev/null)
+fi
+# DNS is hijacked into the proxy when the rendered sing-box config says so.
+# This is what the config asks for, not a live probe.
+dns_via_tunnel=false
+if [ -f "${SINGBOX_CONFIG:-/etc/sing-box/config.json}" ] \
+   && jq -e '.route.rules[]? | select(.action=="hijack-dns")' "${SINGBOX_CONFIG:-/etc/sing-box/config.json}" >/dev/null 2>&1; then
+  dns_via_tunnel=true
 fi
 
 # The versions are written at build time: the repository's VERSION file (also
@@ -32,4 +46,4 @@ xray=$(cat /app/XRAY_VERSION 2>/dev/null || echo "unknown")
 
 list=$(subs_list "$SUB_FILE")
 
-ok_json "{\"ok\":true,\"gen\":\"$(json_escape "$gen")\",\"count\":$count,\"label\":\"$(json_escape "$label")\",\"index\":$index,\"engine\":\"$(json_escape "$engine")\",\"run_engine\":\"$(json_escape "$run_engine")\",\"testing\":$testing,\"tun\":$tun,\"version\":\"$(json_escape "$version")\",\"singbox\":\"$(json_escape "$singbox")\",\"xray\":\"$(json_escape "$xray")\",\"list\":$list}"
+ok_json "{\"ok\":true,\"gen\":\"$(json_escape "$gen")\",\"count\":$count,\"label\":\"$(json_escape "$label")\",\"index\":$index,\"engine\":\"$(json_escape "$engine")\",\"run_engine\":\"$(json_escape "$run_engine")\",\"testing\":$testing,\"tun\":$tun,\"up_since\":$up_since,\"problem\":\"$(json_escape "$problem")\",\"container\":\"$(json_escape "${CONTAINER_NAME:-v2raymik}")\",\"dns_via_tunnel\":$dns_via_tunnel,\"version\":\"$(json_escape "$version")\",\"singbox\":\"$(json_escape "$singbox")\",\"xray\":\"$(json_escape "$xray")\",\"list\":$list}"

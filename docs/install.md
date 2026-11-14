@@ -15,7 +15,7 @@ missing, so an existing install is left running.
 To pin a fixed release instead of `main`, point the URL at a tag:
 
 ```rsc
-/tool fetch url="https://raw.githubusercontent.com/zebka/V2rayMik/v1.3.13/router/v2raymik.rsc" dst-path=v2raymik.rsc; /import file-name=v2raymik.rsc
+/tool fetch url="https://raw.githubusercontent.com/zebka/V2rayMik/v1.3.14/router/v2raymik.rsc" dst-path=v2raymik.rsc; /import file-name=v2raymik.rsc
 ```
 
 If the router cannot reach GitHub, download `router/v2raymik.rsc` from the

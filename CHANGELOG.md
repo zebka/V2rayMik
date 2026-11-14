@@ -1,4 +1,19 @@
 # Changelog
+## 1.3.14 - 2026-11-14
+
+### Added
+
+- **Ready-to-run update command.** When the panel finds a newer release, it
+  shows `/container/repull` for the container with a Copy button. Nothing runs
+  on its own.
+- **Health card.** Shows how long the tunnel has been up, the last problem the
+  supervisor recorded (`tun-not-ready` or `route-not-installed`), and whether
+  DNS is set to go through the tunnel.
+
+### Changed
+
+- The panel no longer shows the "LAN only" subtitle.
+
 ## 1.3.13 - 2026-11-14
 
 ### Fixed

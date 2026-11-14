@@ -21,6 +21,7 @@
   .versions { display:flex; flex-wrap:wrap; gap:.3rem 1rem; align-items:center; font-size:.88rem; }
   .update-note { margin:.4rem 0 0; font-size:.82rem; }
   .update-note.new { color:var(--accent); opacity:1; }
+  .cmd { margin:.5rem 0 0; padding:.5rem .6rem; border:1px solid var(--line); border-radius:8px; font:.82rem/1.4 ui-monospace, Consolas, monospace; white-space:pre-wrap; overflow-wrap:anywhere; }
   input, textarea, button { font:inherit; }
   input[type=text], textarea {
     width:100%; padding:.45rem .6rem; border:1px solid var(--line); border-radius:8px; background:transparent; color:inherit;
@@ -72,6 +73,19 @@
     <span>Xray <b id="xrayState">—</b></span>
   </div>
   <p class="muted update-note" id="updateMsg">Compares with the newest release on GitHub. Changes nothing.</p>
+  <div id="repullWrap" hidden>
+    <pre class="cmd" id="repullBox" hidden></pre>
+    <p class="row" style="margin:.4rem 0 0"><button id="copyRepull" type="button">Copy</button></p>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="head" style="margin:0 0 .3rem"><h2>Health</h2></div>
+  <div class="facts">
+    <span>Up since <b id="upSince">—</b></span>
+    <span>Last problem <b id="problemState">—</b></span>
+    <span>DNS <b id="dnsState">—</b></span>
+  </div>
 </div>
 
 <details class="panel sub-form">

@@ -5,6 +5,7 @@ let ENTRIES = [];
 let TESTED = {};
 let CANCELLED = false;
 let BUSY = false;
+let CONTAINER_NAME = "v2raymik";
 
 const $ = (id) => document.getElementById(id);
 
@@ -87,6 +88,23 @@ function renderRows() {
   });
 }
 
+function ago(ts) {
+  if (!ts) return "—";
+  const s = Math.max(0, Math.floor(Date.now() / 1000) - ts);
+  if (s < 60) return s + " s ago";
+  if (s < 3600) return Math.floor(s / 60) + " min ago";
+  if (s < 86400) return Math.floor(s / 3600) + " h ago";
+  return Math.floor(s / 86400) + " d ago";
+}
+
+function renderHealth(r) {
+  $("upSince").textContent = r.up_since ? ago(r.up_since) : (r.tun ? "—" : "down");
+  $("problemState").textContent = r.problem || "none";
+  $("problemState").className = r.problem ? "bad" : "ok";
+  $("dnsState").textContent = r.dns_via_tunnel ? "through tunnel" : "not through tunnel";
+  $("dnsState").className = r.dns_via_tunnel ? "ok" : "bad";
+}
+
 function setBusy(b) {
   BUSY = b;
   $("busy").hidden = !b;
@@ -102,7 +120,9 @@ async function load() {
   $("activeLabel").textContent = r.label || "environment";
   $("tunState").textContent = r.tun ? "up" : "down";
   $("countState").textContent = r.count;
+  CONTAINER_NAME = r.container || "v2raymik";
   $("versionState").textContent = r.version || "dev";
+  renderHealth(r);
   $("singboxState").textContent = r.singbox || "—";
   $("xrayState").textContent = r.xray || "—";
   $("engineState").textContent = r.run_engine || r.engine || "—";
@@ -161,17 +181,37 @@ async function connect(i) {
   }
 }
 
+function showRepull(latest) {
+  const cmd = "/container/repull [find where name=\"" + CONTAINER_NAME + "\"]";
+  $("repullBox").textContent = "# v" + latest + ": run this on the router\n" + cmd;
+  $("repullBox").hidden = false;
+  $("repullWrap").hidden = false;
+}
+
+$("copyRepull").onclick = async () => {
+  try {
+    await navigator.clipboard.writeText($("repullBox").textContent);
+    $("copyRepull").textContent = "Copied";
+  } catch (_) {
+    $("copyRepull").textContent = "Select and copy";
+  }
+};
+
 $("checkUpdate").onclick = async () => {
   const msg = $("updateMsg");
   msg.className = "muted update-note";
   msg.textContent = "checking...";
+  $("repullBox").hidden = true;
+  $("repullWrap").hidden = true;
+  $("copyRepull").textContent = "Copy";
   try {
     const r = await api("update");
     if (!r.latest) {
       msg.textContent = "Could not check: " + (r.error || "no answer from GitHub") + ".";
     } else if (r.update) {
       msg.className = "update-note new";
-      msg.textContent = "New release " + r.latest + " is out (you run " + r.current + "). Update the container on the router: /container/repull.";
+      msg.textContent = "New release " + r.latest + " is out (you run " + r.current + "). Run this on the router:";
+      showRepull(r.latest);
     } else {
       msg.textContent = "You run the newest release (" + r.current + ").";
     }
