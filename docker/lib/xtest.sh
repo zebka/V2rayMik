@@ -15,7 +15,7 @@ SPEED_URL=${SPEED_URL:-https://speed.cloudflare.com/__down?bytes=$SPEED_BYTES}
 # `loc=` line, so a plain-HTTP trace reports nothing while the node is fine.
 TRACE_URL=${TRACE_URL:-https://1.1.1.1/cdn-cgi/trace}
 # The time limit scales with the size chosen in the panel: a 10 MB test gets
-# ~40 s, a 200 MB test up to 230 s. Set SPEED_MAX_TIME to fix it explicitly.
+# ~40 s, a 99 MB test up to ~130 s. Set SPEED_MAX_TIME to fix it explicitly.
 SPEED_MAX_TIME=${SPEED_MAX_TIME:-}
 CHECK_MAX_TIME=${CHECK_MAX_TIME:-8}
 TRACE_MAX_TIME=${TRACE_MAX_TIME:-6}

@@ -17,9 +17,8 @@ http://<router-lan-ip>:8081/        # MikAdminLanPort
   single link. Parsed locally; nothing leaves the router. Redirects are
   followed (max three, https only; a downgrade to plain http is refused).
 - **Test**: each config gets its own short-lived engine with a mixed inbound,
-  then a `generate_204` check and a download of a 10–200 MB file (your choice,
-default 50 MB; Cloudflare refuses ≥ 100 MB in one request, so larger sizes are
-downloaded in chunks and summed). The live tunnel keeps
+  then a `generate_204` check and a download of a 10, 50 or 99 MB file (your
+  choice, default 50 MB). The live tunnel keeps
   running throughout. Each config has its own **Test** button; there is
   no "test all" mode.
   The result shows which engine ran (sing-box or Xray).

@@ -1,4 +1,13 @@
 # Changelog
+## 1.3.24 - 2026-11-15
+
+### Removed
+
+- The 100 MB and 200 MB speed-test sizes. Cloudflare's `__down` endpoint
+  refuses those in one request, and offering them made the test 2–4x slower
+  for little extra information over 99 MB. The choices are now 10, 50 and
+  99 MB (default 50).
+
 ## 1.3.23 - 2026-11-15
 
 ### Removed

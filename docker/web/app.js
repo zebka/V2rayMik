@@ -6,7 +6,7 @@ let TESTED = {};
 let BUSY = false;
 let CONTAINER_NAME = "v2raymik";
 
-/* Remembered per browser, so a user who wants 200 MB is not asked again. */
+/* Remembered per browser. */
 const SIZE = () => localStorage.getItem("testSize") || "50";
 
 const $ = (id) => document.getElementById(id);
