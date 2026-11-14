@@ -46,7 +46,9 @@ COPY --chmod=755 entrypoint.sh /app/entrypoint.sh
 COPY --chmod=755 lib/ /app/lib/
 COPY web/ /app/web/
 COPY --chmod=755 web/cgi-bin/ /app/web/cgi-bin/
-RUN printf '%s\n' "$VERSION" > /app/VERSION
+RUN printf '%s\n' "$VERSION" > /app/VERSION \
+ && printf '%s\n' "$SING_BOX_VERSION" > /app/SINGBOX_VERSION \
+ && printf '%s\n' "$XRAY_VERSION" > /app/XRAY_VERSION
 LABEL org.opencontainers.image.version=$VERSION
 LABEL org.opencontainers.image.title=v2raymik \
       org.opencontainers.image.source=https://github.com/zebka/V2rayMik \

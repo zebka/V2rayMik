@@ -25,6 +25,15 @@ http://<router-lan-ip>:8081/        # MikAdminLanPort
   automatically if the new node does not come up. Expect ~2–3 seconds of
   dropped connections during the switch.
 
+- **Versions**: the top card shows the container version (the repository
+  release it was built from), the sing-box version and the Xray version. They
+  are written into the image at build time.
+- **Check for update**: asks GitHub for the newest release and compares it with
+  the container version. It only reads; it changes nothing. If a newer release
+  exists, update the container on the router with `/container/repull`
+  (or re-import the `.rsc` for that release). The container cannot update
+  itself, because it has no RouterOS access.
+
 ## One thing the panel refuses to do on its own
 
 It will not open itself to the WAN. The only exposure is the `dst-nat`,

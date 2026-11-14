@@ -46,31 +46,32 @@ function esc(s) {
 }
 
 function renderRows() {
-  const tb = $("rows");
+  const box = $("rows");
   if (!ENTRIES.length) {
-    tb.innerHTML = '<tr><td colspan="7" class="muted">No configs yet.</td></tr>';
+    box.innerHTML = '<p class="muted">No configs yet.</p>';
     return;
   }
-  tb.innerHTML = "";
+  box.innerHTML = "";
   ENTRIES.forEach((e) => {
-    const tr = document.createElement("tr");
     const res = TESTED[e.i] || {};
-    let delay = "—";
-    if (res.code === 204) delay = '<span class="ok">✓</span> ' + (res.ms || 0) + " ms";
-    else if (res.code) delay = '<span class="bad">✗</span> ' + (res.ms ? res.ms + " ms" : "timeout");
-    else if (res.error) delay = '<span class="bad">✗</span> ' + esc(res.error);
-    if (res.engine) delay += ' <span class="pill" title="core that ran this test">' + esc(res.engine) + "</span>";
-    const country = res.country ? flag(res.country) + " " + esc(res.country) : "—";
-    const speed = res.mbps ? res.mbps : "—";
-    tr.innerHTML =
-      "<td class='num'>" + (e.i + 1) + "</td>" +
-      "<td>" + esc(e.label) + (e.engine ? " <span class='pill' title='core'>" + esc(e.engine) + "</span>" : "") + "</td>" +
-      "<td class='muted'>" + esc(e.host) + ":" + esc(e.port) + "</td>" +
-      "<td class='num'>" + delay + "</td>" +
-      "<td>" + country + "</td>" +
-      "<td class='num'>" + speed + "</td>" +
-      "<td class='row'></td>";
-    const cell = tr.lastElementChild;
+    let delay = "not tested";
+    if (res.code === 204) delay = '<span class="ok">✓ ' + (res.ms || 0) + " ms</span>";
+    else if (res.code) delay = '<span class="bad">✗ ' + (res.ms ? res.ms + " ms" : "timeout") + "</span>";
+    else if (res.error) delay = '<span class="bad">✗ ' + esc(res.error) + "</span>";
+    const engine = res.engine || e.engine;
+    const country = res.country ? flag(res.country) + " " + esc(res.country) : "";
+    const speed = res.mbps ? res.mbps + " Mbps" : "";
+
+    const card = document.createElement("div");
+    card.className = "item";
+    card.innerHTML =
+      '<div class="name">' + (e.i + 1) + ". " + esc(e.label) + "</div>" +
+      '<div class="meta muted">' + esc(e.host) + ":" + esc(e.port) +
+        (engine ? ' <span class="pill" title="core">' + esc(engine) + "</span>" : "") + "</div>" +
+      '<div class="meta">' + delay + (country ? "<span>" + country + "</span>" : "") +
+        (speed ? "<span>" + esc(speed) + "</span>" : "") + "</div>";
+    const actions = document.createElement("div");
+    actions.className = "actions";
     const testBtn = document.createElement("button");
     testBtn.textContent = "Test";
     testBtn.disabled = BUSY;
@@ -80,8 +81,9 @@ function renderRows() {
     connBtn.className = "primary";
     connBtn.disabled = BUSY;
     connBtn.onclick = () => connect(e.i);
-    cell.append(testBtn, connBtn);
-    tb.append(tr);
+    actions.append(testBtn, connBtn);
+    card.append(actions);
+    box.append(card);
   });
 }
 
@@ -101,6 +103,8 @@ async function load() {
   $("tunState").textContent = r.tun ? "up" : "down";
   $("countState").textContent = r.count;
   $("versionState").textContent = r.version || "dev";
+  $("singboxState").textContent = r.singbox || "—";
+  $("xrayState").textContent = r.xray || "—";
   $("engineState").textContent = r.run_engine || r.engine || "—";
   renderRows();
 }
@@ -156,5 +160,24 @@ async function connect(i) {
     await load();
   }
 }
+
+$("checkUpdate").onclick = async () => {
+  const msg = $("updateMsg");
+  msg.className = "muted update-note";
+  msg.textContent = "checking...";
+  try {
+    const r = await api("update");
+    if (!r.latest) {
+      msg.textContent = "Could not check: " + (r.error || "no answer from GitHub") + ".";
+    } else if (r.update) {
+      msg.className = "update-note new";
+      msg.textContent = "New release " + r.latest + " is out (you run " + r.current + "). Update the container on the router: /container/repull.";
+    } else {
+      msg.textContent = "You run the newest release (" + r.current + ").";
+    }
+  } catch (_) {
+    msg.textContent = "Could not check for an update.";
+  }
+};
 
 load().catch(() => { $("testMsg").textContent = "panel failed to load"; });

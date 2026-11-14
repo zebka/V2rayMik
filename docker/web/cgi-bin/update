@@ -1,0 +1,24 @@
+#!/bin/sh
+. /app/web/cgi-bin/_common
+
+# Asks GitHub for the newest release and compares it with the running image.
+# It changes nothing: the container cannot update itself (no RouterOS access).
+# The new image comes from `/container/repull` on the router, or a new import.
+current=$(cat /app/VERSION 2>/dev/null || echo "dev")
+latest=$(curl -sS --max-time 15 -A "v2raymik-panel" \
+  "https://api.github.com/repos/zebka/V2rayMik/releases/latest" 2>/dev/null \
+  | jq -r '.tag_name // empty' 2>/dev/null | sed 's/^v//')
+
+if [ -z "$latest" ]; then
+  ok_json "{\"ok\":true,\"current\":\"$(json_escape "$current")\",\"latest\":null,\"update\":null,\"error\":\"could not reach GitHub\"}"
+fi
+
+if [ "$latest" = "$current" ]; then
+  update=false
+else
+  # Newer only: a dev build or an older tag must not claim to be ahead.
+  newest=$(printf '%s\n%s\n' "$current" "$latest" | sort -V | tail -n 1)
+  if [ "$newest" = "$latest" ] && [ "$latest" != "$current" ]; then update=true; else update=false; fi
+fi
+
+ok_json "{\"ok\":true,\"current\":\"$(json_escape "$current")\",\"latest\":\"$(json_escape "$latest")\",\"update\":$update,\"error\":null}"

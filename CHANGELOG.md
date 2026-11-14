@@ -1,4 +1,20 @@
 # Changelog
+## 1.3.9 - 2026-11-14
+
+### Added
+
+- **Versions in the panel.** The Versions card shows the container version,
+  sing-box and Xray. The sing-box and Xray versions are written into the image
+  at build time.
+- **Check for update** in the panel. It asks GitHub for the newest release and
+  says whether it is newer than the container. It only reads; update with
+  `/container/repull` on the router.
+
+### Changed
+
+- The panel uses one card layout on desktop and phone. Configs are cards
+  instead of a table.
+
 ## 1.3.8 - 2026-11-14
 
 ### Added

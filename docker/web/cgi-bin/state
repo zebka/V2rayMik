@@ -24,11 +24,12 @@ if [ -f "$STATUS_FILE" ]; then
   run_engine=$(jq -r '.engine // ""' "$STATUS_FILE" 2>/dev/null)
 fi
 
-# The image version is written at build time from the repository's VERSION file,
-# which is also the release tag. It is shown in the panel so the page itself
-# says which code is running.
+# The versions are written at build time: the repository's VERSION file (also
+# the release tag) and the sing-box and Xray releases baked into the image.
 version=$(cat /app/VERSION 2>/dev/null || echo "dev")
+singbox=$(cat /app/SINGBOX_VERSION 2>/dev/null || echo "unknown")
+xray=$(cat /app/XRAY_VERSION 2>/dev/null || echo "unknown")
 
 list=$(subs_list "$SUB_FILE")
 
-ok_json "{\"ok\":true,\"gen\":\"$(json_escape "$gen")\",\"count\":$count,\"label\":\"$(json_escape "$label")\",\"index\":$index,\"engine\":\"$(json_escape "$engine")\",\"run_engine\":\"$(json_escape "$run_engine")\",\"testing\":$testing,\"tun\":$tun,\"version\":\"$(json_escape "$version")\",\"list\":$list}"
+ok_json "{\"ok\":true,\"gen\":\"$(json_escape "$gen")\",\"count\":$count,\"label\":\"$(json_escape "$label")\",\"index\":$index,\"engine\":\"$(json_escape "$engine")\",\"run_engine\":\"$(json_escape "$run_engine")\",\"testing\":$testing,\"tun\":$tun,\"version\":\"$(json_escape "$version")\",\"singbox\":\"$(json_escape "$singbox")\",\"xray\":\"$(json_escape "$xray")\",\"list\":$list}"

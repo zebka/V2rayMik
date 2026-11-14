@@ -10,11 +10,18 @@
   :root { color-scheme: light dark; --line:#8a8a8a40; --accent:#3b82f6; --bad:#dc2626; --good:#16a34a; }
   * { box-sizing: border-box; }
   body { margin:0; padding:1rem; font:15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  h1 { font-size:1.15rem; margin:0 0 .25rem; }
-  h2 { font-size:.95rem; margin:0 0 .6rem; font-weight:600; }
-  .card { border:1px solid var(--line); border-radius:10px; padding:.9rem; margin:0 0 .9rem; }
+  h1 { font-size:1.25rem; margin:0 0 .2rem; }
+  h2 { font-size:.95rem; margin:0; font-weight:600; }
+  .card { border:1px solid var(--line); border-radius:12px; padding:1rem; margin:0 0 .9rem; background:rgba(127,127,127,.04); }
+  .card-head { display:flex; justify-content:space-between; align-items:center; gap:.5rem; flex-wrap:wrap; margin-bottom:.75rem; }
   .muted { opacity:.65; font-size:.85rem; }
   .row { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(8.5rem,1fr)); gap:.6rem; }
+  .stat { border:1px solid var(--line); border-radius:10px; padding:.6rem .7rem; min-width:0; }
+  .stat .k { font-size:.72rem; opacity:.65; text-transform:uppercase; letter-spacing:.04em; }
+  .stat .v { font-size:1rem; font-weight:600; overflow-wrap:anywhere; margin-top:.15rem; }
+  .update-note { margin:.6rem 0 0; }
+  .update-note.new { color:var(--accent); opacity:1; }
   input, textarea, button { font:inherit; }
   input[type=text], input[type=password], textarea {
     width:100%; padding:.5rem .6rem; border:1px solid var(--line); border-radius:8px; background:transparent; color:inherit;
@@ -23,13 +30,13 @@
   button { padding:.45rem .8rem; border-radius:8px; border:1px solid var(--line); background:transparent; color:inherit; cursor:pointer; }
   button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
   button:disabled { opacity:.45; cursor:default; }
-  table { width:100%; border-collapse:collapse; }
-  th, td { text-align:left; padding:.45rem .35rem; border-bottom:1px solid var(--line); vertical-align:top; font-size:.9rem; }
-  th { font-weight:600; opacity:.75; }
-  .num { font-variant-numeric:tabular-nums; }
   .ok { color:var(--good); } .bad { color:var(--bad); }
   .pill { display:inline-block; padding:.05rem .45rem; border-radius:99px; border:1px solid var(--line); font-size:.78rem; }
-  .scroll { overflow-x:auto; }
+  .list { display:flex; flex-direction:column; gap:.6rem; }
+  .item { border:1px solid var(--line); border-radius:10px; padding:.7rem .8rem; display:flex; flex-direction:column; gap:.4rem; }
+  .item .name { font-weight:600; overflow-wrap:anywhere; }
+  .item .meta { display:flex; gap:.35rem .9rem; flex-wrap:wrap; align-items:center; font-size:.88rem; }
+  .item .actions { display:flex; gap:.5rem; margin-top:.2rem; flex-wrap:wrap; }
   label.check { display:flex; gap:.4rem; align-items:center; font-size:.85rem; }
 </style>
 </head>
@@ -39,25 +46,39 @@
 
 <div id="app">
   <div class="card">
-    <h2>Status</h2>
-    <p class="row" style="gap:.75rem">
-      <span>active: <b id="activeLabel">—</b></span>
-      <span>engine: <b id="engineState">—</b></span>
-      <span>tun: <b id="tunState">—</b></span>
-      <span>configs: <b id="countState">—</b></span>
-      <span>image: <b id="versionState">—</b></span>
-      <span id="busy" class="pill" hidden>testing…</span>
-    </p>
+    <div class="card-head">
+      <h2>Status</h2>
+      <span id="busy" class="pill" hidden>testing...</span>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="k">Active node</div><div class="v" id="activeLabel">—</div></div>
+      <div class="stat"><div class="k">Engine</div><div class="v" id="engineState">—</div></div>
+      <div class="stat"><div class="k">Tunnel</div><div class="v" id="tunState">—</div></div>
+      <div class="stat"><div class="k">Configs</div><div class="v" id="countState">—</div></div>
+    </div>
   </div>
 
   <div class="card">
-    <h2>Subscription</h2>
+    <div class="card-head">
+      <h2>Versions</h2>
+      <button id="checkUpdate" type="button">Check for update</button>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="k">Container</div><div class="v" id="versionState">—</div></div>
+      <div class="stat"><div class="k">sing-box</div><div class="v" id="singboxState">—</div></div>
+      <div class="stat"><div class="k">Xray</div><div class="v" id="xrayState">—</div></div>
+    </div>
+    <p class="muted update-note" id="updateMsg">Press "Check for update" to compare with the newest release on GitHub.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2>Subscription</h2>
+    </div>
     <form id="subForm">
-      <div class="row" style="margin-bottom:.5rem">
-        <input id="subUrl" type="text" placeholder="https://…/sub  (v2ray base64 or plain links)">
-      </div>
-      <label class="muted" for="subLinks">…or paste one or more links</label>
-      <textarea id="subLinks" placeholder="vless://…&#10;vmess://…&#10;hysteria2://…"></textarea>
+      <input id="subUrl" type="text" placeholder="https://.../sub  (v2ray base64 or plain links)">
+      <label class="muted" for="subLinks" style="display:block;margin:.6rem 0 .3rem">...or paste one or more links</label>
+      <textarea id="subLinks" placeholder="vless://...&#10;vmess://...&#10;hysteria2://..."></textarea>
       <p class="row" style="margin:.6rem 0 0">
         <button class="primary" type="submit">Load</button>
         <span class="muted" id="subMsg"></span>
@@ -66,20 +87,15 @@
   </div>
 
   <div class="card">
-    <h2>Configs</h2>
-    <p class="row">
-      <button id="testAll">Test all</button>
-      <button id="cancel" disabled>Cancel</button>
-      <span class="muted" id="testMsg"></span>
-    </p>
-    <div class="scroll">
-      <table>
-        <thead><tr>
-          <th>#</th><th>Name</th><th>Host</th><th>real delay</th><th>country</th><th class="num">Mbps</th><th></th>
-        </tr></thead>
-        <tbody id="rows"><tr><td colspan="7" class="muted">No configs yet.</td></tr></tbody>
-      </table>
+    <div class="card-head">
+      <h2>Configs</h2>
+      <div class="row">
+        <button id="testAll">Test all</button>
+        <button id="cancel" disabled>Cancel</button>
+      </div>
     </div>
+    <p class="muted" id="testMsg" style="margin:0 0 .6rem"></p>
+    <div class="list" id="rows"><p class="muted">No configs yet.</p></div>
   </div>
 </div>
 
