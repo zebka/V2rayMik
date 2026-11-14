@@ -1,4 +1,12 @@
 # Changelog
+## 1.3.16 - 2026-11-14
+
+### Fixed
+
+- Health card "Up since" stayed at `0 s ago`. The supervisor rewrites the
+  status file on every step, so its timestamp was always recent. The panel now
+  shows the time only while the tunnel is up.
+
 ## 1.3.15 - 2026-11-14
 
 ### Fixed

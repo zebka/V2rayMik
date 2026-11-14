@@ -18,17 +18,17 @@ fi
 tun=false
 [ -d /sys/class/net/tun0 ] && tun=true
 
-# Only a tunnel that is up has a meaningful "since".
-[ "$tun" = true ] || up_since=0
-
 # The engine that is actually running, when the supervisor said something.
+# "at" is rewritten on every supervisor step, so it counts only while up=true.
 run_engine=""
 up_since=0
 problem=""
 if [ -f "$STATUS_FILE" ]; then
   run_engine=$(jq -r '.engine // ""' "$STATUS_FILE" 2>/dev/null)
-  up_since=$(jq -r '.at // 0' "$STATUS_FILE" 2>/dev/null)
   problem=$(jq -r '.problem // ""' "$STATUS_FILE" 2>/dev/null)
+  if [ "$(jq -r '.up // false' "$STATUS_FILE" 2>/dev/null)" = true ] && [ "$tun" = true ]; then
+    up_since=$(jq -r '.at // 0' "$STATUS_FILE" 2>/dev/null)
+  fi
 fi
 # DNS is hijacked into the proxy when the rendered sing-box config says so.
 # This is what the config asks for, not a live probe.
