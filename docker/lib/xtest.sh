@@ -14,7 +14,9 @@ SPEED_URL=${SPEED_URL:-https://speed.cloudflare.com/__down?bytes=$SPEED_BYTES}
 # `http://1.1.1.1/cdn-cgi/trace` with a 301 to HTTPS, and the redirect body has no
 # `loc=` line, so a plain-HTTP trace reports nothing while the node is fine.
 TRACE_URL=${TRACE_URL:-https://1.1.1.1/cdn-cgi/trace}
-SPEED_MAX_TIME=${SPEED_MAX_TIME:-60}
+# The time limit scales with the size chosen in the panel: a 10 MB test gets
+# ~40 s, a 200 MB test up to 230 s. Set SPEED_MAX_TIME to fix it explicitly.
+SPEED_MAX_TIME=${SPEED_MAX_TIME:-}
 CHECK_MAX_TIME=${CHECK_MAX_TIME:-8}
 TRACE_MAX_TIME=${TRACE_MAX_TIME:-6}
 
@@ -83,12 +85,14 @@ xtest_reason() {
   fi
 }
 
-# xtest_measure <port> [engine-log] — prints pipe-delimited "code|ms|mbps|country|err".
+# xtest_measure <port> [engine-log] [engine-name] [speed-bytes]
+# prints pipe-delimited "code|ms|mbps|country|err".
 # country and err are empty on success; err may contain spaces but never a pipe.
 xtest_measure() {
   port=$1
   engine_log=${2:-/tmp/xtest.log}
   engine_name=${3:-sing-box}
+  bytes=${4:-$SPEED_BYTES}
   # Keep curl's exit status and its own words: a bare `000` in the panel is
   # indistinguishable between a dead node, a poisoned DNS answer and a proxy
   # that refused the tunnel. `-w` still prints "000 <time>" when the check
@@ -109,9 +113,16 @@ xtest_measure() {
   country=""
   err=""
   if [ "$code" = "204" ]; then
-    bps=$(curl -s -o /dev/null --max-time "$SPEED_MAX_TIME" \
+    # A bigger file measures the steady rate: a small one ends while the link
+    # is still ramping up, so it reports less than the node can carry.
+    # Time limit: default scales with the size (1 s per MB plus 30 s of ramp),
+    # capped at 240 s and never under 30 s.
+    tmax=${SPEED_MAX_TIME:-$((bytes / 1000000 + 30))}
+    [ "$tmax" -gt 240 ] && tmax=240
+    [ "$tmax" -lt 30 ] && tmax=30
+    bps=$(curl -s -o /dev/null --max-time "$tmax" \
           --socks5-hostname "127.0.0.1:$port" \
-          -w '%{speed_download}' "$SPEED_URL" 2>/dev/null || true)
+          -w '%{speed_download}' "${SPEED_URL%bytes=*}bytes=$bytes" 2>/dev/null || true)
     mbps=$(awk -v b="${bps:-0}" 'BEGIN { printf "%.1f", b * 8 / 1000000 }')
 
     # Where does that node actually exit? Cloudflare's trace answers with
@@ -128,10 +139,11 @@ xtest_measure() {
   printf '%s|%s|%s|%s|%s\n' "${code:-0}" "${ms:-0}" "${mbps:-0}" "${country:-}" "${err}"
 }
 
-# xtest_run <index> — prints {"code":204,"ms":123,"mbps":12.3,"engine":...}
+# xtest_run <index> [speed-bytes] — prints {"code":204,"ms":123,"mbps":12.3,"engine":...}
 # or an error. Assumes the caller holds the lock. Engine is chosen per link.
 xtest_run() {
   idx=$1
+  bytes=${2:-$SPEED_BYTES}
   link=$(subs_decode "$SUB_FILE" | sed -n "$((idx + 1))p")
   if [ -z "$link" ]; then
     printf '{"code":0,"ms":0,"mbps":0,"error":"no such entry","engine":""}'
@@ -231,7 +243,7 @@ xtest_run() {
     return 0
   fi
 
-  result=$(xtest_measure "$XTEST_PORT" /tmp/xtest.log "$engine")
+  result=$(xtest_measure "$XTEST_PORT" /tmp/xtest.log "$engine" "$bytes")
   code=$(printf '%s' "$result" | cut -d'|' -f1)
   ms=$(printf '%s' "$result" | cut -d'|' -f2)
   mbps=$(printf '%s' "$result" | cut -d'|' -f3)

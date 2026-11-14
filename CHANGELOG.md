@@ -1,4 +1,17 @@
 # Changelog
+## 1.3.21 - 2026-11-15
+
+### Added
+
+- The panel now lets you pick the speed-test size: 10, 50, 100 or 200 MB
+  (default 50). The choice is remembered in the browser. With a small file the
+  test ends while the link is still ramping up, so the number underestimates
+  the node; a larger file measures the steady rate. Bigger files use more
+  traffic: `Test all` on 10 nodes at 200 MB is ~2 GB.
+- The speed-download time limit now scales with the chosen size (about 1 s per
+  MB plus 30 s of ramp, capped at 240 s) instead of a fixed 60 s, which a
+  100–200 MB test could not finish.
+
 ## 1.3.20 - 2026-11-14
 
 ### Changed

@@ -7,6 +7,9 @@ let CANCELLED = false;
 let BUSY = false;
 let CONTAINER_NAME = "v2raymik";
 
+/* Remembered per browser, so a user who wants 200 MB is not asked again. */
+const SIZE = () => localStorage.getItem("testSize") || "50";
+
 const $ = (id) => document.getElementById(id);
 
 async function api(path, body) {
@@ -124,7 +127,7 @@ async function testOne(i) {
   setBusy(true);
   $("testMsg").textContent = "testing #" + (i + 1) + "…";
   try {
-    const r = await api("test", { i, gen: GEN });
+    const r = await api("test", { i, gen: GEN, mb: SIZE() });
     TESTED[i] = r;
     $("testMsg").textContent = r.code === 204 ? "ok" : (r.error || "unreachable");
   } catch (err) {
@@ -142,7 +145,7 @@ $("testAll").onclick = async () => {
     if (CANCELLED) break;
     $("testMsg").textContent = "testing #" + (e.i + 1) + " of " + ENTRIES.length + "…";
     try {
-      const r = await api("test", { i: e.i, gen: GEN });
+      const r = await api("test", { i: e.i, gen: GEN, mb: SIZE() });
       TESTED[e.i] = r;
       renderRows();
     } catch (_) { break; }
@@ -152,6 +155,9 @@ $("testAll").onclick = async () => {
 };
 
 $("cancel").onclick = () => { CANCELLED = true; $("cancel").disabled = true; };
+
+$("testSize").value = SIZE();
+$("testSize").onchange = (e) => localStorage.setItem("testSize", e.target.value);
 
 async function connect(i) {
   const e = ENTRIES.find((x) => x.i === i);
