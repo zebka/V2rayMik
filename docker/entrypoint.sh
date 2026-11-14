@@ -102,11 +102,16 @@ render_config() {
     --arg gw "$TUN_GATEWAY" \
     --slurpfile ob "$tmp" \
     '{log:{level:$lvl, timestamp:false},
+      dns:{servers:[{type:"tcp", tag:"dns-proxy", server:"1.1.1.1", detour:"proxy"},
+                    {type:"local", tag:"dns-local"}],
+           final:"dns-proxy", strategy:"ipv4_only"},
       inbounds:[{type:"tun", tag:"tun-in",
                  interface_name:$name, mtu:$mtu, address:[$gw],
                  auto_route:false, strict_route:false, stack:"system"}],
       outbounds:[($ob[0] + {tag:"proxy"}), {type:"direct", tag:"direct"}],
-      route:{final:"proxy"}}'
+      route:{final:"proxy", auto_detect_interface:true,
+             default_domain_resolver:"dns-local",
+             rules:[{action:"sniff"}, {protocol:"dns", action:"hijack-dns"}]}}'
   rm -f "$tmp"
 }
 

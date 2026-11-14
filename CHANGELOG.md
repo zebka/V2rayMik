@@ -1,4 +1,19 @@
 # Changelog
+## 1.3.13 - 2026-11-14
+
+### Fixed
+
+- **Poisoned DNS answers.** The router resolved names through its own upstream,
+  outside the tunnel, so the answers could be forged and the tunnel dialed a
+  wrong address. The router's DNS now uses `1.1.1.1` and `8.8.8.8`, which go
+  through the tunnel, and its cache is flushed. Uninstall restores the old
+  servers.
+- **DNS inside the tunnel.** sing-box now answers DNS itself through the proxy
+  (`hijack-dns`), so a query from a LAN client is not resolved locally.
+
+Tested against the real sing-box 1.14.4 config check. Not yet tested on a
+router.
+
 ## 1.3.12 - 2026-11-14
 
 ### Changed

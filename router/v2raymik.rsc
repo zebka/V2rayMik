@@ -46,6 +46,7 @@
 :global MikAllowContainerToLan
 :global MikBridge
 :global MikRegistryFallback
+:global MikDnsSavedServers
 
 # Sensible defaults; override before the import in the same terminal session.
 # MikDisk is the one knob that varies per device, so it is detected: the first
@@ -233,6 +234,9 @@
   }
 
   /system script environment remove [find where name="MikDisk"]
+  :if ([:typeof $MikDnsSavedServers] = "array") do={
+    :do { /ip dns set servers=$MikDnsSavedServers } on-error={}
+  }
   :log info "v2raymik: uninstall finished"
   :global MikMode "install"
   # last: the script file that is running this uninstall
@@ -585,6 +589,20 @@
 } else={
   /ip firewall nat set [find where comment="mik: admin ui"] \
     dst-port=$MikAdminLanPort to-ports=$MikAdminPort
+}
+
+# --- DNS upstream -------------------------------------------------------------
+# The router resolves names with its own upstream. Those queries leave the
+# router directly, not through the tunnel, so the answers can be poisoned and
+# the tunnel then dials a wrong address. Point the upstream at public resolvers
+# instead: the router-output mangle rule above sends them through the tunnel
+# table. Keep the old servers so uninstall can put them back.
+:if ([:typeof $MikDnsSavedServers] = "nothing") do={
+  :global MikDnsSavedServers [/ip dns get servers]
+}
+:if ([/ip dns get servers] != "1.1.1.1,8.8.8.8") do={
+  /ip dns set servers=1.1.1.1,8.8.8.8 allow-remote-requests=yes
+  /ip dns cache flush
 }
 
 :log info "v2raymik: installed; the panel comes up at http://<router>:$MikAdminLanPort/ once the container is running"
