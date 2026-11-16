@@ -390,8 +390,15 @@
         :if ($started = false) do={ :delay 2s }
       }
       :if ($started = false) do={
-        :log warning ("v2raymik: the image did not start (attempt " . ($attempt - 1) . "); pulling it again")
-        :do { /container/repull [find where name=$MikContainerName] } on-error={ :log warning "v2raymik: this RouterOS cannot re-pull an image; trying the fallback registry" }
+        # The pull is asked for again once, after the first failed wait. The
+        # second failure must not start another pull: the fallback below stops
+        # and removes this container, and a pull in flight fights the removal.
+        :if ($attempt < 2) do={
+          :log warning ("v2raymik: the image did not start (attempt " . $attempt . "); pulling it again")
+          :do { /container/repull [find where name=$MikContainerName] } on-error={ :log warning "v2raymik: this RouterOS cannot re-pull an image; trying the fallback registry" }
+        } else={
+          :log warning ("v2raymik: the image did not start (attempt " . $attempt . "); giving up on this registry, using the fallback")
+        }
       }
     }
   }
