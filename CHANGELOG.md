@@ -1,4 +1,11 @@
 # Changelog
+## 1.3.26 - 2026-11-17
+
+### Changed
+
+- The image is pinned to the version of the repository, and the pull goes to
+  GitHub Container Registry first.
+
 ## 1.3.25 - 2026-11-15
 
 ### Added
