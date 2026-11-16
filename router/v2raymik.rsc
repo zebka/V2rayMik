@@ -46,6 +46,7 @@
 :global MikAllowContainerToLan
 :global MikBridge
 :global MikRegistryFallback
+:global MikTunMtu
 :global MikDnsSavedServers
 
 # Sensible defaults; override before the import in the same terminal session.
@@ -100,6 +101,12 @@
 :local registryPinned ([:typeof $MikRegistryUrl] != "nothing")
 :if ([:typeof $MikRegistryUrl] = "nothing") do={ :global MikRegistryUrl "https://registry-1.docker.io" }
 :if ([:typeof $MikRegistryFallback] = "nothing") do={ :global MikRegistryFallback "https://docker.arvancloud.ir" }
+# The MTU of the tunnel interface. 1400, not 1500: the transport adds its own
+# header, so a 1500-byte inner packet no longer fits the WAN MTU and is
+# dropped or fragmented. The router's MSS clamp only covers TCP that enters
+# from the LAN; it does not cover UDP inside the tunnel, so the clamp cannot
+# fix this. Set MikTunMtu to 1500 only if the path really has the room.
+:if ([:typeof $MikTunMtu] = "nothing") do={ :global MikTunMtu "1400" }
 :if ([:typeof $MikAdminPort] = "nothing") do={ :global MikAdminPort "8080" }
 :if ([:typeof $MikAdminLanPort] = "nothing") do={ :global MikAdminLanPort "8081" }
 :if ([:typeof $MikAllowContainerToLan] = "nothing") do={ :global MikAllowContainerToLan false }
@@ -306,6 +313,15 @@
     value="/etc/sing-box/outbound.json"
 }
 
+# The MTU the tunnel interface gets. The entrypoint reads TUN_MTU and writes
+# it into the sing-box tun inbound; unset it means 1500, which is too large
+# for a tunnel that adds a header.
+:if ([:len [/container envs find where list=$MikContainerName and key="TUN_MTU"]] = 0) do={
+  /container envs add list=$MikContainerName key=TUN_MTU value=$MikTunMtu
+} else={
+  :do { /container envs set [find where list=$MikContainerName and key="TUN_MTU"] value=$MikTunMtu } on-error={}
+}
+
 # The egress allowlist is gone (1.3.0): the firewall no longer filters by port
 # and the panel no longer marks rows `port blocked`. Drop the env so an older
 # image does not keep enforcing a list that nothing maintains anymore.
@@ -401,10 +417,14 @@
 }
 
 # 7.23+: if the TUN disappears, the container is restarted instead of sitting
-# "running" with no tunnel.
+# "running" with no tunnel. The check looks for tun0 AND makes one small
+# request, because a live process with a dead tunnel still passes the first
+# test. wget is in the image (busybox-extras). One request is not a
+# throughput test: a healthy container can still be too slow for big
+# downloads.
 :do {
-  /container set [find where name=$MikContainerName] healthcheck-cmd="/bin/sh -c 'ip link show tun0 >/dev/null 2>&1'" \
-    healthcheck-interval=00:01:00 healthcheck-start-period=00:00:30 stop-on-unhealthy=yes
+  /container set [find where name=$MikContainerName] healthcheck-cmd="/bin/sh -c 'ip link show tun0 >/dev/null 2>&1 && wget -q -T 5 -O /dev/null http://www.gstatic.com/generate_204'" \
+    healthcheck-interval=00:01:00 healthcheck-start-period=00:00:30 healthcheck-retries=6 stop-on-unhealthy=yes
 } on-error={ :log warning "v2raymik: could not set a healthcheck (RouterOS too old?) — the container still runs" }
 
 # --- routing ------------------------------------------------------------------
