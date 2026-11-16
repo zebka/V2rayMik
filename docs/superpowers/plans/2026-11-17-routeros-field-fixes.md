@@ -341,24 +341,26 @@ Replace the "wait for the image pull to finish" block (lines 346-361) with a loo
 :if ($fresh) do={
   :log info "v2raymik: waiting for the image pull to finish, then starting the container"
   :local started false
-  :local attempt 1
-  :while (($attempt <= 2) and ($started = false)) do={
-    :for i from=1 to=40 do={
-      :if ($started = false) do={
-        :do {
-          /container start [find where name=$MikContainerName]
-          :delay 2s
-          :if ([:len [/container find where name=$MikContainerName and stopped]] = 0) do={
-            :set started true
-          }
-        } on-error={ :delay 3s }
-      }
-      :if ($started = false) do={ :delay 2s }
-    }
+  :local attempt 0
+  :while ($attempt < 2) do={
+    :set attempt ($attempt + 1)
     :if ($started = false) do={
-      :set attempt ($attempt + 1)
-      :log warning ("v2raymik: the image did not start (attempt " . ($attempt - 1) . "); pulling it again")
-      :do { /container/repull [find where name=$MikContainerName] } on-error={ :log warning "v2raymik: this RouterOS cannot re-pull an image; trying the fallback registry" }
+      :for i from=1 to=40 do={
+        :if ($started = false) do={
+          :do {
+            /container start [find where name=$MikContainerName]
+            :delay 2s
+            :if ([:len [/container find where name=$MikContainerName and stopped]] = 0) do={
+              :set started true
+            }
+          } on-error={ :delay 3s }
+        }
+        :if ($started = false) do={ :delay 2s }
+      }
+      :if ($started = false) do={
+        :log warning ("v2raymik: the image did not start (attempt " . ($attempt - 1) . "); pulling it again")
+        :do { /container/repull [find where name=$MikContainerName] } on-error={ :log warning "v2raymik: this RouterOS cannot re-pull an image; trying the fallback registry" }
+      }
     }
   }
   :if ($started = true) do={
@@ -368,6 +370,8 @@ Replace the "wait for the image pull to finish" block (lines 346-361) with a loo
 ```
 
 The `...` stands for the existing fallback code (the `if ($registryPinned = false ...)` block, lines 364-400 of the file). Keep that code exactly as it is, except for the `/container add` that step 4 replaces. Do not move the fallback out of the `} else{` branch — it must only run when both attempts on the primary registry failed.
+
+The loop condition is a single comparison on purpose: RouterOS parses a `:while` condition more reliably when it is not a compound expression, and the inner `:if ($started = false)` guard is what stops the second attempt once the container is up.
 
 - [ ] **Step 6: Run the test to verify it passes**
 
@@ -519,9 +523,12 @@ Expected: FAIL — `the connection is marked: expected [yes], got [no]`
 Add to the globals block in `router/v2raymik.rsc` (after `:global MikDnsSavedServers`, line 49):
 
 ```routeros
+:global MikFasttrackSaved
 :global MikFasttrackSavedMark
 :global MikFasttrackSavedList
 ```
+
+`MikFasttrackSaved` is the flag that says "the two values below were already captured". It is separate from them because a value that was empty comes back from RouterOS as an empty string, and an empty global is indistinguishable from a global that was never set. The flag is never empty, so it is always distinguishable.
 
 - [ ] **Step 4: Add the mark-connection rule**
 
@@ -562,9 +569,10 @@ After the mark-connection block, add:
 # is saved once and put back when the project is uninstalled.
 :local fasttrack [:pick [/ip firewall filter find where comment="defconf: fasttrack"] 0]
 :if ([:len $fasttrack] > 0) do={
-  :if ([:typeof $MikFasttrackSavedMark] = "nothing") do={
-    :global MikFasttrackSavedMark [/ip firewall filter get $fasttrack connection-mark]
-    :global MikFasttrackSavedList [/ip firewall filter get $fasttrack src-address-list]
+  :if ([:typeof $MikFasttrackSaved] = "nothing") do={
+    :global MikFasttrackSaved true
+    :do { :global MikFasttrackSavedMark [/ip firewall filter get $fasttrack connection-mark] } on-error={ :global MikFasttrackSavedMark "" }
+    :do { :global MikFasttrackSavedList [/ip firewall filter get $fasttrack src-address-list] } on-error={ :global MikFasttrackSavedList "" }
   }
   /ip firewall filter set $fasttrack connection-mark=no-mark
   :if ([:len $MikFasttrackSavedList] = 0) do={
@@ -572,6 +580,8 @@ After the mark-connection block, add:
   }
 }
 ```
+
+The `on-error` around each `get` covers a RouterOS that does not know the property at all; the value is then an empty string, and putting an empty string back on uninstall clears the property — which is what RouterOS's own default looks like.
 
 The last two lines clear a stray empty `src-address-list` — a leftover from a mistyped `src-address-list=!something` that RouterOS keeps as an empty value.
 
@@ -589,12 +599,14 @@ and after that block, restore fasttrack:
   # put RouterOS's own fasttrack rule back the way it was
   :local fasttrack [:pick [/ip firewall filter find where comment="defconf: fasttrack"] 0]
   :if ([:len $fasttrack] > 0) do={
-    :if ([:typeof $MikFasttrackSavedMark] != "nothing") do={
+    :if ([:typeof $MikFasttrackSaved] != "nothing") do={
       :do { /ip firewall filter set $fasttrack connection-mark=$MikFasttrackSavedMark } on-error={}
       :do { /ip firewall filter set $fasttrack src-address-list=$MikFasttrackSavedList } on-error={}
     }
   }
 ```
+
+Setting a property to an empty string removes it, so a value that was empty when it was captured clears the property again on uninstall — the state RouterOS's own rule has out of the box.
 
 - [ ] **Step 7: Run the test to verify it passes**
 
