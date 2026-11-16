@@ -104,8 +104,10 @@ jobs:
         name: Read VERSION
         run: |
           v="$(cat VERSION)"
+          plain="$v"
           if [ "${{ github.ref_type }}" != "tag" ]; then v="$v-edge"; fi
           echo "value=$v" >> "$GITHUB_OUTPUT"
+          echo "plain=$plain" >> "$GITHUB_OUTPUT"
 
       - id: meta
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
@@ -115,7 +117,7 @@ jobs:
             ${{ env.DH_USER != '' && format('docker.io/{0}/v2raymik', env.DH_USER) || '' }}
           tags: |
             type=raw,value=edge,enable=${{ github.ref == 'refs/heads/main' }}
-            type=semver,pattern={{version}}
+            type=raw,value=${{ steps.ver.outputs.plain }}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
             type=raw,value=${{ env.SING_BOX_VERSION }},enable=${{ startsWith(github.ref, 'refs/tags/v') }}
             type=raw,value=xray-${{ env.XRAY_VERSION }},enable=${{ startsWith(github.ref, 'refs/tags/v') }}

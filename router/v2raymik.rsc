@@ -38,6 +38,7 @@
 :global MikGatewayIp
 :global MikContainerName
 :global MikImage
+:global MikImageFallback
 :global MikImageFile
 :global MikCheckCertificate
 :global MikRegistryUrl
@@ -90,16 +91,24 @@
 :if ([:typeof $MikContainerIp] = "nothing") do={ :global MikContainerIp "172.17.0.2" }
 :if ([:typeof $MikGatewayIp] = "nothing") do={ :global MikGatewayIp "172.17.0.1" }
 :if ([:typeof $MikContainerName] = "nothing") do={ :global MikContainerName "v2raymik" }
-:if ([:typeof $MikImage] = "nothing") do={ :global MikImage "azebka/v2raymik:latest" }
+# The image is pinned to the version of this file: a router must never run a
+# container the repository does not describe. The tag is bumped with every
+# release, and CI checks that it matches VERSION.
+:if ([:typeof $MikImage] = "nothing") do={ :global MikImage "ghcr.io/zebka/v2raymik:1.3.26" }
+# The fallback names the Docker Hub repository on purpose. A Docker Hub mirror
+# serves the Docker Hub namespace and has never heard of ghcr.io/zebka/...,
+# so swapping only the registry would silently pull nothing.
+:if ([:typeof $MikImageFallback] = "nothing") do={ :global MikImageFallback "azebka/v2raymik:1.3.26" }
 :if ([:typeof $MikImageFile] = "nothing") do={ :global MikImageFile "" }
 :if ([:typeof $MikCheckCertificate] = "nothing") do={ :global MikCheckCertificate "yes" }
 # Registry used for the pull. If you set MikRegistryUrl yourself, that registry
-# is used and there is no fallback. Otherwise the official registry is tried
-# first and, if the image does not start, MikRegistryFallback is tried. The
-# fallback is reached with certificate checks off (arvancloud needs that on
-# 7.25.1). "" turns the fallback off.
+# is used and there is no fallback — and MikImage has to name an image that
+# registry actually has (a Docker Hub mirror serves azebka/v2raymik, not
+# ghcr.io/zebka/v2raymik). Otherwise GitHub Container Registry is tried first
+# and, if the image does not start, MikRegistryFallback is tried with
+# MikImageFallback. "" turns the fallback off.
 :local registryPinned ([:typeof $MikRegistryUrl] != "nothing")
-:if ([:typeof $MikRegistryUrl] = "nothing") do={ :global MikRegistryUrl "https://registry-1.docker.io" }
+:if ([:typeof $MikRegistryUrl] = "nothing") do={ :global MikRegistryUrl "https://ghcr.io" }
 :if ([:typeof $MikRegistryFallback] = "nothing") do={ :global MikRegistryFallback "https://docker.arvancloud.ir" }
 # The MTU of the tunnel interface. 1400, not 1500: the transport adds its own
 # header, so a 1500-byte inner packet no longer fits the WAN MTU and is
@@ -357,22 +366,34 @@
 }
 
 # Start a just-added container as soon as the pull has produced a startable
-# one, retrying while the pull is still running. Up to ~3 minutes; on a very
-# slow link the pull can outlast this — run /container start by hand then.
+# one, retrying while the pull is still running. A pull that dies half-way
+# (Connection reset by peer, HTTP 502) leaves the container stopped and
+# nothing starts it, so the pull is asked for again once before the registry
+# is given up on.
 :if ($fresh) do={
   :log info "v2raymik: waiting for the image pull to finish, then starting the container"
   :local started false
-  :for i from=1 to=40 do={
+  :local attempt 0
+  :while ($attempt < 2) do={
+    :set attempt ($attempt + 1)
     :if ($started = false) do={
-      :do {
-        /container start [find where name=$MikContainerName]
-        :delay 2s
-        :if ([:len [/container find where name=$MikContainerName and stopped]] = 0) do={
-          :set started true
+      :for i from=1 to=40 do={
+        :if ($started = false) do={
+          :do {
+            /container start [find where name=$MikContainerName]
+            :delay 2s
+            :if ([:len [/container find where name=$MikContainerName and stopped]] = 0) do={
+              :set started true
+            }
+          } on-error={ :delay 3s }
         }
-      } on-error={ :delay 3s }
+        :if ($started = false) do={ :delay 2s }
+      }
+      :if ($started = false) do={
+        :log warning ("v2raymik: the image did not start (attempt " . ($attempt - 1) . "); pulling it again")
+        :do { /container/repull [find where name=$MikContainerName] } on-error={ :log warning "v2raymik: this RouterOS cannot re-pull an image; trying the fallback registry" }
+      }
     }
-    :if ($started = false) do={ :delay 2s }
   }
   :if ($started = true) do={
     :log info "v2raymik: container started"
@@ -390,10 +411,13 @@
         }
       }
       /container/config/set registry-url=$MikRegistryFallback
-      /container add name=$MikContainerName remote-image=$MikImage interface=$MikVeth \
+      # The mirror serves the image with a certificate the router does not
+      # trust (measured on 7.25.1), so the check is off here — the log line
+      # above already says so.
+      /container add name=$MikContainerName remote-image=$MikImageFallback interface=$MikVeth \
         root-dir=$rootDir dns=1.1.1.1 \
         envlist=$MikContainerName start-on-boot=yes restart-policy=always \
-        check-certificate=$MikCheckCertificate mountlists=MOUNT_MIK_DATA \
+        check-certificate=no mountlists=MOUNT_MIK_DATA \
         memory-high=100663296 logging=yes
       :for i from=1 to=60 do={
         :if ($started = false) do={
