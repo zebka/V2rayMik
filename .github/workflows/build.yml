@@ -50,9 +50,12 @@ jobs:
             --build-arg VERSION="$(cat VERSION)" \
             -t v2raymik:test docker --load
 
+      # The whole repository is mounted read-only, not just tests/: several
+      # tests are static checks on the import file, VERSION, the changelog and
+      # the generator page, and they resolve them from the repository root.
       - name: Unit tests
         run: |
-          docker run --rm -v "$PWD/tests:/w/tests:ro" \
+          docker run --rm -v "$PWD:/w:ro" \
             --entrypoint sh v2raymik:test /w/tests/run.sh
 
       - name: Image carries the repository version
@@ -68,7 +71,7 @@ jobs:
 
       - name: RouterOS lint
         run: |
-          docker run --rm -v "$PWD:/w" -w /w \
+          docker run --rm -v "$PWD:/w:ro" -w /w \
             --entrypoint sh v2raymik:test /w/tests/lint-rsc.sh router
 
   publish:

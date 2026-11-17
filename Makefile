@@ -24,7 +24,7 @@ image:
 test:
 	docker buildx build --build-arg SING_BOX_VERSION=$(SING_BOX_VERSION) --build-arg XRAY_VERSION=$(XRAY_VERSION) --build-arg VERSION=$(VERSION) \
 		-t $(IMAGE):test docker/ --load
-	docker run --rm -v "$(CURDIR)/tests:/w/tests:ro" --entrypoint sh $(IMAGE):test /w/tests/run.sh
+	docker run --rm -v "$(CURDIR):/w:ro" --entrypoint sh $(IMAGE):test /w/tests/run.sh
 
 lint:
 	@if command -v shellcheck >/dev/null 2>&1; then \
