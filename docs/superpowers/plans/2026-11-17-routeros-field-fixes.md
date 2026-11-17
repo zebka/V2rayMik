@@ -1,5 +1,7 @@
 # RouterOS Field Fixes Implementation Plan
 
+> **Status:** implemented on `feat/routeros-field-fixes`, release 1.3.26. The checkboxes below are the plan as written, not a progress tracker.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Fold the six field fixes found on 2026-11-16 into the project: a 1400-byte tunnel MTU, a healthcheck that makes a real request, a pinned GHCR image with a working mirror fallback, a connection-mark rule, a fasttrack that cannot route around the tunnel, and verification commands printed after install.
