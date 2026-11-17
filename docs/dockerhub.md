@@ -47,12 +47,15 @@ live in **one** file in the repository.
    It creates everything (veth, mounts, container, table `mik-tunnel`, mangle,
    firewall, dst-nat). Re-importing is how upgrades work; defaults can be
    overridden in the same session before the import (`MikDisk`, `MikImage`,
-   `MikRegistryUrl`, …). There are no interface names or port lists to adapt —
-   the disk is detected and the LAN is the private address ranges.
-2. Point the container at this image:
+   `MikImageFallback`, `MikRegistryUrl`, `MikTunMtu`, …). There are no interface
+   names or port lists to adapt — the disk is detected and the LAN is the
+   private address ranges.
+2. The import pulls `ghcr.io/zebka/v2raymik:<version>`, where `<version>` is the
+   `VERSION` file, so a router never runs an image the source does not
+   describe. To take the Docker Hub copy of the same release, name it:
 
    ```
-   :global MikImage "azebka/v2raymik:1.3.0"
+   :global MikImage "azebka/v2raymik:1.3.26"
    /import file-name=v2raymik.rsc
    ```
 
@@ -60,9 +63,11 @@ live in **one** file in the repository.
    `:latest`, which only ever moves to a new release. `:edge` is the raw `main`
    build. The panel shows the running version under **Status → image**.
 
-   If `docker.io` is not reachable from your network, set a mirror and
-   `MikCheckCertificate "no"` as described in the repository README (Iran: use
-   `MikRegistryUrl "https://docker.iranserver.com"`).
+   If the registry is not reachable from your network, the import switches to
+   `https://docker.arvancloud.ir` with `azebka/v2raymik` once and logs
+   `trying https://docker.arvancloud.ir`. To use another mirror from the start,
+   set `MikRegistryUrl` and `MikImage` together, and `MikCheckCertificate "no"`
+   if the router does not trust its CA (Iran: `https://docker.iranserver.com`).
 3. Start it, then open the panel from a LAN device on
    `http://<router-lan-ip>:8081/`.
 
