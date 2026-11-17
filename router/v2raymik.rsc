@@ -49,6 +49,9 @@
 :global MikRegistryFallback
 :global MikTunMtu
 :global MikDnsSavedServers
+:global MikFasttrackSaved
+:global MikFasttrackSavedMark
+:global MikFasttrackSavedList
 
 # Sensible defaults; override before the import in the same terminal session.
 # MikDisk is the one knob that varies per device, so it is detected: the first
@@ -150,7 +153,7 @@
   }
 
   # --- mangle ------------------------------------------------------------
-  :foreach c in={"mik: never mark the container";"mik: router to LAN";"mik: keep router-direct off the tunnel";"mik: MSS clamp";"mik: MSS clamp back";"mik: MSS clamp (router output)";"World -> mik (LAN)";"World -> mik (router)";"World -> tunnel";"World -> tunnel (router)"} do={
+  :foreach c in={"mik: never mark the container";"mik: router to LAN";"mik: keep router-direct off the tunnel";"mik: MSS clamp";"mik: MSS clamp back";"mik: MSS clamp (router output)";"World -> mik (LAN)";"World -> mik (router)";"World -> tunnel";"World -> tunnel (router)";"mik: mark tunnel connections"} do={
     :if ([:len [/ip firewall mangle find where comment=$c]] > 0) do={
       /ip firewall mangle remove [find where comment=$c]
     }
@@ -168,6 +171,18 @@
   :foreach c in={"mik: container tcp transport";"mik: container udp transport";"mik: container tcp transport (extra)";"mik: container udp transport (extra)";"mik: container to LAN (opt-in)";"mik: container default deny";"mik: container replies (established)";"mik: container egress"} do={
     :if ([:len [/ip firewall filter find where comment=$c]] > 0) do={
       /ip firewall filter remove [find where comment=$c]
+    }
+  }
+
+  # --- RouterOS's own fasttrack rule (the install changed it) ---------------
+  # Put the rule back the way it was found. A value that was empty when it was
+  # captured comes back as an empty string, and setting a property to an empty
+  # string removes it again, which is the state RouterOS ships.
+  :local fasttrack [:pick [/ip firewall filter find where comment="defconf: fasttrack"] 0]
+  :if ([:len $fasttrack] > 0) do={
+    :if ([:typeof $MikFasttrackSaved] != "nothing") do={
+      :do { /ip firewall filter set $fasttrack connection-mark=$MikFasttrackSavedMark } on-error={}
+      :do { /ip firewall filter set $fasttrack src-address-list=$MikFasttrackSavedList } on-error={}
     }
   }
 
@@ -506,6 +521,45 @@
 :if ([:len [/ip route find where comment="mik: tunnel" and routing-table=$tableName]] = 0) do={
   /ip route add dst-address=0.0.0.0/0 gateway=$MikContainerIp routing-table=$tableName \
     distance=1 comment="mik: tunnel"
+}
+
+# Fasttrack is what makes the connection mark necessary. RouterOS's own
+# defconf: fasttrack rule sends established connections past the firewall and
+# past mangle, so a connection that is fasttracked never gets the per-packet
+# routing mark and leaves through the WAN instead of the tunnel. Marking the
+# connection once, when it is created, gives fasttrack something to skip.
+# The mark is set before the routing rule and passes the packet on, or the
+# routing rule below it would never run.
+:if ([:len [/ip firewall mangle find where comment="mik: mark tunnel connections"]] = 0) do={
+  :local tunnelRule [:pick [/ip firewall mangle find where chain=prerouting and action=mark-routing and comment="World -> tunnel"] 0]
+  :if ([:len $tunnelRule] > 0) do={
+    /ip firewall mangle add chain=prerouting dst-address-type=!local \
+      action=mark-connection new-connection-mark=mik-conn passthrough=yes \
+      comment="mik: mark tunnel connections" place-before=$tunnelRule
+  } else={
+    /ip firewall mangle add chain=prerouting dst-address-type=!local \
+      action=mark-connection new-connection-mark=mik-conn passthrough=yes \
+      comment="mik: mark tunnel connections"
+  }
+}
+
+# RouterOS ships the fasttrack rule; limiting it to unmarked connections is a
+# change to RouterOS's own config, not to ours. What the rule had is saved
+# once, and uninstall puts it back, or removing this project would leave the
+# router's own firewall altered.
+:local fasttrack [:pick [/ip firewall filter find where comment="defconf: fasttrack"] 0]
+:if ([:len $fasttrack] > 0) do={
+  :if ([:typeof $MikFasttrackSaved] = "nothing") do={
+    :global MikFasttrackSaved true
+    :do { :global MikFasttrackSavedMark [/ip firewall filter get $fasttrack connection-mark] } on-error={ :global MikFasttrackSavedMark "" }
+    :do { :global MikFasttrackSavedList [/ip firewall filter get $fasttrack src-address-list] } on-error={ :global MikFasttrackSavedList "" }
+  }
+  /ip firewall filter set $fasttrack connection-mark=no-mark
+  # A stray empty src-address-list (a mistyped "!something" RouterOS kept as
+  # an empty value) would still match nothing useful; clear it.
+  :if ([:len $MikFasttrackSavedList] = 0) do={
+    :do { /ip firewall filter set $fasttrack src-address-list="" } on-error={}
+  }
 }
 
 :if ([:len [/ip firewall mangle find where chain=prerouting and action=mark-routing and comment="World -> tunnel"]] = 0) do={
