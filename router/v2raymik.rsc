@@ -712,4 +712,10 @@
 }
 
 :log info "v2raymik: installed; the panel comes up at http://<router>:$MikAdminLanPort/ once the container is running"
+# What to look at afterwards. The MTU is the one that fails quietly: pages load
+# and large downloads hang, which reads as "the tunnel is slow" and is not.
+:log info "v2raymik: verify 1 - the tunnel MTU must be 1400: /container shell $MikContainerName cmd=\"grep mtu /etc/sing-box/config.json\""
+:log info "v2raymik: verify 2 - the marked connections: /ip firewall connection print count-only where connection-mark=mik-conn"
+:log info "v2raymik: verify 3 - fasttrack only takes unmarked connections: /ip firewall filter print where comment=\"defconf: fasttrack\""
+:log info "v2raymik: verify 4 - connections opened before this import keep their old route; /ip firewall connection remove [find] clears them"
 }

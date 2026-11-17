@@ -144,8 +144,16 @@ the live TUN and the measurement would describe the wrong node.
 ## Failure behaviour
 
 - `restart-policy=always` handles a crashed process.
-- `healthcheck-cmd` (RouterOS 7.23+) checks that `tun0` exists; `stop-on-unhealthy`
-  stops a container that is "running" with no tunnel.
+- `healthcheck-cmd` (RouterOS 7.23+) checks that `tun0` exists **and** fetches
+  `http://www.gstatic.com/generate_204`; `stop-on-unhealthy` stops a container
+  that is "running" with no tunnel. It is a liveness check, not a throughput
+  test: one small request says the tunnel carries traffic, not that it carries
+  it fast. It retries six times before the container is stopped, because a WAN
+  hiccup fails the request while the tunnel is fine.
+- `TUN_MTU` (default 1400) is the tunnel interface's MTU. 1500 is too large:
+  the transport adds its own header, so a full-size inner packet no longer
+  fits the WAN MTU and is dropped or fragmented. The MSS clamp below only
+  covers TCP that enters from the LAN, not UDP inside the tunnel.
 - There is no fallback route. When the tunnel is down, marked traffic is
   dropped. The router's own traffic is marked the same, on purpose: a silent
   ISP path on every outage is how the exit country lies.
@@ -167,7 +175,7 @@ RSS on the reference device. Throughput numbers are in `benchmarks.md`.
 - Container networking on this class of hardware is CPU-bound; do not expect
   the server's line rate.
 - No IPv6 (the reference deployment has it disabled).
-- Both engines together cost ~2× the image size and disk of one; that is the
+- Both engines together cost ~2ï¿½ the image size and disk of one; that is the
   price of covering the whole link space.
 - UDP through an Xray-chained node travels via the SOCKS hop (best effort);
   hysteria2/tuic are the better choice when the provider lets you pick.

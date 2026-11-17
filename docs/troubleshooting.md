@@ -36,7 +36,7 @@ your network filters that destination. Nothing in the router needs editing.
 | `resolve-failed: <host>` | the container cannot resolve the endpoint | set `ENDPOINT_IP` |
 | Names fail to resolve, everything else works | the transport does not carry UDP (common with a bare Shadowsocks server) | enable UDP server-side, or run DNS over TCP/HTTPS |
 | `:resolve <name>` returns `10.10.34.x` | router DNS is poisoned; the tunnel is fine | fix `/ip dns` or use DoH |
-| Small pages work, big downloads stall at 0 | MSS clamp missing on that path | `v2raymik.rsc` clamps forward *and* output; check a fasttrack rule is not skipping mangle |
+| Small pages work, big downloads or speed tests stall at 0 | the tunnel MTU is 1500, or fasttrack is skipping mangle | the tunnel must be 1400, and fasttrack must take only unmarked connections - see "The container is healthy, big downloads hang" below |
 | Router's own traffic exits direct, LAN is tunnelled | no output mark rule | re-import `v2raymik.rsc`; it adds the output mark if none exists |
 | LAN is tunnelled but the router is not | router-originated traffic not masqueraded towards the veth | the install adds `masquerade out-interface=veth-mik`; check it exists |
 | Tunnel is up, engine logs `accepted`, nothing comes back | the container's own dial is not NAT'd | the install adds `masquerade src-address=$MikSubnet` (`mik: container egress`); check it exists — on routers without a whole-WAN masquerade the transport cannot dial without it |
@@ -72,6 +72,39 @@ Two measurements that lie on this setup:
   from a LAN client.
 - **A 1 KB page.** It proves the handshake and nothing else; a missing MSS
   clamp only shows up on a download of a few MB.
+
+## The container is healthy, big downloads hang
+
+Small pages load, a speed test or a large download stalls at zero, and
+`/container/print` says `running, healthy`. Look at the MTU first: the tunnel
+must be **1400**, not 1500. The transport adds its own header, so a full-size
+inner packet no longer fits the WAN MTU and is dropped or fragmented. The MSS
+clamp only covers TCP that enters from the LAN; it does not cover UDP inside
+the tunnel.
+
+```
+/container/shell [find where name="v2raymik"] cmd="grep mtu /etc/sing-box/config.json"
+```
+
+If it says 1500, re-import `v2raymik.rsc` (it sets `TUN_MTU` from `MikTunMtu`),
+or set `:global MikTunMtu "1400"` before the import.
+
+Then check that fasttrack is not taking connections out of the tunnel:
+
+```
+/ip firewall filter print where comment="defconf: fasttrack"
+```
+
+The rule must show `connection-mark=no-mark` and
+`/ip firewall connection print count-only where connection-mark=mik-conn` must
+be above zero while clients are active. Connections opened *before* the import
+keep their old route until they close; `/ip firewall connection remove [find]`
+clears them.
+
+The healthcheck is not a speed test. It makes one small request to
+`http://www.gstatic.com/generate_204`, so a container can be `healthy` and
+still too slow for a big download. Measure from a LAN client, not from the
+router.
 
 ## When you are locked out
 

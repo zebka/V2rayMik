@@ -31,26 +31,36 @@ release page, move it onto the router (Winbox **Files**, or `/file`), and:
 
 ## Get the image
 
-Multi-arch on Docker Hub (use a mirror if `ghcr.io` is unreachable from your network):
+Multi-arch, on GitHub Container Registry and on Docker Hub:
 
 ```sh
-docker pull azebka/v2raymik:latest   # newest release
-docker pull azebka/v2raymik:1.2.7    # pin repo + image together
-docker pull ghcr.io/zebka/v2raymik:latest
+docker pull ghcr.io/zebka/v2raymik:latest   # newest release
+docker pull ghcr.io/zebka/v2raymik:1.3.26   # pin repo + image together
+docker pull azebka/v2raymik:latest          # the same release on Docker Hub
 ```
 
 `latest` is republished only when a release tag is pushed, so it always equals
 the `VERSION` file and the newest release here; `:edge` is the raw `main` build.
-In Iran the official registry is often unreachable. On a fresh install the
-import pulls from the official registry first. If the container does not
-start, it switches to `https://docker.arvancloud.ir` by itself, once, and logs
-`trying https://docker.arvancloud.ir`.
+The import pins the tag to its own version: it pulls
+`ghcr.io/zebka/v2raymik:<version>`, where `<version>` is the value in `VERSION`
+(1.3.26 for this release), so a router never runs a container the repository
+does not describe.
 
-To skip the official registry and use a mirror from the start, or to turn the
-fallback off, set the variables before the import:
+In Iran the official registry is often unreachable. On a fresh install the
+import pulls from GitHub Container Registry first, asks for the image again
+once if the pull failed half-way, and if the container still does not start it
+switches to `https://docker.arvancloud.ir` by itself, once, and logs
+`trying https://docker.arvancloud.ir`. The fallback then pulls
+`azebka/v2raymik:<version>` - the Docker Hub repository - because an Iranian
+mirror is a Docker Hub mirror: it has never heard of `ghcr.io/zebka/v2raymik`,
+so changing only the registry would pull nothing.
+
+To use a mirror from the start, or to turn the fallback off, set the variables
+before the import. A mirror needs **both** the registry and the image name:
 
 ```rsc
 :global MikRegistryUrl "https://docker.arvancloud.ir"
+:global MikImage "azebka/v2raymik:1.3.26"
 :global MikRegistryFallback ""
 /import file-name=v2raymik.rsc
 ```

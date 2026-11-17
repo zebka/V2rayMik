@@ -140,6 +140,25 @@ The container itself is not tunnelled: the router's masquerade keeps the
 container subnet direct to the WAN, which is what keeps its own DNS, image
 pulls and subscription fetches independent of the tunnel state.
 
+## Fasttrack and the connection mark
+
+RouterOS's default configuration fasttracks established connections: they skip
+the firewall and the mangle rules. Left alone, a fasttracked connection never
+gets the tunnel's routing mark and leaves through the WAN, past the tunnel -
+the exact leak this project exists to prevent. It is also invisible in the
+mangle counters, because the connection stopped being looked at.
+
+The import therefore marks every tunnel-bound connection once
+(`connection-mark=mik-conn`, rule `mik: mark tunnel connections`) and changes
+RouterOS's own `defconf: fasttrack` rule to `connection-mark=no-mark`, so
+fasttrack only takes connections that carry no mark. The rule is RouterOS's,
+not this project's: the import saves its previous values once and uninstall
+puts them back. A second import never overwrites the saved originals.
+
+Connections opened before the change keep their old route until they close.
+`/ip firewall connection remove [find]` clears the table, at the cost of
+resetting every connection through the router.
+
 ## What the server sees
 
 The router masquerades LAN → container, so the server sees the router, not
