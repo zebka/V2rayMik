@@ -8,7 +8,7 @@
 
 **Tech Stack:** RouterOS 7.23+ scripting (`.rsc`), POSIX `sh` unit tests, GitHub Actions, Markdown docs.
 
-**Spec:** `C:\Users\Falahat-PC\Downloads\V2rayMik-agent-notes.md` (the field notes this plan implements).
+**Spec:** the field notes from the 2026-11-16 device test. They are not in the repository, because they contain node credentials.
 
 ## Global Constraints
 
@@ -48,7 +48,7 @@
 The project's own check is the test. Run it and watch it fail:
 
 ```bash
-cd /c/Users/Falahat-PC/Projects/V2rayMik
+cd "$(git rev-parse --show-toplevel)"
 sh -c 'v=$(cat VERSION); grep -q "^## $v " CHANGELOG.md'
 ```
 
@@ -141,7 +141,7 @@ assert_eq "$(has 'healthcheck-cmd=')" "yes" "healthcheck is set"
 - [ ] **Step 2: Run the test to verify it fails**
 
 ```bash
-cd /c/Users/Falahat-PC/Projects/V2rayMik
+cd "$(git rev-parse --show-toplevel)"
 sh tests/unit/rsc-container.t.sh
 ```
 
@@ -207,7 +207,7 @@ Expected: PASS (exit 0, no output)
 - [ ] **Step 7: Run the whole suite and the lint**
 
 ```bash
-sh /c/Users/Falahat-PC/AppData/Local/Temp/opencode/runtests.sh
+APP_DIR=docker TESTS_DIR=tests sh tests/run.sh
 sh tests/lint-rsc.sh router
 ```
 
@@ -439,7 +439,7 @@ Change the `official` option's label (line 108) to `Official (GitHub Container R
 - [ ] **Step 9: Run the whole suite and the lint**
 
 ```bash
-sh /c/Users/Falahat-PC/AppData/Local/Temp/opencode/runtests.sh
+APP_DIR=docker TESTS_DIR=tests sh tests/run.sh
 sh tests/lint-rsc.sh router
 ```
 
@@ -619,7 +619,7 @@ Expected: PASS (exit 0)
 - [ ] **Step 8: Run the whole suite and the lint**
 
 ```bash
-sh /c/Users/Falahat-PC/AppData/Local/Temp/opencode/runtests.sh
+APP_DIR=docker TESTS_DIR=tests sh tests/run.sh
 sh tests/lint-rsc.sh router
 ```
 
@@ -748,7 +748,7 @@ Under the `## 1.3.26 - 2026-11-17` heading from Task 1, replace the placeholder 
 - [ ] **Step 7: Run the whole suite, the lint and the version check**
 
 ```bash
-sh /c/Users/Falahat-PC/AppData/Local/Temp/opencode/runtests.sh
+APP_DIR=docker TESTS_DIR=tests sh tests/run.sh
 sh tests/lint-rsc.sh router
 sh -c 'v=$(cat VERSION); grep -q "^## $v " CHANGELOG.md && echo "version $v ok"'
 ```
@@ -823,7 +823,7 @@ check-version:
 
 ```bash
 sh tests/lint-rsc.sh router
-sh /c/Users/Falahat-PC/AppData/Local/Temp/opencode/runtests.sh
+APP_DIR=docker TESTS_DIR=tests sh tests/run.sh
 ```
 
 Expected: no lint output, `12 tests, 12 passed, 0 failed`.

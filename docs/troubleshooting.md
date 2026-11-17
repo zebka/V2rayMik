@@ -36,7 +36,7 @@ your network filters that destination. Nothing in the router needs editing.
 | `resolve-failed: <host>` | the container cannot resolve the endpoint | set `ENDPOINT_IP` |
 | Names fail to resolve, everything else works | the transport does not carry UDP (common with a bare Shadowsocks server) | enable UDP server-side, or run DNS over TCP/HTTPS |
 | `:resolve <name>` returns `10.10.34.x` | router DNS is poisoned; the tunnel is fine | fix `/ip dns` or use DoH |
-| Small pages work, big downloads or speed tests stall at 0 | the tunnel MTU is 1500, or fasttrack is skipping mangle | the tunnel must be 1400, and fasttrack must take only unmarked connections - see "The container is healthy, big downloads hang" below |
+| Small pages work, big downloads or speed tests stall at 0 | the tunnel MTU is 1500, or fasttrack is skipping mangle | the tunnel must be 1400, and fasttrack must take only unmarked connections — see "The container is healthy, big downloads hang" below |
 | Router's own traffic exits direct, LAN is tunnelled | no output mark rule | re-import `v2raymik.rsc`; it adds the output mark if none exists |
 | LAN is tunnelled but the router is not | router-originated traffic not masqueraded towards the veth | the install adds `masquerade out-interface=veth-mik`; check it exists |
 | Tunnel is up, engine logs `accepted`, nothing comes back | the container's own dial is not NAT'd | the install adds `masquerade src-address=$MikSubnet` (`mik: container egress`); check it exists — on routers without a whole-WAN masquerade the transport cannot dial without it |

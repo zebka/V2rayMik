@@ -26,7 +26,7 @@
 - **The healthcheck makes a request.** It looked only for `tun0`, which says
   the process is alive, not that the tunnel carries anything. It now also
   fetches `http://www.gstatic.com/generate_204`. One request is not a
-  throughput test - a healthy container can still be too slow for big
+  throughput test — a healthy container can still be too slow for big
   downloads.
 - **Fasttrack can no longer route around the tunnel.** RouterOS's
   `defconf: fasttrack` rule skipped the firewall for established connections,

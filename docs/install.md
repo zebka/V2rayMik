@@ -51,7 +51,7 @@ import pulls from GitHub Container Registry first, asks for the image again
 once if the pull failed half-way, and if the container still does not start it
 switches to `https://docker.arvancloud.ir` by itself, once, and logs
 `trying https://docker.arvancloud.ir`. The fallback then pulls
-`azebka/v2raymik:<version>` - the Docker Hub repository - because an Iranian
+`azebka/v2raymik:<version>` — the Docker Hub repository — because an Iranian
 mirror is a Docker Hub mirror: it has never heard of `ghcr.io/zebka/v2raymik`,
 so changing only the registry would pull nothing.
 

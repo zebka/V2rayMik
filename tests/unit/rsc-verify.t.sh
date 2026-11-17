@@ -11,5 +11,5 @@ has() { grep -qF -- "$1" "$rsc" && echo yes || echo no; }
 # The import ends by telling the operator what to look at. The MTU is the one
 # that silently breaks large downloads.
 assert_eq "$(has 'grep mtu /etc/sing-box/config.json')" "yes" "the MTU check is printed"
-assert_eq "$(has 'connection-mark=mik-conn' )" "yes" "the connection-mark check is printed"
-assert_eq "$(has 'defconf: fasttrack' )" "yes" "the fasttrack check is printed"
+assert_eq "$(has 'connection-mark=mik-conn')" "yes" "the connection-mark check is printed"
+assert_eq "$(has 'defconf: fasttrack')" "yes" "the fasttrack check is printed"

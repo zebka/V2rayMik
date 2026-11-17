@@ -555,11 +555,6 @@
     :do { :global MikFasttrackSavedList [/ip firewall filter get $fasttrack src-address-list] } on-error={ :global MikFasttrackSavedList "" }
   }
   /ip firewall filter set $fasttrack connection-mark=no-mark
-  # A stray empty src-address-list (a mistyped "!something" RouterOS kept as
-  # an empty value) would still match nothing useful; clear it.
-  :if ([:len $MikFasttrackSavedList] = 0) do={
-    :do { /ip firewall filter set $fasttrack src-address-list="" } on-error={}
-  }
 }
 
 :if ([:len [/ip firewall mangle find where chain=prerouting and action=mark-routing and comment="World -> tunnel"]] = 0) do={
