@@ -109,6 +109,24 @@ jobs:
           echo "value=$v" >> "$GITHUB_OUTPUT"
           echo "plain=$plain" >> "$GITHUB_OUTPUT"
 
+      # The installer pins the image to the version in VERSION, so that tag has
+      # to exist from the moment the commit lands - but a released tag must
+      # keep pointing at its release. Main therefore publishes the bare version
+      # only while the tag is still free; once it is taken, main moves :edge and
+      # leaves the released tag alone. A tag build always republishes it, which
+      # is what turns the first main build into the release build.
+      - id: bare
+        name: Publish the version tag only if it is free
+        run: |
+          plain="$(cat VERSION)"
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "enable=true" >> "$GITHUB_OUTPUT"
+          elif docker manifest inspect "${IMAGE}:${plain}" >/dev/null 2>&1; then
+            echo "enable=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enable=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - id: meta
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
@@ -117,7 +135,7 @@ jobs:
             ${{ env.DH_USER != '' && format('docker.io/{0}/v2raymik', env.DH_USER) || '' }}
           tags: |
             type=raw,value=edge,enable=${{ github.ref == 'refs/heads/main' }}
-            type=raw,value=${{ steps.ver.outputs.plain }}
+            type=raw,value=${{ steps.ver.outputs.plain }},enable=${{ steps.bare.outputs.enable }}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
             type=raw,value=${{ env.SING_BOX_VERSION }},enable=${{ startsWith(github.ref, 'refs/tags/v') }}
             type=raw,value=xray-${{ env.XRAY_VERSION }},enable=${{ startsWith(github.ref, 'refs/tags/v') }}

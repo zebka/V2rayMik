@@ -39,6 +39,7 @@ check-version:
 	@v=$$(cat VERSION); \
 	case "$$v" in [0-9]*.[0-9]*.[0-9]*) ;; *) echo "VERSION is not x.y.z: $$v" >&2; exit 1 ;; esac; \
 	grep -q "^## $$v " CHANGELOG.md || { echo "CHANGELOG.md has no '## $$v' section" >&2; exit 1; }; \
+	grep -q "ghcr.io/zebka/v2raymik:$$v" router/v2raymik.rsc || { echo "router/v2raymik.rsc does not pin the image to $$v" >&2; exit 1; }; \
 	echo "version $$v ok"
 
 save:

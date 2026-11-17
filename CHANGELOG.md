@@ -7,7 +7,9 @@
   GitHub Container Registry first. The fallback to an Iranian Docker Hub
   mirror now names the Docker Hub repository as well, because a Docker Hub
   mirror serves the Docker Hub namespace and has never heard of
-  `ghcr.io/zebka/v2raymik`.
+  `ghcr.io/zebka/v2raymik`. A `main` build publishes the version tag only
+  while it is still free, so a released tag is never overwritten by later
+  unreleased code.
 - A pull that dies half-way is asked for again once, before the fallback
   registry is used.
 - The import prints the checks to run afterwards: the tunnel MTU, the
