@@ -68,6 +68,14 @@ need 'mik: MSS clamp (router output)'        # router-originated traffic needs i
 need 'src-address-list=mik-private'          # the panel stays on private sources
 need 'dst-address-list=!mik-private'         # the container stays out of private space
 
+# The image the import pulls is pinned to the version of the repository. A
+# pin that names another version would run a container the repository does
+# not describe.
+pin=$(sed -n 's/.*:global MikImage "ghcr\.io\/zebka\/v2raymik:\([0-9.]*\)".*/\1/p' "$f")
+want=$(cat "$root/VERSION")
+[ -n "$pin" ] || err "$f: the image is not pinned to a version"
+[ "$pin" = "$want" ] || err "$f: the image is pinned to $pin, VERSION says $want"
+
 # Names that left the project and must not come back. Read with `$`: the
 # migration sections still name what they migrate away from, in comments and
 # in the ALLOWED_PORTS env removal, and that is deliberate.

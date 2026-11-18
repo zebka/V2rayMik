@@ -38,6 +38,7 @@
 :global MikGatewayIp
 :global MikContainerName
 :global MikImage
+:global MikImageFallback
 :global MikImageFile
 :global MikCheckCertificate
 :global MikRegistryUrl
@@ -46,7 +47,11 @@
 :global MikAllowContainerToLan
 :global MikBridge
 :global MikRegistryFallback
+:global MikTunMtu
 :global MikDnsSavedServers
+:global MikFasttrackSaved
+:global MikFasttrackSavedMark
+:global MikFasttrackSavedList
 
 # Sensible defaults; override before the import in the same terminal session.
 # MikDisk is the one knob that varies per device, so it is detected: the first
@@ -89,17 +94,31 @@
 :if ([:typeof $MikContainerIp] = "nothing") do={ :global MikContainerIp "172.17.0.2" }
 :if ([:typeof $MikGatewayIp] = "nothing") do={ :global MikGatewayIp "172.17.0.1" }
 :if ([:typeof $MikContainerName] = "nothing") do={ :global MikContainerName "v2raymik" }
-:if ([:typeof $MikImage] = "nothing") do={ :global MikImage "azebka/v2raymik:latest" }
+# The image is pinned to the version of this file: a router must never run a
+# container the repository does not describe. The tag is bumped with every
+# release, and CI checks that it matches VERSION.
+:if ([:typeof $MikImage] = "nothing") do={ :global MikImage "ghcr.io/zebka/v2raymik:1.3.26" }
+# The fallback names the Docker Hub repository on purpose. A Docker Hub mirror
+# serves the Docker Hub namespace and has never heard of ghcr.io/zebka/...,
+# so swapping only the registry would silently pull nothing.
+:if ([:typeof $MikImageFallback] = "nothing") do={ :global MikImageFallback "azebka/v2raymik:1.3.26" }
 :if ([:typeof $MikImageFile] = "nothing") do={ :global MikImageFile "" }
 :if ([:typeof $MikCheckCertificate] = "nothing") do={ :global MikCheckCertificate "yes" }
 # Registry used for the pull. If you set MikRegistryUrl yourself, that registry
-# is used and there is no fallback. Otherwise the official registry is tried
-# first and, if the image does not start, MikRegistryFallback is tried. The
-# fallback is reached with certificate checks off (arvancloud needs that on
-# 7.25.1). "" turns the fallback off.
+# is used and there is no fallback — and MikImage has to name an image that
+# registry actually has (a Docker Hub mirror serves azebka/v2raymik, not
+# ghcr.io/zebka/v2raymik). Otherwise GitHub Container Registry is tried first
+# and, if the image does not start, MikRegistryFallback is tried with
+# MikImageFallback. "" turns the fallback off.
 :local registryPinned ([:typeof $MikRegistryUrl] != "nothing")
-:if ([:typeof $MikRegistryUrl] = "nothing") do={ :global MikRegistryUrl "https://registry-1.docker.io" }
+:if ([:typeof $MikRegistryUrl] = "nothing") do={ :global MikRegistryUrl "https://ghcr.io" }
 :if ([:typeof $MikRegistryFallback] = "nothing") do={ :global MikRegistryFallback "https://docker.arvancloud.ir" }
+# The MTU of the tunnel interface. 1400, not 1500: the transport adds its own
+# header, so a 1500-byte inner packet no longer fits the WAN MTU and is
+# dropped or fragmented. The router's MSS clamp only covers TCP that enters
+# from the LAN; it does not cover UDP inside the tunnel, so the clamp cannot
+# fix this. Set MikTunMtu to 1500 only if the path really has the room.
+:if ([:typeof $MikTunMtu] = "nothing") do={ :global MikTunMtu "1400" }
 :if ([:typeof $MikAdminPort] = "nothing") do={ :global MikAdminPort "8080" }
 :if ([:typeof $MikAdminLanPort] = "nothing") do={ :global MikAdminLanPort "8081" }
 :if ([:typeof $MikAllowContainerToLan] = "nothing") do={ :global MikAllowContainerToLan false }
@@ -134,7 +153,7 @@
   }
 
   # --- mangle ------------------------------------------------------------
-  :foreach c in={"mik: never mark the container";"mik: router to LAN";"mik: keep router-direct off the tunnel";"mik: MSS clamp";"mik: MSS clamp back";"mik: MSS clamp (router output)";"World -> mik (LAN)";"World -> mik (router)";"World -> tunnel";"World -> tunnel (router)"} do={
+  :foreach c in={"mik: never mark the container";"mik: router to LAN";"mik: keep router-direct off the tunnel";"mik: MSS clamp";"mik: MSS clamp back";"mik: MSS clamp (router output)";"World -> mik (LAN)";"World -> mik (router)";"World -> tunnel";"World -> tunnel (router)";"mik: mark tunnel connections"} do={
     :if ([:len [/ip firewall mangle find where comment=$c]] > 0) do={
       /ip firewall mangle remove [find where comment=$c]
     }
@@ -152,6 +171,18 @@
   :foreach c in={"mik: container tcp transport";"mik: container udp transport";"mik: container tcp transport (extra)";"mik: container udp transport (extra)";"mik: container to LAN (opt-in)";"mik: container default deny";"mik: container replies (established)";"mik: container egress"} do={
     :if ([:len [/ip firewall filter find where comment=$c]] > 0) do={
       /ip firewall filter remove [find where comment=$c]
+    }
+  }
+
+  # --- RouterOS's own fasttrack rule (the install changed it) ---------------
+  # Put the rule back the way it was found. A value that was empty when it was
+  # captured comes back as an empty string, and setting a property to an empty
+  # string removes it again, which is the state RouterOS ships.
+  :local fasttrack [:pick [/ip firewall filter find where comment="defconf: fasttrack"] 0]
+  :if ([:len $fasttrack] > 0) do={
+    :if ([:typeof $MikFasttrackSaved] != "nothing") do={
+      :do { /ip firewall filter set $fasttrack connection-mark=$MikFasttrackSavedMark } on-error={}
+      :do { /ip firewall filter set $fasttrack src-address-list=$MikFasttrackSavedList } on-error={}
     }
   }
 
@@ -306,6 +337,15 @@
     value="/etc/sing-box/outbound.json"
 }
 
+# The MTU the tunnel interface gets. The entrypoint reads TUN_MTU and writes
+# it into the sing-box tun inbound; unset it means 1500, which is too large
+# for a tunnel that adds a header.
+:if ([:len [/container envs find where list=$MikContainerName and key="TUN_MTU"]] = 0) do={
+  /container envs add list=$MikContainerName key=TUN_MTU value=$MikTunMtu
+} else={
+  :do { /container envs set [find where list=$MikContainerName and key="TUN_MTU"] value=$MikTunMtu } on-error={}
+}
+
 # The egress allowlist is gone (1.3.0): the firewall no longer filters by port
 # and the panel no longer marks rows `port blocked`. Drop the env so an older
 # image does not keep enforcing a list that nothing maintains anymore.
@@ -341,22 +381,41 @@
 }
 
 # Start a just-added container as soon as the pull has produced a startable
-# one, retrying while the pull is still running. Up to ~3 minutes; on a very
-# slow link the pull can outlast this — run /container start by hand then.
+# one, retrying while the pull is still running. A pull that dies half-way
+# (Connection reset by peer, HTTP 502) leaves the container stopped and
+# nothing starts it, so the pull is asked for again once before the registry
+# is given up on.
 :if ($fresh) do={
   :log info "v2raymik: waiting for the image pull to finish, then starting the container"
   :local started false
-  :for i from=1 to=40 do={
+  :local attempt 0
+  :while ($attempt < 2) do={
+    :set attempt ($attempt + 1)
     :if ($started = false) do={
-      :do {
-        /container start [find where name=$MikContainerName]
-        :delay 2s
-        :if ([:len [/container find where name=$MikContainerName and stopped]] = 0) do={
-          :set started true
+      :for i from=1 to=40 do={
+        :if ($started = false) do={
+          :do {
+            /container start [find where name=$MikContainerName]
+            :delay 2s
+            :if ([:len [/container find where name=$MikContainerName and stopped]] = 0) do={
+              :set started true
+            }
+          } on-error={ :delay 3s }
         }
-      } on-error={ :delay 3s }
+        :if ($started = false) do={ :delay 2s }
+      }
+      :if ($started = false) do={
+        # The pull is asked for again once, after the first failed wait. The
+        # second failure must not start another pull: the fallback below stops
+        # and removes this container, and a pull in flight fights the removal.
+        :if ($attempt < 2) do={
+          :log warning ("v2raymik: the image did not start (attempt " . $attempt . "); pulling it again")
+          :do { /container/repull [find where name=$MikContainerName] } on-error={ :log warning "v2raymik: this RouterOS cannot re-pull an image; trying the fallback registry" }
+        } else={
+          :log warning ("v2raymik: the image did not start (attempt " . $attempt . "); giving up on this registry, using the fallback")
+        }
+      }
     }
-    :if ($started = false) do={ :delay 2s }
   }
   :if ($started = true) do={
     :log info "v2raymik: container started"
@@ -374,10 +433,13 @@
         }
       }
       /container/config/set registry-url=$MikRegistryFallback
-      /container add name=$MikContainerName remote-image=$MikImage interface=$MikVeth \
+      # The mirror serves the image with a certificate the router does not
+      # trust (measured on 7.25.1), so the check is off here — the log line
+      # above already says so.
+      /container add name=$MikContainerName remote-image=$MikImageFallback interface=$MikVeth \
         root-dir=$rootDir dns=1.1.1.1 \
         envlist=$MikContainerName start-on-boot=yes restart-policy=always \
-        check-certificate=$MikCheckCertificate mountlists=MOUNT_MIK_DATA \
+        check-certificate=no mountlists=MOUNT_MIK_DATA \
         memory-high=100663296 logging=yes
       :for i from=1 to=60 do={
         :if ($started = false) do={
@@ -401,10 +463,14 @@
 }
 
 # 7.23+: if the TUN disappears, the container is restarted instead of sitting
-# "running" with no tunnel.
+# "running" with no tunnel. The check looks for tun0 AND makes one small
+# request, because a live process with a dead tunnel still passes the first
+# test. wget is in the image (busybox-extras). One request is not a
+# throughput test: a healthy container can still be too slow for big
+# downloads.
 :do {
-  /container set [find where name=$MikContainerName] healthcheck-cmd="/bin/sh -c 'ip link show tun0 >/dev/null 2>&1'" \
-    healthcheck-interval=00:01:00 healthcheck-start-period=00:00:30 stop-on-unhealthy=yes
+  /container set [find where name=$MikContainerName] healthcheck-cmd="/bin/sh -c 'ip link show tun0 >/dev/null 2>&1 && wget -q -T 5 -O /dev/null http://www.gstatic.com/generate_204'" \
+    healthcheck-interval=00:01:00 healthcheck-start-period=00:00:30 healthcheck-retries=6 stop-on-unhealthy=yes
 } on-error={ :log warning "v2raymik: could not set a healthcheck (RouterOS too old?) — the container still runs" }
 
 # --- routing ------------------------------------------------------------------
@@ -455,6 +521,40 @@
 :if ([:len [/ip route find where comment="mik: tunnel" and routing-table=$tableName]] = 0) do={
   /ip route add dst-address=0.0.0.0/0 gateway=$MikContainerIp routing-table=$tableName \
     distance=1 comment="mik: tunnel"
+}
+
+# Fasttrack is what makes the connection mark necessary. RouterOS's own
+# defconf: fasttrack rule sends established connections past the firewall and
+# past mangle, so a connection that is fasttracked never gets the per-packet
+# routing mark and leaves through the WAN instead of the tunnel. Marking the
+# connection once, when it is created, gives fasttrack something to skip.
+# The mark is set before the routing rule and passes the packet on, or the
+# routing rule below it would never run.
+:if ([:len [/ip firewall mangle find where comment="mik: mark tunnel connections"]] = 0) do={
+  :local tunnelRule [:pick [/ip firewall mangle find where chain=prerouting and action=mark-routing and comment="World -> tunnel"] 0]
+  :if ([:len $tunnelRule] > 0) do={
+    /ip firewall mangle add chain=prerouting dst-address-type=!local \
+      action=mark-connection new-connection-mark=mik-conn passthrough=yes \
+      comment="mik: mark tunnel connections" place-before=$tunnelRule
+  } else={
+    /ip firewall mangle add chain=prerouting dst-address-type=!local \
+      action=mark-connection new-connection-mark=mik-conn passthrough=yes \
+      comment="mik: mark tunnel connections"
+  }
+}
+
+# RouterOS ships the fasttrack rule; limiting it to unmarked connections is a
+# change to RouterOS's own config, not to ours. What the rule had is saved
+# once, and uninstall puts it back, or removing this project would leave the
+# router's own firewall altered.
+:local fasttrack [:pick [/ip firewall filter find where comment="defconf: fasttrack"] 0]
+:if ([:len $fasttrack] > 0) do={
+  :if ([:typeof $MikFasttrackSaved] = "nothing") do={
+    :global MikFasttrackSaved true
+    :do { :global MikFasttrackSavedMark [/ip firewall filter get $fasttrack connection-mark] } on-error={ :global MikFasttrackSavedMark "" }
+    :do { :global MikFasttrackSavedList [/ip firewall filter get $fasttrack src-address-list] } on-error={ :global MikFasttrackSavedList "" }
+  }
+  /ip firewall filter set $fasttrack connection-mark=no-mark
 }
 
 :if ([:len [/ip firewall mangle find where chain=prerouting and action=mark-routing and comment="World -> tunnel"]] = 0) do={
@@ -607,4 +707,10 @@
 }
 
 :log info "v2raymik: installed; the panel comes up at http://<router>:$MikAdminLanPort/ once the container is running"
+# What to look at afterwards. The MTU is the one that fails quietly: pages load
+# and large downloads hang, which reads as "the tunnel is slow" and is not.
+:log info "v2raymik: verify 1 - the tunnel MTU must be 1400: /container shell $MikContainerName cmd=\"grep mtu /etc/sing-box/config.json\""
+:log info "v2raymik: verify 2 - the marked connections: /ip firewall connection print count-only where connection-mark=mik-conn"
+:log info "v2raymik: verify 3 - fasttrack only takes unmarked connections: /ip firewall filter print where comment=\"defconf: fasttrack\""
+:log info "v2raymik: verify 4 - connections opened before this import keep their old route; /ip firewall connection remove [find] clears them"
 }

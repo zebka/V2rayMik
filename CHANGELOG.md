@@ -1,4 +1,42 @@
 # Changelog
+## 1.3.26 - 2026-11-17
+
+### Changed
+
+- The image is pinned to the version of the repository and the pull goes to
+  GitHub Container Registry first. The fallback to an Iranian Docker Hub
+  mirror now names the Docker Hub repository as well, because a Docker Hub
+  mirror serves the Docker Hub namespace and has never heard of
+  `ghcr.io/zebka/v2raymik`. A `main` build publishes the version tag only
+  while it is still free, so a released tag is never overwritten by later
+  unreleased code.
+- A pull that dies half-way is asked for again once, before the fallback
+  registry is used.
+- The import prints the checks to run afterwards: the tunnel MTU, the
+  connection mark, the fasttrack rule, and the connection table.
+
+### Fixed
+
+- **The tunnel's MTU is 1400, not 1500.** The transport adds its own header,
+  so a 1500-byte inner packet no longer fits a 1500-byte WAN MTU and is
+  dropped or fragmented. The router's MSS clamp only covers TCP that enters
+  from the LAN; it does not cover UDP inside the tunnel, so it could not
+  cover this. Small pages loaded while large downloads and speed tests hung.
+  `TUN_MTU` is now set on the container and `MikTunMtu` overrides it.
+- **The healthcheck makes a request.** It looked only for `tun0`, which says
+  the process is alive, not that the tunnel carries anything. It now also
+  fetches `http://www.gstatic.com/generate_204`. One request is not a
+  throughput test — a healthy container can still be too slow for big
+  downloads.
+- **Fasttrack can no longer route around the tunnel.** RouterOS's
+  `defconf: fasttrack` rule skipped the firewall for established connections,
+  and those connections never got the routing mark, so they left through the
+  WAN. The import now marks connections (`mik-conn`) and limits fasttrack to
+  connections that carry no mark. Uninstall puts RouterOS's rule back the way
+  it was.
+- **The fallback registry really turns the certificate check off.** The log
+  said it did; the container was added with `check-certificate=yes`.
+
 ## 1.3.25 - 2026-11-15
 
 ### Added
