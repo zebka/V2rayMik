@@ -23,17 +23,15 @@ if [ "$engine" = "xray" ]; then
   ep=$(xray_endpoint_of "$ob" 2>/dev/null) || fail_json "400 Bad Request" "no endpoint"
   host=${ep%:*}
   ipv4=$(resolve_endpoint "$host") || fail_json "502 Bad Gateway" "cannot resolve $host"
-  if ! is_ipv4 "$host"; then
-    ob=$(xray_pin "$ob" "$ipv4") || fail_json "500 Internal Server Error" "cannot pin the endpoint"
-  fi
+  # Pin only for status reporting. state.json keeps the unpinned outbound so a
+  # restart re-resolves a fresh IP for CDN/DDNS endpoints; activate_xray pins
+  # again at render time.
 else
   ob=$(link_to_outbound "$link" 2>/dev/null) || fail_json "400 Bad Request" "unsupported link"
   ep=$(endpoint_of "$ob" 2>/dev/null) || fail_json "400 Bad Request" "no endpoint"
   host=${ep%:*}
   ipv4=$(resolve_endpoint "$host") || fail_json "502 Bad Gateway" "cannot resolve $host"
-  if ! is_ipv4 "$host"; then
-    ob=$(printf '%s' "$ob" | jq --arg ip "$ipv4" '.server = $ip')
-  fi
+  # Same: keep the hostname in state.json; activate_singbox pins at render time.
 fi
 
 # Keep the previous config for rollback.

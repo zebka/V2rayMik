@@ -38,7 +38,19 @@ if [ -n "$url" ]; then
       fail_json "400 Bad Request" "url host looks private" ;;
   esac
   errf="$DATA_DIR/.fetch.err"
-  code=$(curl -sS -L --max-redirs 3 --proto '=http,https' --proto-redir '=https' --max-time 25 \
+  # If the tunnel is down, bind to the direct egress interface so the fetch
+  # does not loop into a dead tunnel. When the tunnel is up, leave curl
+  # unbound (it takes the normal routes, which may include the tunnel).
+  _cip=""
+  if [ -f "$STATUS_FILE" ] && ! jq -e '.up == true' "$STATUS_FILE" >/dev/null 2>&1; then
+    _eth=$(detect_egress 2>/dev/null || true)
+    if [ -n "$_eth" ]; then
+      _cip=$(ip -4 addr show dev "$_eth" 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1 | head -n 1)
+    fi
+  fi
+  _curl_iface=""
+  if [ -n "$_cip" ]; then _curl_iface="--interface $_cip"; fi
+  code=$(curl $_curl_iface -sS -L --max-redirs 3 --proto '=http,https' --proto-redir '=https' --max-time 25 \
            --max-filesize 2000000 \
            -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" \
            -o "$tmp" -w '%{http_code}' "$url" 2>"$errf")

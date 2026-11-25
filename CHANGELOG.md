@@ -1,4 +1,30 @@
 # Changelog
+## 1.3.27 - 2026-11-26
+
+### Changed
+
+- The healthcheck uses `pidof sing-box` instead of `pgrep`, which the image's
+  busybox build does not always ship. `memory-high` is set to 256 MiB, and
+  the re-import path now sets it on an existing container as well.
+- Updating an existing 1.3.26 install to the 1.3.27 image needs one of two
+  steps: `uninstall` then `install` again, or
+  `/container set v2raymik remote-image=ghcr.io/zebka/v2raymik:1.3.27` followed
+  by `/container/repull v2raymik`. A plain re-import keeps the current image.
+
+### Fixed
+
+- **A crashed engine is detected at once.** A dead child stays a zombie until
+  it is reaped, and `kill -0` still succeeds on a zombie, so the supervisor
+  kept waiting on it. It now checks the process state as well, and reaps both
+  engines after each stop.
+- **A bad node no longer restarts the whole container.** An invalid
+  configuration from a node is logged and the supervisor keeps running, so the
+  panel can roll `state.json` back to the last good node.
+- **Stability on the MikroTik hAP ax3 (1 GB RAM).** The tunnel's
+  `udp_timeout` is one minute, the Go runtime memory limit is 80 MiB, and
+  subscription fetches fall back to the direct interface while the tunnel is
+  down.
+
 ## 1.3.26 - 2026-11-17
 
 ### Changed

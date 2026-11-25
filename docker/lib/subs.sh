@@ -31,12 +31,20 @@ subs_entry() {
 }
 
 # subs_decode <raw-file> — one link per line, whatever the payload shape.
+# Only the non-link branch is base64. That branch normalises URL-safe
+# alphabets and restores missing padding, because subscription services
+# routinely hand out unpadded or url-safe base64.
 subs_decode() {
   raw=$1
   head=$(head -c 200 "$raw" 2>/dev/null | tr -d '\r\n')
   case "$head" in
     *://*) cat "$raw" ;;
-    *) base64 -d "$raw" 2>/dev/null || cat "$raw" ;;
+    *) {
+      b64=$(tr -d '\r\n \t' < "$raw" | tr '_-' '/+')
+      pad=$(( (4 - ${#b64} % 4) % 4 ))
+      while [ "$pad" -gt 0 ]; do b64="${b64}="; pad=$((pad - 1)); done
+      printf '%s' "$b64" | base64 -d 2>/dev/null || cat "$raw"
+    } ;;
   esac \
     | tr -d '\r' \
     | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \

@@ -97,11 +97,11 @@
 # The image is pinned to the version of this file: a router must never run a
 # container the repository does not describe. The tag is bumped with every
 # release, and CI checks that it matches VERSION.
-:if ([:typeof $MikImage] = "nothing") do={ :global MikImage "ghcr.io/zebka/v2raymik:1.3.26" }
+:if ([:typeof $MikImage] = "nothing") do={ :global MikImage "ghcr.io/zebka/v2raymik:1.3.27" }
 # The fallback names the Docker Hub repository on purpose. A Docker Hub mirror
 # serves the Docker Hub namespace and has never heard of ghcr.io/zebka/...,
 # so swapping only the registry would silently pull nothing.
-:if ([:typeof $MikImageFallback] = "nothing") do={ :global MikImageFallback "azebka/v2raymik:1.3.26" }
+:if ([:typeof $MikImageFallback] = "nothing") do={ :global MikImageFallback "azebka/v2raymik:1.3.27" }
 :if ([:typeof $MikImageFile] = "nothing") do={ :global MikImageFile "" }
 :if ([:typeof $MikCheckCertificate] = "nothing") do={ :global MikCheckCertificate "yes" }
 # Registry used for the pull. If you set MikRegistryUrl yourself, that registry
@@ -153,7 +153,7 @@
   }
 
   # --- mangle ------------------------------------------------------------
-  :foreach c in={"mik: never mark the container";"mik: router to LAN";"mik: keep router-direct off the tunnel";"mik: MSS clamp";"mik: MSS clamp back";"mik: MSS clamp (router output)";"World -> mik (LAN)";"World -> mik (router)";"World -> tunnel";"World -> tunnel (router)";"mik: mark tunnel connections"} do={
+  :foreach c in={"mik: never mark the container";"mik: router to LAN";"mik: keep router-direct off the tunnel";"mik: MSS clamp";"mik: MSS clamp back";"mik: MSS clamp (router output)";"World -> mik (LAN)";"World -> mik (router)";"World -> tunnel";"World -> tunnel (router)";"mik: mark tunnel connections";"mik: no tunnel for LAN/mDNS"} do={
     :if ([:len [/ip firewall mangle find where comment=$c]] > 0) do={
       /ip firewall mangle remove [find where comment=$c]
     }
@@ -178,7 +178,10 @@
   # Put the rule back the way it was found. A value that was empty when it was
   # captured comes back as an empty string, and setting a property to an empty
   # string removes it again, which is the state RouterOS ships.
-  :local fasttrack [:pick [/ip firewall filter find where comment="defconf: fasttrack"] 0]
+  :local fasttrack [:pick [/ip firewall filter find where action=fasttrack-connection and chain=forward] 0]
+  :if ([:len $fasttrack] = 0) do={
+    :set fasttrack [:pick [/ip firewall filter find where comment="defconf: fasttrack"] 0]
+  }
   :if ([:len $fasttrack] > 0) do={
     :if ([:typeof $MikFasttrackSaved] != "nothing") do={
       :do { /ip firewall filter set $fasttrack connection-mark=$MikFasttrackSavedMark } on-error={}
@@ -366,7 +369,7 @@
       root-dir=$rootDir dns=1.1.1.1 \
       envlist=$MikContainerName start-on-boot=yes restart-policy=always \
       check-certificate=$MikCheckCertificate mountlists=MOUNT_MIK_DATA \
-      memory-high=100663296 logging=yes
+      memory-high=268435456 logging=yes
     :set fresh true
   }
 } else={
@@ -375,7 +378,7 @@
       root-dir=$rootDir dns=1.1.1.1 \
       envlist=$MikContainerName start-on-boot=yes restart-policy=always \
       check-certificate=$MikCheckCertificate mountlists=MOUNT_MIK_DATA \
-      memory-high=100663296 logging=yes
+      memory-high=268435456 logging=yes
     :set fresh true
   }
 }
@@ -440,7 +443,7 @@
         root-dir=$rootDir dns=1.1.1.1 \
         envlist=$MikContainerName start-on-boot=yes restart-policy=always \
         check-certificate=no mountlists=MOUNT_MIK_DATA \
-        memory-high=100663296 logging=yes
+        memory-high=268435456 logging=yes
       :for i from=1 to=60 do={
         :if ($started = false) do={
           :do {
@@ -467,10 +470,11 @@
 # request, because a live process with a dead tunnel still passes the first
 # test. wget is in the image (busybox-extras). One request is not a
 # throughput test: a healthy container can still be too slow for big
-# downloads.
+# downloads. The longer timeout (wget -T 10) and start-period (90s) keep a
+# slow boot from killing the container on the first check.
 :do {
-  /container set [find where name=$MikContainerName] healthcheck-cmd="/bin/sh -c 'ip link show tun0 >/dev/null 2>&1 && wget -q -T 5 -O /dev/null http://www.gstatic.com/generate_204'" \
-    healthcheck-interval=00:01:00 healthcheck-start-period=00:00:30 healthcheck-retries=6 stop-on-unhealthy=yes
+  /container set [find where name=$MikContainerName] healthcheck-cmd="/bin/sh -c 'ip link show tun0 >/dev/null 2>&1 && pidof sing-box >/dev/null 2>&1 && wget -q -T 10 -O /dev/null http://www.gstatic.com/generate_204'" \
+    healthcheck-interval=00:01:00 healthcheck-start-period=00:01:30 healthcheck-retries=8 stop-on-unhealthy=yes memory-high=268435456
 } on-error={ :log warning "v2raymik: could not set a healthcheck (RouterOS too old?) — the container still runs" }
 
 # --- routing ------------------------------------------------------------------
@@ -529,25 +533,52 @@
 # routing mark and leaves through the WAN instead of the tunnel. Marking the
 # connection once, when it is created, gives fasttrack something to skip.
 # The mark is set before the routing rule and passes the packet on, or the
-# routing rule below it would never run.
+# routing rule below it would never run. Private, multicast and limited
+# broadcast destinations are excluded so LAN-to-VLAN, upstream-modem and
+# mDNS traffic never enters tun0. Re-import updates an existing rule with
+# the new matchers (the old import only created it once).
+:local markRule [:pick [/ip firewall mangle find where comment="mik: mark tunnel connections"] 0]
+:if ([:len $markRule] > 0) do={
+  :if ([:len [/ip firewall mangle find where comment="mik: mark tunnel connections" and dst-address-list!="!mik-private"]] > 0) do={
+    /ip firewall mangle set $markRule dst-address-list=!mik-private
+  }
+  # multicast + limited broadcast: the RouterOS address-list API cannot
+  # express "!224.0.0.0/4" inline, so add an explicit accept rule before the
+  # tunnel rule instead. (Added below, guarded once.)
+}
 :if ([:len [/ip firewall mangle find where comment="mik: mark tunnel connections"]] = 0) do={
   :local tunnelRule [:pick [/ip firewall mangle find where chain=prerouting and action=mark-routing and comment="World -> tunnel"] 0]
   :if ([:len $tunnelRule] > 0) do={
-    /ip firewall mangle add chain=prerouting dst-address-type=!local \
+    /ip firewall mangle add chain=prerouting dst-address-type=!local dst-address-list=!mik-private \
       action=mark-connection new-connection-mark=mik-conn passthrough=yes \
       comment="mik: mark tunnel connections" place-before=$tunnelRule
   } else={
-    /ip firewall mangle add chain=prerouting dst-address-type=!local \
+    /ip firewall mangle add chain=prerouting dst-address-type=!local dst-address-list=!mik-private \
       action=mark-connection new-connection-mark=mik-conn passthrough=yes \
       comment="mik: mark tunnel connections"
+  }
+}
+# LAN/mDNS must never be marked into the tunnel, even on an old install.
+:if ([:len [/ip firewall mangle find where comment="mik: no tunnel for LAN/mDNS"]] = 0) do={
+  :local tunnelRule [:pick [/ip firewall mangle find where chain=prerouting and action=mark-routing and comment="World -> tunnel"] 0]
+  :if ([:len $tunnelRule] > 0) do={
+    /ip firewall mangle add chain=prerouting dst-address=224.0.0.0/4 action=accept \
+      comment="mik: no tunnel for LAN/mDNS" place-before=$tunnelRule
+  } else={
+    /ip firewall mangle add chain=prerouting dst-address=224.0.0.0/4 action=accept \
+      comment="mik: no tunnel for LAN/mDNS"
   }
 }
 
 # RouterOS ships the fasttrack rule; limiting it to unmarked connections is a
 # change to RouterOS's own config, not to ours. What the rule had is saved
 # once, and uninstall puts it back, or removing this project would leave the
-# router's own firewall altered.
-:local fasttrack [:pick [/ip firewall filter find where comment="defconf: fasttrack"] 0]
+# router's own firewall altered. Locate it by action (stable across locales
+# and renames), falling back to the defconf comment for older RouterOS.
+:local fasttrack [:pick [/ip firewall filter find where action=fasttrack-connection and chain=forward] 0]
+:if ([:len $fasttrack] = 0) do={
+  :set fasttrack [:pick [/ip firewall filter find where comment="defconf: fasttrack"] 0]
+}
 :if ([:len $fasttrack] > 0) do={
   :if ([:typeof $MikFasttrackSaved] = "nothing") do={
     :global MikFasttrackSaved true
@@ -557,8 +588,14 @@
   /ip firewall filter set $fasttrack connection-mark=no-mark
 }
 
+# Re-importing updates an existing "World -> tunnel" to the LAN/multicast
+# exclusions instead of leaving the old blanket match. The two rules
+# (prerouting and router-output) are rebuilt on every install to this shape.
+:if ([:len [/ip firewall mangle find where chain=prerouting and action=mark-routing and comment="World -> tunnel" and dst-address-list!="!mik-private"]] > 0) do={
+  /ip firewall mangle remove [find where chain=prerouting and action=mark-routing and comment="World -> tunnel"]
+}
 :if ([:len [/ip firewall mangle find where chain=prerouting and action=mark-routing and comment="World -> tunnel"]] = 0) do={
-  /ip firewall mangle add chain=prerouting dst-address-type=!local \
+  /ip firewall mangle add chain=prerouting dst-address-type=!local dst-address-list=!mik-private \
     action=mark-routing new-routing-mark=$tableName passthrough=no \
     comment="World -> tunnel"
 }

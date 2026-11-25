@@ -98,28 +98,44 @@ render_config() {
   jq -n \
     --arg lvl "$LOG_LEVEL" \
     --arg name "$TUN_NAME" \
+    --arg stack "${TUN_STACK:-mixed}" \
     --argjson mtu "$TUN_MTU" \
     --arg gw "$TUN_GATEWAY" \
     --slurpfile ob "$tmp" \
     '{log:{level:$lvl, timestamp:false},
       dns:{servers:[{type:"tcp", tag:"dns-proxy", server:"1.1.1.1", detour:"proxy"},
+                    {type:"tcp", tag:"dns-proxy-2", server:"8.8.8.8", detour:"proxy"},
                     {type:"local", tag:"dns-local"}],
            final:"dns-proxy", strategy:"ipv4_only"},
       inbounds:[{type:"tun", tag:"tun-in",
                  interface_name:$name, mtu:$mtu, address:[$gw],
-                 auto_route:false, strict_route:false, stack:"system"}],
+                 auto_route:false, strict_route:false, stack:$stack,
+                 udp_timeout:"1m"}],
       outbounds:[($ob[0] + {tag:"proxy"}), {type:"direct", tag:"direct"}],
       route:{final:"proxy", auto_detect_interface:true,
              default_domain_resolver:"dns-local",
-             rules:[{action:"sniff"}, {protocol:"dns", action:"hijack-dns"}]}}'
+             rules:[{action:"sniff"}, {protocol:"dns", action:"hijack-dns"},
+                    {ip_is_private:true, outbound:"direct"},
+                    {ip_cidr:["224.0.0.0/4","255.255.255.255/32"], action:"reject"}]}}'
   rm -f "$tmp"
 }
 
 validate_config() {
-  # $1 = path to a config file
+  # $1 = path to a config file. Returns non-zero on failure: the supervisor
+  # must survive a bad node so cgi-bin/connect can roll state.json back.
   if ! out=$(sing-box check -c "$1" 2>&1); then
     printf '%s\n' "$out" >&2
-    die "invalid-config: sing-box rejected the rendered configuration"
+    log "invalid-config: sing-box rejected the rendered configuration"
+    return 1
+  fi
+}
+
+validate_xray() {
+  # $1 = path to an xray config file. Same contract as validate_config.
+  if ! out=$(xray run -test -c "$1" 2>&1); then
+    printf '%s\n' "$out" >&2
+    log "invalid-config: xray rejected the rendered configuration"
+    return 1
   fi
 }
 
@@ -168,9 +184,10 @@ activate_xray() {
   fi
   mkdir -p "$(dirname "$XRAY_CONFIG")"
   xray_config "$ob" "$XRAY_SOCKS_PORT" > "$XRAY_CONFIG" || { log "cannot render the xray config"; return 1; }
+  validate_xray "$XRAY_CONFIG" || return 1
   mkdir -p "$(dirname "$SINGBOX_CONFIG")"
   render_config "$(chain_outbound)" 1 > "$SINGBOX_CONFIG"
-  validate_config "$SINGBOX_CONFIG"
+  validate_config "$SINGBOX_CONFIG" || return 1
   OB=$ob
   IPV4=$ipv4
   ACTIVE_LABEL=$label
@@ -191,7 +208,7 @@ activate_singbox() {
   fi
   mkdir -p "$(dirname "$SINGBOX_CONFIG")"
   render_config "$ob" 0 > "$SINGBOX_CONFIG"
-  validate_config "$SINGBOX_CONFIG"
+  validate_config "$SINGBOX_CONFIG" || return 1
   OB=$ob
   IPV4=$ipv4
   ACTIVE_LABEL=$label
@@ -277,19 +294,49 @@ install_routes() {
 # supervisor
 # ---------------------------------------------------------------------------
 
+# proc_alive <pid> — true only for a process that is still running. A crashed
+# child stays a zombie (state Z) until it is reaped, and kill -0 succeeds on a
+# zombie, so kill -0 alone would keep the supervisor waiting on a dead engine.
+proc_alive() {
+  [ -n "${1:-}" ] || return 1
+  kill -0 "$1" 2>/dev/null || return 1
+  st=$(sed -n 's/^[^)]*) \([A-Za-z]\).*/\1/p' "/proc/$1/stat" 2>/dev/null)
+  case "$st" in
+    Z|X|"") return 1 ;;
+  esac
+  return 0
+}
+
 kill_children() {
-  [ -n "${xpid_x:-}" ] && kill -TERM "$xpid_x" 2>/dev/null
-  [ -n "${xpid:-}" ] && kill -TERM "$xpid" 2>/dev/null
+  # $1 = optional reason; SIGTERM both, then SIGKILL survivors after 2s.
+  reason=${1:-stopping}
+  log "stopping engines ($reason)"
+  if [ -n "${xpid_x:-}" ]; then kill -TERM "$xpid_x" 2>/dev/null || true; fi
+  if [ -n "${xpid:-}" ]; then kill -TERM "$xpid" 2>/dev/null || true; fi
+  # give them 2s to exit, then KILL
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    alive=0
+    if proc_alive "${xpid_x:-}"; then alive=1; fi
+    if proc_alive "${xpid:-}"; then alive=1; fi
+    [ "$alive" = 0 ] && break
+    sleep 0.2
+  done
+  if proc_alive "${xpid_x:-}"; then kill -KILL "$xpid_x" 2>/dev/null || true; fi
+  if proc_alive "${xpid:-}"; then kill -KILL "$xpid" 2>/dev/null || true; fi
+  # reap so nothing is left as a zombie
+  if [ -n "${xpid_x:-}" ]; then wait "$xpid_x" 2>/dev/null || true; fi
+  if [ -n "${xpid:-}" ]; then wait "$xpid" 2>/dev/null || true; fi
   return 0
 }
 
 supervise() {
   ADMIN_NAME=${CONTAINER_NAME:-}
   restart=0
+  reason=""
   xpid=""
   xpid_x=""
-  trap 'restart=1; kill_children' HUP
-  trap 'kill_children; exit 0' TERM INT
+  trap 'reason=reload; restart=1; kill_children reload' HUP
+  trap 'kill_children stopping; exit 0' TERM INT
 
   while :; do
     status_write false "" ""
@@ -305,9 +352,9 @@ supervise() {
       xpid_x=$!
       if ! xtest_wait_port "$XRAY_SOCKS_PORT" "$xpid_x"; then
         log "xray-not-ready: the xray outlet did not open; restarting"
-        kill -TERM "$xpid_x" 2>/dev/null || true
-        wait "$xpid_x" 2>/dev/null || true
+        kill_children xray-not-ready
         xpid_x=""
+        xpid=""
         sleep 2
         continue
       fi
@@ -328,14 +375,21 @@ supervise() {
       status_write false "" "" "tun-not-ready"
     fi
 
-    wait "$xpid" || true
+    # Watch both children. The old code blocked on sing-box first; if sing-box
+    # died while a chained xray was still healthy, wait on xray never returned
+    # and nothing restarted sing-box until the healthcheck gave up.
+    while :; do
+      if ! proc_alive "${xpid:-}"; then break; fi
+      if [ -n "${xpid_x:-}" ] && ! proc_alive "$xpid_x"; then break; fi
+      if [ "$restart" = 1 ]; then break; fi
+      sleep 0.5
+    done
+    kill_children "${reason:-engine-exit}"
     xpid=""
-    if [ -n "${xpid_x:-}" ]; then
-      wait "$xpid_x" 2>/dev/null || true
-      xpid_x=""
-    fi
+    xpid_x=""
     if [ "$restart" = 1 ]; then
       restart=0
+      reason=""
       log "reloading on request"
       continue
     fi
@@ -353,7 +407,7 @@ case "$cmd" in
     else
       mkdir -p "$(dirname "$dest")"
       printf '%s\n' "$cfg" > "$dest"
-      validate_config "$dest"
+      validate_config "$dest" || die "invalid-config: sing-box rejected the rendered configuration"
     fi
     ;;
   routes)
@@ -362,6 +416,9 @@ case "$cmd" in
     plan_routes "$(resolve_endpoint "${ep%:*}")" "$TUN_NAME" "${EGRESS_IF:-$(detect_egress)}" "$(detect_gateway)"
     ;;
   run)
+    export GOGC=${GOGC:-30}
+    export GOMEMLIMIT=${GOMEMLIMIT:-80MiB}
+    ulimit -n 65535 2>/dev/null || true
     mkdir -p "$DATA_DIR" "$(dirname "$SINGBOX_CONFIG")"
     start_admin
     enable_forwarding
