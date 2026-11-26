@@ -55,7 +55,27 @@ read_body() {
 }
 
 url_decode() {
-  printf '%b' "$(printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/+/ /g' -e 's/%/\\x/g')"
+  # %XX decoding happens in awk, not with `printf %b`: BusyBox ash understands
+  # \xHH in %b and dash (the Debian armv5 base) does not, so a %b decoder works
+  # on Alpine and silently leaves `\x2F` in paths and labels everywhere else.
+  # A literal backslash stays a backslash, `+` becomes a space, a malformed %
+  # is left alone.
+  printf '%s' "$1" | awk '
+    BEGIN { for (i = 0; i < 256; i++) hex[sprintf("%02x", i)] = i }
+    {
+      if (NR > 1) printf "\n"
+      out = ""
+      n = length($0)
+      for (i = 1; i <= n; i++) {
+        c = substr($0, i, 1)
+        if (c == "%" && i + 2 <= n) {
+          h = tolower(substr($0, i + 1, 2))
+          if (h in hex) { out = out sprintf("%c", hex[h]); i += 2; continue }
+        }
+        if (c == "+") { out = out " " } else { out = out c }
+      }
+      printf "%s", out
+    }'
 }
 
 # form_get <body> <key> — last value wins.

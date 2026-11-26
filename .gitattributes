@@ -3,6 +3,7 @@
 *.rsc text eol=lf
 *.js text eol=lf
 Dockerfile text eol=lf
+Dockerfile.armv5 text eol=lf
 Makefile text eol=lf
 *.yml text eol=lf
 *.md text eol=lf

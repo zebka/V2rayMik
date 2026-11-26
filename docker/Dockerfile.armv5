@@ -1,0 +1,85 @@
+# linux/arm/v5 (armel) build.
+#
+# Alpine has no armv5/armel port: an armv7 build runs until the CPU meets an
+# ARMv7-only instruction and the process dies with SIGILL (measured on the
+# MikroTik EN7562CT). Debian's armel port is real armv5, so this file mirrors
+# docker/Dockerfile on Debian's armel rootfs instead of Alpine.
+#
+# Keep the two files in step: same SING_BOX_VERSION / XRAY_VERSION, same /app
+# layout, same entrypoint and command. Everything that differs is deliberate
+# and commented below.
+#
+# debian:bookworm-slim has no linux/arm/v5 manifest (checked: its index carries
+# amd64, arm/v7, arm64, 386, ppc64le, s390x). Debian's armel rootfs is published
+# under the per-architecture arm32v5/ namespace instead, same debuerreotype
+# content, so that is the base here. Build this file with --platform
+# linux/arm/v5 (make image-armv5, or the build-arm-test workflow): the base is
+# arm/v5-only, so any other platform fails to resolve instead of producing a
+# binary the router cannot run. The digest is the current index digest.
+FROM arm32v5/debian:bookworm-slim@sha256:cf9397e3198b2c002eb360586d341ba89154634198a26c578eb096b533b212cd
+
+ARG SING_BOX_VERSION=1.14.4
+ARG XRAY_VERSION=26.11.9
+# The repository's VERSION file, which is also the release tag.
+ARG VERSION=dev
+# GitHub publishes the digest of the Xray archive, not of the binary inside it,
+# so the binary digest is pinned here and checked after the unzip. It is the
+# digest of `xray` in Xray-linux-arm32-v5.zip for v26.11.9.
+ARG XR_ARMV5_BIN_SHA256=e59ec34b706e37068cb1e5f8df5767b1f31ab6edc4a87aa3316653754e439fc7
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Alpine's busybox carried ip, httpd, nc, wget, pidof and base64. Debian's slim
+# base carries none of them, so each comes from its own package:
+#   iproute2      ip with rule/table support — busybox ip is not enough for
+#                 `ip rule add` and `ip route replace ... table 100`
+#   procps        sysctl (entrypoint) and pidof (the router's healthcheck)
+#   busybox       httpd, which serves the panel from docker/lib/admin.sh
+#   netcat-openbsd, wget, coreutils  nc, wget, base64, sort -V
+#   xxd           links.sh decodes hysteria2 pinSHA256 with `xxd -r -p`, which
+#                 Alpine got from busybox-extras and Debian does not ship in
+#                 coreutils; without it that link type fails at runtime.
+# The httpd symlink puts the busybox applet on PATH: admin.sh looks up `httpd`
+# by name. The check after it fails the build if any tool is missing, instead
+# of producing an image whose panel or tunnel silently does not come up.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      ca-certificates curl jq iproute2 busybox coreutils netcat-openbsd \
+      wget unzip procps xxd \
+ && rm -rf /var/lib/apt/lists/* \
+ && ln -sf /bin/busybox /usr/local/bin/httpd \
+ && command -v ip jq curl busybox nc wget pidof base64 sort unzip xxd \
+ && busybox httpd --help >/dev/null 2>&1
+
+# sing-box armv5 asset and digest, as published for v1.14.4.
+RUN wget -qO /tmp/sb.tgz \
+      "https://github.com/SagerNet/sing-box/releases/download/v${SING_BOX_VERSION}/sing-box-${SING_BOX_VERSION}-linux-armv5.tar.gz" \
+ && echo "683e377e519816fe192b2e9878f259f8d3e1176624ac11e7c6733d997f41454c  /tmp/sb.tgz" | sha256sum -c - \
+ && tar -xzf /tmp/sb.tgz -C /tmp \
+ && mv /tmp/sing-box-*/sing-box /usr/local/bin/sing-box \
+ && chmod +x /usr/local/bin/sing-box
+
+# Xray arm32-v5 asset, then the digest of the extracted binary.
+RUN wget -qO /tmp/xray.zip \
+      "https://github.com/XTLS/Xray-core/releases/download/v${XRAY_VERSION}/Xray-linux-arm32-v5.zip" \
+ && unzip -q -o /tmp/xray.zip xray -d /tmp \
+ && echo "${XR_ARMV5_BIN_SHA256}  /tmp/xray" | sha256sum -c - \
+ && mv /tmp/xray /usr/local/bin/xray \
+ && chmod +x /usr/local/bin/xray \
+ && rm -rf /tmp/sb.tgz /tmp/sing-box-* /tmp/xray.zip
+
+COPY --chmod=755 entrypoint.sh /app/entrypoint.sh
+COPY --chmod=755 lib/ /app/lib/
+COPY web/ /app/web/
+COPY --chmod=755 web/cgi-bin/ /app/web/cgi-bin/
+RUN printf '%s\n' "$VERSION" > /app/VERSION \
+ && printf '%s\n' "$SING_BOX_VERSION" > /app/SINGBOX_VERSION \
+ && printf '%s\n' "$XRAY_VERSION" > /app/XRAY_VERSION
+LABEL org.opencontainers.image.version=$VERSION
+LABEL org.opencontainers.image.title=v2raymik \
+      org.opencontainers.image.source=https://github.com/zebka/V2rayMik \
+      org.opencontainers.image.description="MikroTik RouterOS gateway, now with the Xray core alongside sing-box (armv5/armel build)"
+
+WORKDIR /app
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["run"]

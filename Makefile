@@ -1,15 +1,20 @@
 IMAGE ?= v2raymik
 TAG ?= test
 PLATFORM ?= linux/arm64
+# armv5/armel has its own Dockerfile: Alpine has no armv5 port and an armv7
+# build dies with SIGILL on such a CPU (MikroTik EN7562CT).
+ARMV5_PLATFORM ?= linux/arm/v5
+ARMV5_DOCKERFILE ?= docker/Dockerfile.armv5
 SING_BOX_VERSION ?= 1.14.4
 XRAY_VERSION ?= 26.11.9
 VERSION ?= $(shell cat VERSION)
 DIST ?= dist
 
-.PHONY: help image test lint check-version save clean
+.PHONY: help image image-armv5 test lint check-version save clean
 
 help:
 	@echo "make image   - build for $(PLATFORM) (needs buildx + qemu for cross builds)"
+	@echo "make image-armv5 - build $(ARMV5_PLATFORM) from $(ARMV5_DOCKERFILE)"
 	@echo "make test    - build native image and run tests/unit"
 	@echo "make lint    - shellcheck + RouterOS lint"
 	@echo "make check-version - VERSION and CHANGELOG agree"
@@ -20,6 +25,13 @@ image:
 	docker buildx build --platform $(PLATFORM) --build-arg SING_BOX_VERSION=$(SING_BOX_VERSION) \
 		--build-arg XRAY_VERSION=$(XRAY_VERSION) \
 		--build-arg VERSION=$(VERSION) -t $(IMAGE):$(TAG) docker/ --load
+
+image-armv5:
+	docker buildx build --platform $(ARMV5_PLATFORM) --file $(ARMV5_DOCKERFILE) \
+		--build-arg SING_BOX_VERSION=$(SING_BOX_VERSION) \
+		--build-arg XRAY_VERSION=$(XRAY_VERSION) \
+		--build-arg VERSION=$(VERSION) \
+		-t $(IMAGE):$(TAG)-armv5 docker/ --load
 
 test:
 	docker buildx build --build-arg SING_BOX_VERSION=$(SING_BOX_VERSION) --build-arg XRAY_VERSION=$(XRAY_VERSION) --build-arg VERSION=$(VERSION) \

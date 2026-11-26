@@ -48,6 +48,7 @@
 :global MikBridge
 :global MikRegistryFallback
 :global MikTunMtu
+:global MikMemoryHigh
 :global MikDnsSavedServers
 :global MikFasttrackSaved
 :global MikFasttrackSavedMark
@@ -123,6 +124,12 @@
 # from the LAN; it does not cover UDP inside the tunnel, so the clamp cannot
 # fix this. Set MikTunMtu to 1500 only if the path really has the room.
 :if ([:typeof $MikTunMtu] = "nothing") do={ :global MikTunMtu "1400" }
+# The container's memory ceiling, in bytes. 256 MiB is the ceiling the 1.3.x
+# builds use and what docs/benchmarks.md measured (~113 MiB RSS under load), so
+# it stays the default. On a 256 MB device it is the whole router's RAM: lower
+# it (134217728 = 128 MiB is the first value worth measuring there) rather than
+# letting the kernel OOM the container.
+:if ([:typeof $MikMemoryHigh] = "nothing") do={ :global MikMemoryHigh "268435456" }
 :if ([:typeof $MikAdminPort] = "nothing") do={ :global MikAdminPort "8080" }
 :if ([:typeof $MikAdminLanPort] = "nothing") do={ :global MikAdminLanPort "8081" }
 :if ([:typeof $MikAllowContainerToLan] = "nothing") do={ :global MikAllowContainerToLan false }
@@ -457,7 +464,7 @@
       root-dir=$rootDir dns=1.1.1.1 \
       envlist=$MikContainerName start-on-boot=yes restart-policy=always \
       check-certificate=$MikCheckCertificate mountlists=MOUNT_MIK_DATA \
-      memory-high=268435456 logging=yes
+      memory-high=$MikMemoryHigh logging=yes
     :set fresh true
   }
 } else={
@@ -466,7 +473,7 @@
       root-dir=$rootDir dns=1.1.1.1 \
       envlist=$MikContainerName start-on-boot=yes restart-policy=always \
       check-certificate=$MikCheckCertificate mountlists=MOUNT_MIK_DATA \
-      memory-high=268435456 logging=yes
+      memory-high=$MikMemoryHigh logging=yes
     :set fresh true
   }
 }
@@ -531,7 +538,7 @@
         root-dir=$rootDir dns=1.1.1.1 \
         envlist=$MikContainerName start-on-boot=yes restart-policy=always \
         check-certificate=no mountlists=MOUNT_MIK_DATA \
-        memory-high=268435456 logging=yes
+        memory-high=$MikMemoryHigh logging=yes
       :for i from=1 to=60 do={
         :if ($started = false) do={
           :do {
@@ -565,7 +572,7 @@
 # adding a node in the panel.
 :do {
   /container set [find where name=$MikContainerName] healthcheck-cmd="/bin/sh -c 'if [ ! -f /data/state.json ] && ! env | grep -q ^NODE_LINK=. && [ ! -f /etc/sing-box/outbound.json ]; then exit 0; fi; ip link show tun0 >/dev/null 2>&1 && pidof sing-box >/dev/null 2>&1 && wget -q -T 10 -O /dev/null http://www.gstatic.com/generate_204'" \
-    healthcheck-interval=00:01:00 healthcheck-start-period=00:01:30 healthcheck-retries=8 stop-on-unhealthy=yes memory-high=268435456
+    healthcheck-interval=00:01:00 healthcheck-start-period=00:01:30 healthcheck-retries=8 stop-on-unhealthy=yes memory-high=$MikMemoryHigh
 } on-error={ :log warning "v2raymik: could not set a healthcheck (RouterOS too old?) — the container still runs" }
 
 # --- routing ------------------------------------------------------------------

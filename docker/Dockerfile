@@ -3,6 +3,7 @@ FROM alpine:3.22@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34
 ARG SING_BOX_VERSION=1.14.4
 ARG XRAY_VERSION=26.11.9
 ARG TARGETARCH
+ARG TARGETVARIANT
 # The repository's VERSION file, which is also the release tag. CI refuses to
 # build a tag that disagrees with it, so the image and the source always match.
 ARG VERSION=dev
@@ -12,6 +13,11 @@ ARG VERSION=dev
 #   xray     — the above plus xhttp/splithttp and vless encryption=…
 # Both downloads are verified against the sha256 GitHub reports for the asset.
 # The alpine pin above is the tag's current index digest; bump it deliberately.
+#
+# TARGETARCH is "arm" for v5, v6 and v7 alike, so TARGETVARIANT decides which
+# asset is correct. The v7 assets contain ARMv7-only code: a v5 CPU dies on
+# them with SIGILL, which is why v5 has its own file (docker/Dockerfile.armv5)
+# and this one refuses to build it instead of shipping a broken binary.
 RUN apk add --no-cache ca-certificates jq curl busybox-extras \
  && case "$TARGETARCH" in \
       amd64) sb_asset="sing-box-${SING_BOX_VERSION}-linux-amd64-musl.tar.gz"; \
@@ -22,10 +28,15 @@ RUN apk add --no-cache ca-certificates jq curl busybox-extras \
              sb_sha256="b95e25f921dc5e17a4cf13327243d1177642c7e35425bf5372862c477c359f56"; \
              xr_asset="Xray-linux-arm64-v8a.zip"; \
              xr_sha256="64ed6858982a7f5eb85d88b811089063bd4f17561f4c8f44e0f1dc8e6f6430be" ;; \
-      arm)   sb_asset="sing-box-${SING_BOX_VERSION}-linux-armv7-musl.tar.gz"; \
-             sb_sha256="27c225479cd675e6d9b43e3e293c00ace72b693781c4a25b5c0de313d8c712df"; \
-             xr_asset="Xray-linux-arm32-v7a.zip"; \
-             xr_sha256="19c51e08a6562705fb1cb032a84fd87df21d7e27b194f035be7e754dbe3a97b3" ;; \
+      arm) \
+        case "$TARGETVARIANT" in \
+          v7) sb_asset="sing-box-${SING_BOX_VERSION}-linux-armv7-musl.tar.gz"; \
+              sb_sha256="27c225479cd675e6d9b43e3e293c00ace72b693781c4a25b5c0de313d8c712df"; \
+              xr_asset="Xray-linux-arm32-v7a.zip"; \
+              xr_sha256="19c51e08a6562705fb1cb032a84fd87df21d7e27b194f035be7e754dbe3a97b3" ;; \
+          v5) echo "use docker/Dockerfile.armv5 for linux/arm/v5" >&2; exit 1 ;; \
+          *)  echo "unsupported TARGETVARIANT=$TARGETVARIANT" >&2; exit 1 ;; \
+        esac ;; \
       *) echo "unsupported TARGETARCH=$TARGETARCH" >&2; exit 1 ;; \
     esac \
  && wget -qO /tmp/sb.tgz \

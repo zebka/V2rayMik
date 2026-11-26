@@ -1,0 +1,127 @@
+name: build-arm-test
+
+# Test-only pipeline for the arm/v5 (armel) port.
+#
+# Safety properties, on purpose:
+#   * It runs only on workflow_dispatch and on pushes to port/armv5 — never on
+#     main and never on a v* tag, so pages.yml and the release job stay idle.
+#   * It pushes to a separate GHCR repository (v2raymik-armtest) under
+#     sha-prefixed tags and one test-arm tag. It never writes :latest, :edge,
+#     a version tag or the production image.
+#   * build.yml and pages.yml are not modified by this workflow.
+on:
+  workflow_dispatch:
+  push:
+    branches: [port/armv5]
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  SING_BOX_VERSION: "1.14.4"
+  XRAY_VERSION: "26.11.9"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Build arm/v7 image
+        run: |
+          docker buildx build --platform linux/arm/v7 \
+            --build-arg SING_BOX_VERSION="$SING_BOX_VERSION" \
+            --build-arg XRAY_VERSION="$XRAY_VERSION" \
+            --build-arg VERSION="$(cat VERSION)" \
+            -t v2raymik:test-armv7 docker --load
+
+      # The whole repository is mounted read-only: several unit tests are static
+      # checks that resolve files from the repository root.
+      - name: Engines and unit tests on arm/v7
+        run: |
+          docker run --rm --platform linux/arm/v7 -v "$PWD:/w:ro" \
+            --entrypoint sh v2raymik:test-armv7 -c 'sing-box version && xray version && /w/tests/run.sh'
+
+      - name: Build arm/v5 image
+        run: |
+          docker buildx build --platform linux/arm/v5 --file docker/Dockerfile.armv5 \
+            --build-arg SING_BOX_VERSION="$SING_BOX_VERSION" \
+            --build-arg XRAY_VERSION="$XRAY_VERSION" \
+            --build-arg VERSION="$(cat VERSION)" \
+            -t v2raymik:test-armv5 docker --load
+
+      # Debian's slim base is not Alpine: every tool the entrypoint, the panel
+      # and the healthcheck rely on is checked before the unit tests run, so a
+      # missing package fails here instead of on the router.
+      - name: Tools, engines and unit tests on arm/v5
+        run: |
+          docker run --rm --platform linux/arm/v5 -v "$PWD:/w:ro" \
+            --entrypoint sh v2raymik:test-armv5 \
+            -c 'command -v ip jq curl busybox nc wget pidof base64 sort unzip xxd && busybox httpd --help >/dev/null 2>&1 && sing-box version && xray version && /w/tests/run.sh'
+
+      - name: RouterOS lint
+        run: |
+          docker run --rm --platform linux/arm/v5 -v "$PWD:/w:ro" -w /w \
+            --entrypoint sh v2raymik:test-armv5 -c '/w/tests/lint-rsc.sh router'
+
+  publish-test:
+    needs: test
+    # Never from main or a tag: those must not gain a test image, and a tag
+    # would wake pages.yml.
+    if: github.ref == 'refs/heads/port/armv5'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # GHCR rejects capitals in a repository path, so the owner is lowercased.
+      - id: img
+        name: Resolve the test image name
+        run: |
+          OWNER="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
+          echo "image=ghcr.io/${OWNER}/v2raymik-armtest" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push arm/v7
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: docker
+          file: docker/Dockerfile
+          platforms: linux/arm/v7
+          push: true
+          build-args: |
+            SING_BOX_VERSION=${{ env.SING_BOX_VERSION }}
+            XRAY_VERSION=${{ env.XRAY_VERSION }}
+            VERSION=${{ github.sha }}
+          tags: ${{ steps.img.outputs.image }}:armv7-${{ github.sha }}
+
+      - name: Build and push arm/v5
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: docker
+          file: docker/Dockerfile.armv5
+          platforms: linux/arm/v5
+          push: true
+          build-args: |
+            SING_BOX_VERSION=${{ env.SING_BOX_VERSION }}
+            XRAY_VERSION=${{ env.XRAY_VERSION }}
+            VERSION=${{ github.sha }}
+          tags: ${{ steps.img.outputs.image }}:armv5-${{ github.sha }}
+
+      # One manifest under a single test-only tag. Point MikImage at
+      # <image>:test-arm to try it on a device; nothing here is a release.
+      - name: Merge into the test-only manifest
+        run: |
+          docker buildx imagetools create \
+            --tag "${{ steps.img.outputs.image }}:test-arm" \
+            "${{ steps.img.outputs.image }}:armv7-${GITHUB_SHA}" \
+            "${{ steps.img.outputs.image }}:armv5-${GITHUB_SHA}"
+          docker buildx imagetools inspect "${{ steps.img.outputs.image }}:test-arm"

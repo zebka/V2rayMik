@@ -103,6 +103,8 @@ need 'dst-address-list=!mik-private'         # the container stays out of privat
 need ':global MikScope "all"'                # backward-compatible default
 need ':global MikSrcAddress'                 # the list-mode client sources
 need ':global MikTouchDns'                   # DNS override
+need ':global MikMemoryHigh'                 # one container memory ceiling, per device
+need 'memory-high=$MikMemoryHigh'            # the ceiling is a knob, not four literals
 need ':global MikDnsSavedAllowRemote'        # a clean DNS restore needs both values
 need '# --- scope: all ---'
 need '# --- scope: lan ---'
