@@ -156,7 +156,12 @@ async function connect(i) {
 }
 
 function showRepull(latest) {
-  const cmd = "/container/repull [find where name=\"" + CONTAINER_NAME + "\"]";
+  // A bare repull keeps the container's current remote-image, so it can come
+  // back with the old release. Name the new image first, then repull.
+  const target = "[find where name=\"" + CONTAINER_NAME + "\"]";
+  const cmd = "# If you use the Docker Hub mirror, set remote-image=azebka/v2raymik:" + latest + " instead.\n" +
+    "/container set " + target + " remote-image=ghcr.io/zebka/v2raymik:" + latest + "\n" +
+    "/container/repull " + target;
   $("repullBox").textContent = "# v" + latest + ": run this on the router\n" + cmd;
   $("repullBox").hidden = false;
   $("repullWrap").hidden = false;

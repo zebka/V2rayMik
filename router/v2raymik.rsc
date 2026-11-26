@@ -101,11 +101,11 @@
 # The image is pinned to the version of this file: a router must never run a
 # container the repository does not describe. The tag is bumped with every
 # release, and CI checks that it matches VERSION.
-:if ([:typeof $MikImage] = "nothing") do={ :global MikImage "ghcr.io/zebka/v2raymik:1.3.30" }
+:if ([:typeof $MikImage] = "nothing") do={ :global MikImage "ghcr.io/zebka/v2raymik:1.3.31" }
 # The fallback names the Docker Hub repository on purpose. A Docker Hub mirror
 # serves the Docker Hub namespace and has never heard of ghcr.io/zebka/...,
 # so swapping only the registry would silently pull nothing.
-:if ([:typeof $MikImageFallback] = "nothing") do={ :global MikImageFallback "azebka/v2raymik:1.3.30" }
+:if ([:typeof $MikImageFallback] = "nothing") do={ :global MikImageFallback "azebka/v2raymik:1.3.31" }
 :if ([:typeof $MikImageFile] = "nothing") do={ :global MikImageFile "" }
 :if ([:typeof $MikCheckCertificate] = "nothing") do={ :global MikCheckCertificate "yes" }
 # Registry used for the pull. If you set MikRegistryUrl yourself, that registry

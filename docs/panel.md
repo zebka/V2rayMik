@@ -64,9 +64,13 @@ its owner has gone. The 10 MB test uses ~10 MB of traffic, the 99 MB test
   are written into the image at build time.
 - **Check for update**: asks GitHub for the newest release and compares it with
   the container version. It only reads; it changes nothing. If a newer release
-  exists, update the container on the router with `/container/repull`
-  (or re-import the `.rsc` for that release). The container cannot update
-  itself, because it has no RouterOS access.
+  exists, the panel shows two commands to run on the router: first
+  `/container set ... remote-image=ghcr.io/zebka/v2raymik:<version>` (use
+  `azebka/v2raymik:<version>` on the Docker Hub mirror), then
+  `/container/repull ...`. A bare `/container/repull` keeps the old
+  `remote-image` and can restore the previous release. Re-importing the `.rsc`
+  for that release is the other option. The container cannot update itself,
+  because it has no RouterOS access.
 
 ## One thing the panel refuses to do on its own
 

@@ -1,4 +1,13 @@
 # Changelog
+## 1.3.31 - 2026-11-26
+
+### Fixed
+
+- The panel's "Check for update" command now sets `remote-image` to the new
+  release before running `/container/repull`. A bare repull kept the old
+  `remote-image` and could restore the previous release. The Docker Hub mirror
+  image is named in the same command block.
+
 ## 1.3.30 - 2026-11-26
 
 ### Fixed
