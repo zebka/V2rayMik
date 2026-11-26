@@ -1,12 +1,13 @@
 # Benchmarks
 
-> **Read this first.** Every number below was measured on the 1.0.x build —
-> the five-file layout with the `iran-ips` split, sing-box only. Since 1.2.0
-> the gateway is full-tunnel, carries **two engines**, and has no ISP
+> **Read this first.** The legacy numbers below were measured on the 1.0.x
+> build — the five-file layout with the `iran-ips` split, sing-box only. Since
+> 1.2.0 the gateway is full-tunnel, carries **two engines**, and has no ISP
 > fallback; nothing here transfers automatically. The image is bigger (both
-> cores) and likely uses more RSS. Re-measure on your own hardware before
-> quoting any of this. The Xray engine path has no hardware run behind it at
-> all.
+> cores) and uses more RSS. Re-measure on your own hardware before quoting any
+> of this. A live 1.3.x run is recorded separately in
+> [Current build: hAP ax3](#current-build-hap-ax3-13x); do not mix the two. The
+> Xray engine path still has no hardware run behind it.
 
 All numbers come from the reference device. Anything marked **TBD** has not been
 measured and must not be quoted as a result.
@@ -30,6 +31,7 @@ measured and must not be quoted as a result.
 | Image, compressed | 17.5 MB (amd64 build; arm64 measured in Task 12) |
 | Image, uncompressed layers | 64.6 MB (amd64 build) |
 | Container RSS at idle | 10–17 MiB fresh, 21.3 MiB after a day of traffic |
+| Container RSS under load (1.3.x, hAP ax3) | ~113.4 MiB at ~0.7% router CPU |
 | Container size on disk (root-dir) | ~46 MiB |
 | Boot to first tunnelled packet | TBD |
 
@@ -69,6 +71,41 @@ Before Xray, the same device ran OpenVPN over **TCP 9443** to a Turkish server
 So 13–14 Mbps was the ceiling of that path at the time; the later Xray nodes
 reached 30–38 on better paths. Upload and four-stream numbers are still to be
 taken on either setup.
+
+## Current build: hAP ax3 (1.3.x)
+
+Measured on the full-tunnel 1.3.x image, not on the 1.0.x build described above.
+The client was on Wi-Fi, the tunnel was in `sing-box`, and no other client was
+active during the runs.
+
+| Item | Value |
+| --- | --- |
+| Device | MikroTik hAP ax³ (arm64), RouterOS 7.25.1 |
+| RAM | 1 GB |
+| Storage | USB (`usb2`) |
+| Scope | `list`, `192.168.30.0/24` on a separate Wi-Fi/bridge |
+| TUN | `TUN_MTU=1400`, `TUN_STACK=mixed` |
+| Memory limit | `memory-high=268435456` (256 MiB), `GOMEMLIMIT=80MiB` |
+| Client | Mobile device on 5 GHz / 802.11ax Wi-Fi |
+| Exit | `sing-box`, US (Kansas City, MO) |
+| Tool | Speedtest.net, multi-connection |
+
+| Run | Download | Upload | Idle ping | Loaded ping (down / up) |
+| --- | --- | --- | --- | --- |
+| 1 (peak) | **127.37 Mbps** | **81.19 Mbps** | 333 ms | 356 ms / 246 ms |
+| 2 (low jitter) | 56.23 Mbps | 62.46 Mbps | 232 ms | 237 ms / 234 ms |
+
+Run 1 is the peak observed on that path. Run 2 is the repeat with the smallest
+change under load: +5 ms down and +2 ms up over idle, so the queue stayed short.
+Both are two observations on one node and one client, not a rate to promise;
+repeat the test on your own link.
+
+### Memory and CPU under load
+
+The container sat at about **113.4 MiB** RSS (`memory-current`) while serving
+those runs, at roughly **0.7%** router CPU. That is the reason the older
+96 MiB ceiling throttled `sing-box` under real traffic: 256 MiB leaves ample
+headroom, and the router is nowhere near its CPU limit.
 
 ## Latency
 
