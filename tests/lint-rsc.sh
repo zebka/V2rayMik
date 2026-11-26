@@ -58,6 +58,21 @@ while IFS= read -r line; do
   fi
 done < "$f"
 
+# RouterOS only accepts `!=` inside :if / find-where expressions, never as an
+# argument value on add/set. An interface negation has to be built as a value:
+# in-interface=("!" . $MikVeth), not in-interface!=$MikVeth.
+line_no=0
+while IFS= read -r line; do
+  line_no=$((line_no + 1))
+  case "$line" in
+    *"/add "*|*"/set "*) ;;
+    *) continue ;;
+  esac
+  case "$line" in
+    *"!="*) err "$f:$line_no: '!=' used on an /add or /set line: $line" ;;
+  esac
+done < "$f"
+
 # Invariants the design stands on. If one of these goes, the device misroutes.
 need() { grep -qF "$1" "$f" || err "$f: missing invariant: $1"; }
 need 'dst-address-type=!local'                # everything, not a list
@@ -79,11 +94,11 @@ need '# --- scope: list ---'
 need '# --- scope: manual ---'
 need 'src-address-list=mik-clients'          # list mode has its own source set
 need 'dst-address-type=local'                # DNS to the router is local at mangle time
-need 'in-interface!=$MikVeth'                # the container must not hit the DNS redirect
+need 'in-interface=("!" . $MikVeth)'         # the container must not hit the DNS redirect
 need 'mik: dns to tunnel'                    # the DNS redirect and its marks
 need 'mik: forward to container'             # strict forward chains need the accept
-need '/ip firewall filter unset $fasttrack value-name=connection-mark'
-need '/ip firewall filter unset $fasttrack value-name=src-address-list'
+need '/ip firewall filter set $fasttrack !connection-mark'
+need '/ip firewall filter set $fasttrack !src-address-list'
 need '/system script environment remove [find where name="MikFasttrackSaved"]'  # uninstall clears saved originals
 
 # A string MikSrcAddress must become an array before :foreach, or list mode

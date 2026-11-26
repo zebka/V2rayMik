@@ -51,3 +51,16 @@ assert_no_match "$list" '/ip firewall mangle add chain=output' "list has no outp
 # does not change the import file's own default.
 grep -qF '<option value="lan" selected>' "$site" || fail "the generator offers lan first"
 assert_match "$(cat "$site")" 'MikScope' "the generator writes MikScope"
+
+# RouterOS comments start with '#', not '//'. The generated block must not
+# contain a single '//' comment, and the import command must be a runnable line
+# at the bottom of the block, not a commented hint.
+if grep -qE "out\.(push|unshift)\((['\"])//|out\.push\(\`//" "$site"; then
+  fail "the generator emits '//' comments that RouterOS cannot parse"
+fi
+grep -qF "out.unshift('# V2rayMik setup block. Edit, then run in RouterOS Terminal.');" "$site" \
+  || fail "the generated block header must be a # comment"
+grep -qF 'out.push(`# Import (runnable):\n${IMPORT_LINE}`);' "$site" \
+  || fail "the import line must be emitted uncommented"
+grep -qF 'const IMPORT_LINE = `/tool fetch url="${IMPORT_URL}" dst-path=v2raymik.rsc; /import file-name=v2raymik.rsc`;' "$site" \
+  || fail "the import command must be directly runnable"

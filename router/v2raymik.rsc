@@ -218,12 +218,12 @@
       :if ([:len $MikFasttrackSavedMark] > 0) do={
         :do { /ip firewall filter set $fasttrack connection-mark=$MikFasttrackSavedMark } on-error={}
       } else={
-        :do { /ip firewall filter unset $fasttrack value-name=connection-mark } on-error={}
+        :do { /ip firewall filter set $fasttrack !connection-mark } on-error={}
       }
       :if ([:len $MikFasttrackSavedList] > 0) do={
         :do { /ip firewall filter set $fasttrack src-address-list=$MikFasttrackSavedList } on-error={}
       } else={
-        :do { /ip firewall filter unset $fasttrack value-name=src-address-list } on-error={}
+        :do { /ip firewall filter set $fasttrack !src-address-list } on-error={}
       }
     }
   }
@@ -672,7 +672,7 @@
 # Every private LAN source, but no chain=output rules: Winbox, SSH, WireGuard
 # and other router-originated traffic keep the main table. Port 53 sent to the
 # router by a LAN client is redirected into the tunnel so the answer cannot be
-# poisoned; in-interface!=veth keeps the container's own DNS out of it.
+# poisoned; in-interface=("!" . veth) keeps the container's own DNS out of it.
 :if ($MikScope = "lan") do={
   :if ([:len [/ip firewall mangle find where comment="mik: mark tunnel connections"]] = 0) do={
     :if ([:len $firstMark] > 0) do={
@@ -754,12 +754,12 @@
   }
   :if ([:len [/ip firewall nat find where comment="mik: dns to tunnel (udp)"]] = 0) do={
     /ip firewall nat add chain=dstnat action=dst-nat protocol=udp dst-port=53 \
-      src-address-list=mik-private dst-address-type=local in-interface!=$MikVeth \
+      src-address-list=mik-private dst-address-type=local in-interface=("!" . $MikVeth) \
       to-addresses=1.1.1.1 to-ports=53 comment="mik: dns to tunnel (udp)"
   }
   :if ([:len [/ip firewall nat find where comment="mik: dns to tunnel (tcp)"]] = 0) do={
     /ip firewall nat add chain=dstnat action=dst-nat protocol=tcp dst-port=53 \
-      src-address-list=mik-private dst-address-type=local in-interface!=$MikVeth \
+      src-address-list=mik-private dst-address-type=local in-interface=("!" . $MikVeth) \
       to-addresses=1.1.1.1 to-ports=53 comment="mik: dns to tunnel (tcp)"
   }
 }
@@ -874,12 +874,12 @@
   }
   :if ([:len [/ip firewall nat find where comment="mik: dns to tunnel (udp)"]] = 0) do={
     /ip firewall nat add chain=dstnat action=dst-nat protocol=udp dst-port=53 \
-      src-address-list=mik-clients dst-address-type=local in-interface!=$MikVeth \
+      src-address-list=mik-clients dst-address-type=local in-interface=("!" . $MikVeth) \
       to-addresses=1.1.1.1 to-ports=53 comment="mik: dns to tunnel (udp)"
   }
   :if ([:len [/ip firewall nat find where comment="mik: dns to tunnel (tcp)"]] = 0) do={
     /ip firewall nat add chain=dstnat action=dst-nat protocol=tcp dst-port=53 \
-      src-address-list=mik-clients dst-address-type=local in-interface!=$MikVeth \
+      src-address-list=mik-clients dst-address-type=local in-interface=("!" . $MikVeth) \
       to-addresses=1.1.1.1 to-ports=53 comment="mik: dns to tunnel (tcp)"
   }
 }
@@ -901,12 +901,12 @@
     :if ([:len $MikFasttrackSavedMark] > 0) do={
       :do { /ip firewall filter set $fasttrack connection-mark=$MikFasttrackSavedMark } on-error={}
     } else={
-      :do { /ip firewall filter unset $fasttrack value-name=connection-mark } on-error={}
+      :do { /ip firewall filter set $fasttrack !connection-mark } on-error={}
     }
     :if ([:len $MikFasttrackSavedList] > 0) do={
       :do { /ip firewall filter set $fasttrack src-address-list=$MikFasttrackSavedList } on-error={}
     } else={
-      :do { /ip firewall filter unset $fasttrack value-name=src-address-list } on-error={}
+      :do { /ip firewall filter set $fasttrack !src-address-list } on-error={}
     }
   }
   :if ([:typeof $MikFasttrackSaved] != "nothing") do={

@@ -21,7 +21,7 @@ done
 # A query to the router is local at mangle time and must be redirected only
 # for the selected clients, never for the container itself.
 assert_eq "$(has 'dst-address-type=local')" "yes" "the redirect matches the router's own address"
-assert_eq "$(has 'in-interface!=$MikVeth')" "yes" "the container is excluded from the redirect"
+assert_eq "$(has 'in-interface=("!" . $MikVeth)')" "yes" "the container is excluded from the redirect"
 assert_eq "$(has 'to-addresses=1.1.1.1')" "yes" "DNS is redirected to a public resolver"
 
 lan=$(block '^# --- scope: lan ---' '^# --- scope: list ---')

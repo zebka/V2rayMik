@@ -211,12 +211,12 @@
       if (vars.cert.value === 'no') out.push(`:global MikCheckCertificate "no"`);
     }
     if (vars.registry.value === 'official' && vars.cert.value === 'no') {
-      out.push('// Keep "Yes" for the official registry. Only set to "no" if you know why.');
+      out.push('# Keep "Yes" for the official registry. Only set to "no" if you know why.');
     }
 
-    if (out.length === 0) return '// All defaults selected — nothing to override. Paste the import line only.';
-    out.unshift('// V2rayMik setup block. Edit, then import.');
-    out.push(`// Import:\n// ${IMPORT_LINE}`);
+    if (out.length === 0) return '# All defaults selected; nothing to override. Paste the import line below.';
+    out.unshift('# V2rayMik setup block. Edit, then run in RouterOS Terminal.');
+    out.push(`# Import (runnable):\n${IMPORT_LINE}`);
     return out.join('\n');
   }
 

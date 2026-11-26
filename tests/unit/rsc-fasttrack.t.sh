@@ -16,10 +16,10 @@ assert_eq "$(has ':global MikFasttrackSavedMark')" "yes" "the old mark is saved"
 assert_eq "$(has ':global MikFasttrackSavedList')" "yes" "the old list is saved"
 
 # A saved empty value has to be unset, not set to an empty string.
-assert_eq "$(has '/ip firewall filter unset $fasttrack value-name=connection-mark')" "yes" \
-  "an empty saved mark is unset"
-assert_eq "$(has '/ip firewall filter unset $fasttrack value-name=src-address-list')" "yes" \
-  "an empty saved list is unset"
+assert_eq "$(has '/ip firewall filter set $fasttrack !connection-mark')" "yes" \
+  "an empty saved mark is unset with the documented !property syntax"
+assert_eq "$(has '/ip firewall filter set $fasttrack !src-address-list')" "yes" \
+  "an empty saved list is unset with the documented !property syntax"
 
 # Each restore applies the two properties in its own guarded block.
 assert_eq "$(has ':do { /ip firewall filter set $fasttrack connection-mark=$MikFasttrackSavedMark } on-error={}')" "yes" \
