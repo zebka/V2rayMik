@@ -25,5 +25,5 @@ assert_eq "$(has 'healthcheck-cmd=')" "yes" "healthcheck is set"
 # tries and restarts the container while the user is still in the panel.
 assert_eq "$(has '/data/state.json')" "yes" "the configured-node check is present"
 assert_eq "$(has 'exit 0; fi;')" "yes" "an unconfigured container passes the healthcheck"
-assert_eq "$(has '\${NODE_LINK:-}')" "yes" "the environment node link is checked too"
+assert_eq "$(has '! env | grep -q ^NODE_LINK=.')" "yes" "the environment node link is checked too"
 assert_eq "$(has '/etc/sing-box/outbound.json')" "yes" "the outbound file is checked too"

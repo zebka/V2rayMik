@@ -73,6 +73,22 @@ while IFS= read -r line; do
   esac
 done < "$f"
 
+# RouterOS rewrites \" and \$ inside healthcheck-cmd="..." (measured on 7.25.1:
+# quotes turned into commas and the shell died with an unterminated string).
+# Keep the probe free of escaped quotes and of $ expansions; use env|grep for
+# environment checks instead.
+line_no=0
+while IFS= read -r line; do
+  line_no=$((line_no + 1))
+  case "$line" in
+    *"healthcheck-cmd="*) ;;
+    *) continue ;;
+  esac
+  case "$line" in
+    *'\"'*|*'\$'*) err "$f:$line_no: escaped quote or dollar in healthcheck-cmd: $line" ;;
+  esac
+done < "$f"
+
 # Invariants the design stands on. If one of these goes, the device misroutes.
 need() { grep -qF "$1" "$f" || err "$f: missing invariant: $1"; }
 need 'dst-address-type=!local'                # everything, not a list

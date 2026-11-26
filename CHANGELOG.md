@@ -1,4 +1,16 @@
 # Changelog
+## 1.3.30 - 2026-11-26
+
+### Fixed
+
+- The healthcheck no longer contains escaped quotes or `$` expansions. RouterOS
+  7.25.1 rewrote `\"` into commas inside `healthcheck-cmd`, which broke the
+  shell with `syntax error: unterminated quoted string`. The unconfigured check
+  now uses `env | grep` for `NODE_LINK` instead.
+- The 256 MiB `memory-high` limit is confirmed on the hAP ax3: the container
+  now runs at about 113 MiB and 0.7% CPU, so the previous 96 MiB limit was
+  throttling `sing-box`.
+
 ## 1.3.29 - 2026-11-26
 
 ### Fixed
