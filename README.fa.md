@@ -1,65 +1,44 @@
 # V2rayMik
 
-**sing-box** و **Xray** روی RouterOS میکروتیک — کافی فقط یک import داشته باشید.
+درگاه **sing-box** و **Xray** برای RouterOS میکروتیک. یک کانتینر، یک صفحه LAN و بدون نیاز به Winbox برای سوییچ نود.
 
 [![build](https://github.com/zebka/V2rayMik/actions/workflows/build.yml/badge.svg)](https://github.com/zebka/V2rayMik/actions/workflows/build.yml)
 [![Docker Hub](https://img.shields.io/docker/pulls/azebka/v2raymik)](https://hub.docker.com/r/azebka/v2raymik)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![English](https://img.shields.io/badge/readme-english-0a7)](README.md)
 
-ترافیکِ روتر را از داخلِ یک کانتینر Alpine که Xray و sing-box دارد رد می‌کند. نه tun2socks، نه کانتینرِ دوم، نه فایل‌های geo. یک صفحه‌ی کوچک LAN هم برای سابسکریپشن و سوییچ نود سرو می‌کند — بدون نیاز به Winbox.
-
-## چه نودهایی؟
-
-| نوع نود | موتور |
-| --- | --- |
-| `vless://`، `vmess://`، `trojan://`، `ss://` | sing-box |
-| `hysteria2://`، `hy2://`، `tuic://` | sing-box |
-| `type=xhttp` / `splithttp` | **Xray** |
-| `vless://…encryption=…` | **Xray** |
-
-هر دو موتور در ایمیج هست؛ انتخاب موتور برای هر نود خودکار است. تراسپورت‌ها: TCP، WebSocket، gRPC، HTTPUpgrade.
-
-## نصب
-
-یک خط روی روتر فایلِ import را دانلود و ایمپورت میکند؛ نیازی به کپی دستی نیست:
-
-```rsc
-/tool fetch url="https://raw.githubusercontent.com/zebka/V2rayMik/main/router/v2raymik.rsc" dst-path=v2raymik.rsc; /import file-name=v2raymik.rsc
+```
+دستگاه LAN ──► RouterOS ──► veth ──► کانتینر (Xray / sing-box) ──► نود شما ──► اینترنت
+                   └─ ترافیکِ انتخاب‌شده ──► جدول mik-tunnel (مسدود هنگام قطع تونل)
 ```
 
-همه‌چیز (veth، mountها، کانتینر، جدول `mik-tunnel`، firewall، dst-nat) را می‌سازد. ایمپورتِ دوباره یعنی upgrade.
+## نصب سریع
 
-کانتینر را اجرا کنید و بگذارید بالا بیاید:
+**از صفحه Setup Generator شروع کنید: <https://zebka.github.io/V2rayMik/>**
 
-```rsc
-/container/start [find where name="v2raymik"]
-```
+۱. صفحه را باز کنید، scope مورد نظر (`lan`، `list`، `all` یا `manual`) و گزینه‌های دیسک و ریجستری را انتخاب کنید.
+۲. دستورات ساخته‌شده را در ترمینال RouterOS پیست و اجرا کنید.
+۳. در یک دستگاه داخل LAN به `http://<router>:8081/` بروید، لینک سابسکریپشن را پیست کنید، **Test** بزنید و سپس **Connect** را فشار دهید.
 
-از یک دستگاه روی همان LAN بروید به `http://<router>:8081/` (بدون پسورد). لینک سابسکریپشن را پیست کنید، **Test** بزنید و روی نودِ دلخواه **Connect** بزنید. همین؛ روتر و همه‌ی کلاینت‌های پشتِ آن از همان نود وصل می‌شوند.
+این صفحه فقط خطوط `:global` می‌سازد و اطلاعاتی به سرور ارسال نمی‌کند. ایمپورت دوباره همان ارتقا است.
 
-برای حذف: `:global MikMode "uninstall"` و دوباره import. راهنمای کامل، آینه‌ی ایرانی، side-load و rollback در `docs/install.md`.
+پیش‌نیازها: RouterOS 7.24+ با پکیج **container**، یک دیسک خارجی و یک نود آماده.
 
-اگر روتر به GitHub دسترسی ندارد، `router/v2raymik.rsc` را دانلود و دستی `import` کنید.
+## Scope
 
-## پیش‌نیازها
-
-- RouterOS 7.24+ با پکیج **container** (روی 7.25.1 تست شده)
-- فعال بودن حالت container — نیازمند دسترسی فیزیکی یک‌بار
-- یک دیسک خارجی برای root-dir کانتینر
-- سرور proxy خودتان (vless، vmess، trojan، ss، hysteria2، tuic)
+| Scope | ترافیکِ تونل | مدیریت روتر |
+| --- | --- | --- |
+| `lan` (پیشنهادی) | همه کلاینت‌های خصوصی LAN، همراه با هدایت DNS به تونل | در جدول اصلی باقی است |
+| `list` | فقط آدرس‌های فهرست `mik-clients` (قابل ویرایش در Winbox) | در جدول اصلی باقی است |
+| `all` | LAN و ترافیک خود روتر، رفتار پیش‌فرض 1.3.x | از تونل عبور می‌کند |
+| `manual` | هیچ قانونی به طور خودکار، قوانین خودتان را می‌نویسید | دستنخورده |
 
 ## مستندات
 
-- `docs/install.md` — نصب، ارتقا، side-load، آینه‌ها، rollback
-- `docs/architecture.md` — مسیر بسته، موتورها، چرا دو مسیر `/1`
-- `docs/panel.md` — صفحه‌ی مدیریت LAN: سابسکریپشن، تست، سوییچ
-- `docs/security.md` — مرز خروجی کانتینر، fail-closed، credentials
-- `docs/troubleshooting.md` — خرابی‌های معمول و راه‌حل
-- `docs/benchmarks.md` — سرعت اندازه‌گیری‌شده روی دستگاه مرجع
-- `docs/migration.md` — انتقال از ۱.۰.x
-- `docs/dockerhub.md` — صفحه‌ی Docker Hub
-- `docs/design/admin-ui.md` — سند طراحی پنل
+- `docs/install.md`: نصب، ارتقا، side-load، آینه\u200cها و rollback
+- `docs/panel.md`: صفحه LAN، سابسکریپشن، تست و سوییچ نود
+- `docs/architecture.md`: مسیر بسته و موتورها
+- `docs/troubleshooting.md`: خرابی‌های معمول و راه‌حل
 
 ## لایسنس
 
