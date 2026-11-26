@@ -158,7 +158,7 @@
   // The release the import URL points at. The image tag has to be the same
   // version, because the .rsc at that tag pins that version. Bumping the
   // release is a one-line change here and in the URL below.
-  const VERSION = '1.3.28';
+  const VERSION = '1.3.29';
   const IMPORT_URL = `https://raw.githubusercontent.com/zebka/V2rayMik/v${VERSION}/router/v2raymik.rsc`;
   // The "Next:" hint and the generated block must show the same import line,
   // so it is built from IMPORT_URL once and reused in both places.
@@ -211,12 +211,12 @@
       if (vars.cert.value === 'no') out.push(`:global MikCheckCertificate "no"`);
     }
     if (vars.registry.value === 'official' && vars.cert.value === 'no') {
-      out.push('// Keep "Yes" for the official registry. Only set to "no" if you know why.');
+      out.push('# Keep "Yes" for the official registry. Only set to "no" if you know why.');
     }
 
-    if (out.length === 0) return '// All defaults selected — nothing to override. Paste the import line only.';
-    out.unshift('// V2rayMik setup block. Edit, then import.');
-    out.push(`// Import:\n// ${IMPORT_LINE}`);
+    if (out.length === 0) return '# All defaults selected; nothing to override. Paste the import line below.';
+    out.unshift('# V2rayMik setup block. Edit, then run in RouterOS Terminal.');
+    out.push(`# Import (runnable):\n${IMPORT_LINE}`);
     return out.join('\n');
   }
 
