@@ -24,6 +24,15 @@ The generator only writes `:global` lines, nothing is sent to a server. Re-runni
 
 Requires RouterOS 7.24+ with the **container** package, an external disk, and a node you already run.
 
+## Uninstall
+
+Set the mode to `uninstall` and re-import. The script removes the container, veth, table, routes and rules it created, then resets `MikMode` so a fresh install works in the same terminal.
+
+```rsc
+:global MikMode "uninstall"
+/import file-name=v2raymik.rsc
+```
+
 ## Scope
 
 | Scope | Tunneled traffic | Router management |
