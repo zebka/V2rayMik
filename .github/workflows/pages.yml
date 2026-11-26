@@ -1,0 +1,78 @@
+name: pages
+
+# The live generator is served from the gh-pages branch (legacy Pages source),
+# so pushing main alone never updates it. This workflow publishes site/ to that
+# branch for every release tag. build.yml keeps `contents: read`; only this
+# workflow is allowed to write to gh-pages.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          fetch-depth: 0
+
+      # A v* tag is not automatically a release: it has to name the VERSION the
+      # repository carries, and CHANGELOG.md has to describe it. The same check
+      # build.yml applies to the image and the GitHub Release.
+      - name: Confirm a release tag
+        run: |
+          v="$(cat VERSION)"
+          grep -q "^## $v " CHANGELOG.md || {
+            echo "CHANGELOG.md has no '## $v' section" >&2; exit 1; }
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            tag="${GITHUB_REF_NAME#v}"
+            [ "$tag" = "$v" ] || {
+              echo "VERSION is $v but the tag is $tag" >&2; exit 1; }
+          fi
+
+      # Do not point the site at an image that has not been published yet: the
+      # tag's build workflow pushes it in parallel with this job.
+      - name: Wait for the release image
+        run: |
+          v="$(cat VERSION)"
+          image="ghcr.io/zebka/v2raymik:$v"
+          for i in $(seq 1 30); do
+            if docker manifest inspect "$image" >/dev/null 2>&1; then
+              echo "image $image is available"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "image $image was not published within 5 minutes" >&2
+          exit 1
+
+      - name: Publish site/ to gh-pages
+        run: |
+          set -eu
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin gh-pages
+          wt="$RUNNER_TEMP/gh-pages"
+          git worktree add "$wt" gh-pages
+          cd "$wt"
+          # Replace the branch content with site/, excluding site/.gitignore
+          # (it is only there to keep generated .rsc snippets out of main).
+          git rm -r -q --ignore-unmatch .
+          find "$GITHUB_WORKSPACE/site" -mindepth 1 -maxdepth 1 ! -name .gitignore \
+            -exec cp -R {} . \;
+          git add -A
+          if git diff --cached --quiet; then
+            echo "gh-pages is already up to date"
+            exit 0
+          fi
+          v="$(cat "$GITHUB_WORKSPACE/VERSION")"
+          git commit -m "Publish $v"
+          git push origin gh-pages
