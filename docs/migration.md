@@ -34,5 +34,9 @@ The old `/usb2/xray-gw` and `/usb2/xray-data` directories are not touched.
 - `ADMIN_PASSWORD` / `MikAdminPassword` are gone; sessions, cookies and the
   login page are gone.
 - The `v2raymik.rsc` file installs and uninstalls in one import.
+- `MikScope` selects how much traffic is routed. The import still defaults to
+  `all`, which is the behaviour of the 1.3.x releases. Re-importing with a
+  different scope only rebuilds rules; the container and the selected node are
+  kept. Existing connections keep their old route until closed.
 
 The full list of changes is in `CHANGELOG.md`.

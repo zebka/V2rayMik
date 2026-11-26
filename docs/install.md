@@ -14,7 +14,54 @@ copy by hand:
 ```
 
 Re-running the same line is the upgrade path: objects are created only when
-missing, so an existing install is left running.
+missing, so an existing install is left running. Re-importing also rebuilds the
+mode-sensitive rules (see "Choose a scope"), so a scope change takes effect
+without reinstalling the container.
+
+## Choose a scope
+
+`:global MikScope` decides what this install is allowed to route. The import
+defaults to `all` so an existing 1.3.x install never changes on re-import. Set
+it in the same terminal session **before** the import:
+
+| Scope | What is tunneled | Router output / management | `/ip dns` |
+| --- | --- | --- | --- |
+| `all` | every non-local, non-private destination, from LAN and router | marked (1.3.x behaviour) | changed |
+| `lan` | every RFC1918 LAN client, except the container | untouched — Winbox, SSH, WireGuard stay direct | untouched |
+| `list` | only the IPs in address-list `mik-clients` | untouched | untouched |
+| `manual` | nothing automatically — you write the mangle rules | untouched | untouched |
+
+`lan` and `list` redirect UDP/TCP port 53 from their selected clients to
+`1.1.1.1` through the tunnel. The redirect is matched on `dst-address-type=local`
+(the router's own address) and excludes the container's veth, so the engine's
+own DNS is never caught. Do not add another DNS redirect above these rules.
+
+**Recommended for a router you manage remotely:**
+
+```rsc
+:global MikScope "lan"
+/tool fetch url="https://raw.githubusercontent.com/zebka/V2rayMik/main/router/v2raymik.rsc" dst-path=v2raymik.rsc; /import file-name=v2raymik.rsc
+```
+
+**Only selected clients** — the list is editable live in Winbox without a
+re-import. Entries you add there are never removed by this installer:
+
+```rsc
+:global MikScope "list"
+:global MikSrcAddress {"192.168.10.0/24";"10.20.30.5"}
+# a comma-separated string works too: "192.168.10.0/24, 10.20.30.5"
+/import file-name=v2raymik.rsc
+```
+
+`MikTouchDns` overrides the DNS default. It is `true` only in `all`; forcing it
+to `true` in another scope changes DNS for the whole router and logs a warning.
+`manual` installs only the container, veth, `mik-tunnel` table/routes, container
+NAT/isolation and the `:8081` panel — no mangle rules, no FastTrack change and
+no `/ip dns` change. Point your own rules at `new-routing-mark=mik-tunnel`.
+
+Switching scope keeps the running container and the chosen node. Connections
+opened before the change keep their old route until they close; clear them with
+`/ip firewall connection remove [find]` if you need the new policy at once.
 
 To pin a fixed release instead of `main`, point the URL at a tag:
 

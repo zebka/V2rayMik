@@ -106,11 +106,42 @@ The healthcheck is not a speed test. It makes one small request to
 still too slow for a big download. Measure from a LAN client, not from the
 router.
 
+## Remote management or inter-VLAN traffic stopped working
+
+That is the `all` scope: it marks router output too. Switch to a scope that
+leaves management and private destinations alone:
+
+```
+:global MikScope "lan"
+/import file-name=v2raymik.rsc
+```
+
+Use `list` to tunnel only chosen clients, or `manual` to write every rule
+yourself. All three leave `/ip dns` and `chain=output` untouched. Connections
+opened before the switch keep their old route until you clear them with
+`/ip firewall connection remove [find]`.
+
+## A client's DNS is still answered by the router
+
+In `lan` and `list`, port-53 queries to the router are redirected into the
+tunnel. Check that the client's source is in `mik-private` (or `mik-clients`
+for `list`), that both `mik: dns to tunnel` dstnat rules are enabled, and that
+no earlier dstnat rule catches port 53 first. Querying an external resolver
+directly goes through the generic mark rule instead; DoH/DoT is not redirected.
+
+## The panel is unreachable on a strict firewall
+
+Scopes `all`, `lan` and `list` add `mik: forward to container`, an accept for
+`out-interface=veth-mik` above the first forward drop. If your forward chain
+drops before that rule, move it up or add your own accept. `manual` mode adds
+no filter rules for you.
+
 ## When you are locked out
 
-The tunnel carries everything, including your management path. If the tunnel
-is down, dropped traffic includes the traffic your management tool needs — and
-unlike earlier releases there is no fallback to the ISP to save you.
+In `all`, the tunnel carries everything, including your management path. If
+the tunnel is down, dropped traffic includes the traffic your management tool
+needs — and unlike earlier releases there is no fallback to the ISP to save
+you. The other scopes avoid this by leaving router output unmarked.
 
 Use Winbox over MAC (`/tool mac-server` is usually still enabled) or the
 serial console, then:

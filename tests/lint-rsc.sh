@@ -68,6 +68,34 @@ need 'mik: MSS clamp (router output)'        # router-originated traffic needs i
 need 'src-address-list=mik-private'          # the panel stays on private sources
 need 'dst-address-list=!mik-private'         # the container stays out of private space
 
+# The four scopes and the objects that make them safe.
+need ':global MikScope "all"'                # backward-compatible default
+need ':global MikSrcAddress'                 # the list-mode client sources
+need ':global MikTouchDns'                   # DNS override
+need ':global MikDnsSavedAllowRemote'        # a clean DNS restore needs both values
+need '# --- scope: all ---'
+need '# --- scope: lan ---'
+need '# --- scope: list ---'
+need '# --- scope: manual ---'
+need 'src-address-list=mik-clients'          # list mode has its own source set
+need 'dst-address-type=local'                # DNS to the router is local at mangle time
+need 'in-interface!=$MikVeth'                # the container must not hit the DNS redirect
+need 'mik: dns to tunnel'                    # the DNS redirect and its marks
+need 'mik: forward to container'             # strict forward chains need the accept
+need '/ip firewall filter unset $fasttrack value-name=connection-mark'
+need '/ip firewall filter unset $fasttrack value-name=src-address-list'
+need '/system script environment remove [find where name="MikFasttrackSaved"]'  # uninstall clears saved originals
+
+# A string MikSrcAddress must become an array before :foreach, or list mode
+# creates no clients at all.
+need ':set MikSrcAddress [:toarray $MikSrcAddress]'
+
+# Our prerouting rules must sit above an operator's mark-routing rules, and the
+# anchor must be a prerouting rule (an output rule is not a valid anchor here).
+need 'find where chain=prerouting and action=mark-routing'
+placed=$(grep -c 'place-before=\$firstMark' "$f")
+[ "$placed" -ge 14 ] || err "$f: only $placed rules use place-before=\$firstMark (want at least 14)"
+
 # The image the import pulls is pinned to the version of the repository. A
 # pin that names another version would run a container the repository does
 # not describe.

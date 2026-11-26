@@ -1,4 +1,29 @@
 # Changelog
+## 1.3.28 - 2026-11-26
+
+### Added
+
+- `MikScope` selects how much traffic the router routes: `all` (the previous
+  full-tunnel behaviour and still the default), `lan`, `list` and `manual`.
+  `MikSrcAddress` supplies the client IPs/CIDRs for `list`; the import writes
+  them into a `mik-clients` address-list that can be edited live in Winbox.
+  `MikTouchDns` overrides the DNS default with a warning.
+- `lan` and `list` redirect UDP/TCP port 53 from their selected clients into
+  the tunnel so DNS answers are not poisoned, without changing `/ip dns` or
+  marking router output. Winbox, SSH and WireGuard stay on the main table.
+- `mik: forward to container` accepts traffic to the veth above the first
+  forward drop, so a strict forward chain does not make the panel unreachable.
+
+### Changed
+
+- Re-import normalizes every mode-sensitive rule before adding the current
+  mode's rules back, so switching scope leaves no old marks or DNS redirects.
+- FastTrack originals are restored property by property, using `unset` for
+  values that were empty; saved DNS values now include `allow-remote-requests`.
+- The browser generator defaults to `lan` and can emit `MikScope` and
+  `MikSrcAddress`. Documentation recommends `lan` or `list` for routers that
+  are managed remotely; the import file itself keeps `all` as its default.
+
 ## 1.3.27 - 2026-11-26
 
 ### Changed

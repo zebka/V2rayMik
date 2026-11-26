@@ -16,6 +16,13 @@ Everything runs in the browser. No server receives user data.
   or a partition name like `usb1-part1`. If left empty, auto-detect runs on the
   router.
 - **Container name** — defaults to `v2raymik`; must be unique.
+- **Scope** — what the install routes. `lan` (the generator's default) tunnels
+  all private LAN clients and leaves router management alone; `list` tunnels
+  only the addresses entered in the client field; `all` is the 1.3.x
+  full-tunnel default of the import file; `manual` installs plumbing only.
+- **Clients (list mode)** — comma-separated IPs/CIDRs written to
+  `:global MikSrcAddress`, from which the import fills the `mik-clients`
+  address-list. More entries can be added later in Winbox without re-importing.
 - **Panel port (LAN)** — the TCP port the panel listens on inside the LAN.
   Default `8081`.
 - **Pull registry** — `official`, `docker.arvancloud.ir`, or
@@ -24,14 +31,14 @@ Everything runs in the browser. No server receives user data.
 - **Certificate check** — for mirrors this must usually be off. For the
   official registry it stays on.
 
-Nothing about traffic routing, DNS, geo-splitting, or the import itself is
-generated. The import URL is always fetched from GitHub by the user at install
-time.
+The import URL is always fetched from GitHub by the user at install time. The
+generated scope is an input to the router script, not a change to it: the
+script keeps `all` as its own default for backward compatibility.
 
 ## Usage
 
 1. Open the page on a device on your LAN (or a PC with the repo).
-2. Choose disk, panel port, container name, and registry.
+2. Choose scope (and clients for `list`), disk, panel port, container name, and registry.
 3. Copy the generated block.
 4. Run the import:
    ```

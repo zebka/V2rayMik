@@ -149,15 +149,32 @@ the exact leak this project exists to prevent. It is also invisible in the
 mangle counters, because the connection stopped being looked at.
 
 The import therefore marks every tunnel-bound connection once
-(`connection-mark=mik-conn`, rule `mik: mark tunnel connections`) and changes
-RouterOS's own `defconf: fasttrack` rule to `connection-mark=no-mark`, so
-fasttrack only takes connections that carry no mark. The rule is RouterOS's,
-not this project's: the import saves its previous values once and uninstall
-puts them back. A second import never overwrites the saved originals.
+(`connection-mark=mik-conn`, rule `mik: mark tunnel connections`) and, in
+scopes `all`, `lan` and `list`, changes RouterOS's own `defconf: fasttrack`
+rule to `connection-mark=no-mark`. Fasttrack then only takes connections that
+carry no mark — in `list` mode that means all non-`mik-clients` traffic keeps
+fasttrack at full speed. The rule is RouterOS's, not this project's: the
+import saves its previous `connection-mark` and `src-address-list` once and
+uninstall puts them back (or unsets them when the saved value was empty). A
+second import never overwrites the saved originals. In `manual` mode the rule
+is left exactly as found and any saved originals are restored.
 
 Connections opened before the change keep their old route until they close.
 `/ip firewall connection remove [find]` clears the table, at the cost of
 resetting every connection through the router.
+
+## DNS and remote management
+
+Scopes `lan` and `list` deliberately leave `chain=output` and `/ip dns` alone:
+the router's own DNS, Winbox, SSH and WireGuard traffic use the main table and
+cannot be locked out by a dead tunnel. Their clients still get unpoisoned DNS
+through a `dstnat` redirect of UDP/TCP 53 to `1.1.1.1`, matched on
+`src-address-list` and `dst-address-type=local`, with `in-interface!=veth` so
+the container is never redirected. This does **not** turn the router into an
+open resolver: only the selected client sources are matched, and the answer is
+produced inside the tunnel, not by `/ip dns`. DNS-over-HTTPS/TLS is not caught
+by a port-53 redirect. `MikTouchDns=true` forces the old all-network DNS change
+in any scope and logs a warning.
 
 ## What the server sees
 

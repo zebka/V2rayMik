@@ -52,6 +52,10 @@
 :global MikFasttrackSaved
 :global MikFasttrackSavedMark
 :global MikFasttrackSavedList
+:global MikScope
+:global MikSrcAddress
+:global MikTouchDns
+:global MikDnsSavedAllowRemote
 
 # Sensible defaults; override before the import in the same terminal session.
 # MikDisk is the one knob that varies per device, so it is detected: the first
@@ -97,11 +101,11 @@
 # The image is pinned to the version of this file: a router must never run a
 # container the repository does not describe. The tag is bumped with every
 # release, and CI checks that it matches VERSION.
-:if ([:typeof $MikImage] = "nothing") do={ :global MikImage "ghcr.io/zebka/v2raymik:1.3.27" }
+:if ([:typeof $MikImage] = "nothing") do={ :global MikImage "ghcr.io/zebka/v2raymik:1.3.28" }
 # The fallback names the Docker Hub repository on purpose. A Docker Hub mirror
 # serves the Docker Hub namespace and has never heard of ghcr.io/zebka/...,
 # so swapping only the registry would silently pull nothing.
-:if ([:typeof $MikImageFallback] = "nothing") do={ :global MikImageFallback "azebka/v2raymik:1.3.27" }
+:if ([:typeof $MikImageFallback] = "nothing") do={ :global MikImageFallback "azebka/v2raymik:1.3.28" }
 :if ([:typeof $MikImageFile] = "nothing") do={ :global MikImageFile "" }
 :if ([:typeof $MikCheckCertificate] = "nothing") do={ :global MikCheckCertificate "yes" }
 # Registry used for the pull. If you set MikRegistryUrl yourself, that registry
@@ -124,6 +128,33 @@
 :if ([:typeof $MikAllowContainerToLan] = "nothing") do={ :global MikAllowContainerToLan false }
 :if ([:typeof $MikBridge] = "nothing") do={ :global MikBridge "containers" }
 :if ([:typeof $MikMode] = "nothing") do={ :global MikMode "install" }
+
+# --- scope: what this install is allowed to route ------------------------------
+# "all"    = full LAN + router output (the 1.3.x behaviour; the default so an
+#            existing install never changes on re-import).
+# "lan"    = all private LAN sources, no chain=output rules; port-53 DNS from
+#            the LAN is redirected into the tunnel for unpoisoned answers.
+# "list"   = only the sources in the user-editable mik-clients address-list,
+#            with the same DNS redirect; /ip dns is never touched.
+# "manual" = container, veth, table, NAT, isolation and the panel only. No
+#            mangle, no FastTrack change, no /ip dns change.
+:if ([:typeof $MikScope] = "nothing") do={ :global MikScope "all" }
+:if ($MikScope != "all" and $MikScope != "lan" and \
+     $MikScope != "list" and $MikScope != "manual") do={
+  :error ("v2raymik: MikScope must be all, lan, list or manual; got " . $MikScope)
+}
+:local touchDns true
+:if ($MikScope != "all") do={ :set touchDns false }
+:if ([:typeof $MikTouchDns] != "nothing") do={
+  :set touchDns $MikTouchDns
+  :if ($touchDns = true and $MikScope != "all") do={
+    :log warning ("v2raymik: MikTouchDns=true in scope " . $MikScope . " changes DNS for the whole router")
+  }
+}
+:if ($MikMode != "uninstall" and $MikScope = "list" and \
+     ([:typeof $MikSrcAddress] = "nothing" or [:len [:toarray $MikSrcAddress]] = 0)) do={
+  :error "v2raymik: MikScope=list requires :global MikSrcAddress with at least one IP/CIDR"
+}
 
 :if ($MikMode = "uninstall") do={
 # =========================================================================
@@ -153,7 +184,7 @@
   }
 
   # --- mangle ------------------------------------------------------------
-  :foreach c in={"mik: never mark the container";"mik: router to LAN";"mik: keep router-direct off the tunnel";"mik: MSS clamp";"mik: MSS clamp back";"mik: MSS clamp (router output)";"World -> mik (LAN)";"World -> mik (router)";"World -> tunnel";"World -> tunnel (router)";"mik: mark tunnel connections";"mik: no tunnel for LAN/mDNS"} do={
+  :foreach c in={"mik: never mark the container";"mik: router to LAN";"mik: keep router-direct off the tunnel";"mik: MSS clamp";"mik: MSS clamp back";"mik: MSS clamp (router output)";"World -> mik (LAN)";"World -> mik (router)";"World -> tunnel";"World -> tunnel (router)";"mik: mark tunnel connections";"mik: no tunnel for LAN/mDNS";"mik: dns to tunnel (mark udp)";"mik: dns to tunnel (mark tcp)";"mik: dns to tunnel (route udp)";"mik: dns to tunnel (route tcp)"} do={
     :if ([:len [/ip firewall mangle find where comment=$c]] > 0) do={
       /ip firewall mangle remove [find where comment=$c]
     }
@@ -168,7 +199,7 @@
   }
 
   # --- firewall filter ---------------------------------------------------
-  :foreach c in={"mik: container tcp transport";"mik: container udp transport";"mik: container tcp transport (extra)";"mik: container udp transport (extra)";"mik: container to LAN (opt-in)";"mik: container default deny";"mik: container replies (established)";"mik: container egress"} do={
+  :foreach c in={"mik: container tcp transport";"mik: container udp transport";"mik: container tcp transport (extra)";"mik: container udp transport (extra)";"mik: container to LAN (opt-in)";"mik: container default deny";"mik: container replies (established)";"mik: container egress";"mik: forward to container"} do={
     :if ([:len [/ip firewall filter find where comment=$c]] > 0) do={
       /ip firewall filter remove [find where comment=$c]
     }
@@ -184,18 +215,43 @@
   }
   :if ([:len $fasttrack] > 0) do={
     :if ([:typeof $MikFasttrackSaved] != "nothing") do={
-      :do { /ip firewall filter set $fasttrack connection-mark=$MikFasttrackSavedMark } on-error={}
-      :do { /ip firewall filter set $fasttrack src-address-list=$MikFasttrackSavedList } on-error={}
+      :if ([:len $MikFasttrackSavedMark] > 0) do={
+        :do { /ip firewall filter set $fasttrack connection-mark=$MikFasttrackSavedMark } on-error={}
+      } else={
+        :do { /ip firewall filter unset $fasttrack value-name=connection-mark } on-error={}
+      }
+      :if ([:len $MikFasttrackSavedList] > 0) do={
+        :do { /ip firewall filter set $fasttrack src-address-list=$MikFasttrackSavedList } on-error={}
+      } else={
+        :do { /ip firewall filter unset $fasttrack value-name=src-address-list } on-error={}
+      }
     }
+  }
+  # Nothing to restore on a later uninstall: drop the saved originals even if
+  # the fasttrack rule itself is already gone.
+  :if ([:typeof $MikFasttrackSaved] != "nothing") do={
+    /system script environment remove [find where name="MikFasttrackSaved"]
+    /system script environment remove [find where name="MikFasttrackSavedMark"]
+    /system script environment remove [find where name="MikFasttrackSavedList"]
   }
 
   # --- private address list (the LAN boundary since 1.3.0) ------------------
   :if ([:len [/ip firewall address-list find where comment="mik: private"]] > 0) do={
     /ip firewall address-list remove [find where comment="mik: private"]
   }
+  # The client list belongs to the user as well: remove only the entries this
+  # import put there. An entry edited in Winbox keeps its own (empty) comment
+  # and is left in place, with a warning.
+  :local userClients [:len [/ip firewall address-list find where list="mik-clients" and comment!="mik: client"]]
+  :if ([:len [/ip firewall address-list find where comment="mik: client"]] > 0) do={
+    /ip firewall address-list remove [find where comment="mik: client"]
+  }
+  :if ($userClients > 0) do={
+    :log warning ("v2raymik: kept " . $userClients . " user-defined mik-clients entries; remove them by hand if you want them gone")
+  }
 
   # --- NAT and the admin page ---------------------------------------------
-  :foreach c in={"mik: masquerade to container";"mik: admin ui";"mik: LAN to container";"mik: router to container masq";"mik: container egress"} do={
+  :foreach c in={"mik: masquerade to container";"mik: admin ui";"mik: LAN to container";"mik: router to container masq";"mik: container egress";"mik: dns to tunnel (udp)";"mik: dns to tunnel (tcp)"} do={
     :if ([:len [/ip firewall nat find where comment=$c]] > 0) do={
       /ip firewall nat remove [find where comment=$c]
     }
@@ -269,8 +325,16 @@
   }
 
   /system script environment remove [find where name="MikDisk"]
-  :if ([:typeof $MikDnsSavedServers] = "array") do={
+  # DNS: put back both values that were saved at install time. An empty saved
+  # server list means the router had none; assigning "" clears the setting.
+  :if ([:typeof $MikDnsSavedServers] != "nothing") do={
     :do { /ip dns set servers=$MikDnsSavedServers } on-error={}
+    :if ([:typeof $MikDnsSavedAllowRemote] = "bool") do={
+      :do { /ip dns set allow-remote-requests=$MikDnsSavedAllowRemote } on-error={}
+    }
+    :do { /ip dns cache flush } on-error={}
+    /system script environment remove [find where name="MikDnsSavedServers"]
+    /system script environment remove [find where name="MikDnsSavedAllowRemote"]
   }
   :log info "v2raymik: uninstall finished"
   :global MikMode "install"
@@ -292,6 +356,30 @@
 :local tmpDir ($pfx . "tmp")
 :local dataDir ($pfx . "v2raymik-data")
 :local rootDir ($pfx . $MikContainerName)
+
+# --- normalize mode-sensitive objects ----------------------------------------
+# A re-import can switch scopes. Remove every rule any scope may have created
+# before adding back only what the current scope needs. Objects that are common
+# to all four scopes (container, veth, NAT, isolation, table, routes) are left
+# alone here — re-importing keeps the running container and the chosen node.
+:foreach c in={"mik: never mark the container";"mik: router to LAN";"mik: keep router-direct off the tunnel";"mik: MSS clamp";"mik: MSS clamp back";"mik: MSS clamp (router output)";"World -> mik (LAN)";"World -> mik (router)";"World -> tunnel";"World -> tunnel (router)";"mik: mark tunnel connections";"mik: no tunnel for LAN/mDNS";"mik: dns to tunnel (mark udp)";"mik: dns to tunnel (mark tcp)";"mik: dns to tunnel (route udp)";"mik: dns to tunnel (route tcp)"} do={
+  :if ([:len [/ip firewall mangle find where comment=$c]] > 0) do={
+    /ip firewall mangle remove [find where comment=$c]
+  }
+}
+:foreach c in={"mik: dns to tunnel (udp)";"mik: dns to tunnel (tcp)"} do={
+  :if ([:len [/ip firewall nat find where comment=$c]] > 0) do={
+    /ip firewall nat remove [find where comment=$c]
+  }
+}
+:if ([:len [/ip firewall filter find where comment="mik: forward to container"]] > 0) do={
+  /ip firewall filter remove [find where comment="mik: forward to container"]
+}
+# Remove only the entries this import created in mik-clients; a user's own
+# entries (no "mik: client" comment) survive a switch away from "list".
+:if ([:len [/ip firewall address-list find where comment="mik: client"]] > 0) do={
+  /ip firewall address-list remove [find where comment="mik: client"]
+}
 
 # --- the private ranges -------------------------------------------------------
 # One fixed list stands for "the LAN" everywhere below: nothing about your
@@ -478,42 +566,10 @@
 } on-error={ :log warning "v2raymik: could not set a healthcheck (RouterOS too old?) — the container still runs" }
 
 # --- routing ------------------------------------------------------------------
-# The container's own egress must never enter the tunnel, or the transport
-# carries itself. The accept must sit before every mark-routing rule.
-# Likewise the router's own traffic to the LAN must travel directly; with the
-# mark rules in place, a default install is otherwise unmanageable (SSH, ping,
-# Winbox and DNS answers all go into the tunnel and never come back).
-:local firstMark [:pick [/ip firewall mangle find where action=mark-routing] 0]
-:if ([:len [/ip firewall mangle find where comment="mik: never mark the container"]] = 0) do={
-  :if ([:len $firstMark] > 0) do={
-    /ip firewall mangle add chain=prerouting src-address=$MikSubnet action=accept \
-      comment="mik: never mark the container" place-before=$firstMark
-  } else={
-    /ip firewall mangle add chain=prerouting src-address=$MikSubnet action=accept \
-      comment="mik: never mark the container"
-  }
-}
-# Router-originated traffic to a private destination (an LAN client's reply, a
-# ping to the upstream gateway) must travel directly, or the answer disappears
-# into the tunnel. Since 1.3.0 this matches the fixed mik-private ranges
-# instead of a guessed MikLanSubnet, which on most routers was one wrong guess.
-:if ([:len [/ip firewall mangle find where comment="mik: router to LAN" and dst-address-list!="mik-private"]] > 0) do={
-  /ip firewall mangle remove [find where comment="mik: router to LAN"]
-}
-:if ([:len [/ip firewall mangle find where comment="mik: router to LAN"]] = 0) do={
-  :if ([:len $firstMark] > 0) do={
-    /ip firewall mangle add chain=output dst-address-list=mik-private action=accept \
-      comment="mik: router to LAN" place-before=$firstMark
-  } else={
-    /ip firewall mangle add chain=output dst-address-list=mik-private action=accept \
-      comment="mik: router to LAN"
-  }
-}
-
-# A dedicated table carries everything that is not local and not the container.
-# Everything means everything: no address-lists, no exceptions to manage or to
-# rot. The connected route is what makes the tunnel's gateway reachable inside
-# the table that uses it.
+# A dedicated table carries the traffic this install marks. The connected route
+# makes the tunnel's gateway reachable inside it; the default route is
+# fail-closed (no ISP fallback). Which packets get marked is decided by
+# $MikScope in the blocks below. Common plumbing is installed in every mode.
 :local tableName "mik-tunnel"
 :if ([:len [/routing table find where name=$tableName]] = 0) do={
   /routing table add name=$tableName fib
@@ -527,98 +583,346 @@
     distance=1 comment="mik: tunnel"
 }
 
-# Fasttrack is what makes the connection mark necessary. RouterOS's own
-# defconf: fasttrack rule sends established connections past the firewall and
-# past mangle, so a connection that is fasttracked never gets the per-packet
-# routing mark and leaves through the WAN instead of the tunnel. Marking the
-# connection once, when it is created, gives fasttrack something to skip.
-# The mark is set before the routing rule and passes the packet on, or the
-# routing rule below it would never run. Private, multicast and limited
-# broadcast destinations are excluded so LAN-to-VLAN, upstream-modem and
-# mDNS traffic never enters tun0. Re-import updates an existing rule with
-# the new matchers (the old import only created it once).
-:local markRule [:pick [/ip firewall mangle find where comment="mik: mark tunnel connections"] 0]
-:if ([:len $markRule] > 0) do={
-  :if ([:len [/ip firewall mangle find where comment="mik: mark tunnel connections" and dst-address-list!="!mik-private"]] > 0) do={
-    /ip firewall mangle set $markRule dst-address-list=!mik-private
+# The first prerouting mark-routing rule — operator-owned or ours. Declared
+# outside the scope blocks so every block can place its rules above it, and
+# restricted to prerouting so an existing output rule is never matched.
+:local firstMark [:pick [/ip firewall mangle find where chain=prerouting and action=mark-routing] 0]
+
+# --- scope: common (all, lan, list) -------------------------------------------
+# The container's own traffic must never enter the tunnel, multicast/mDNS stays
+# on the LAN, and TCP through the tunnel needs the MSS clamp. "manual" installs
+# no mangle rules at all; the operator writes these if wanted.
+:if ($MikScope != "manual") do={
+  :if ([:len [/ip firewall mangle find where comment="mik: never mark the container"]] = 0) do={
+    :if ([:len $firstMark] > 0) do={
+      /ip firewall mangle add chain=prerouting src-address=$MikSubnet action=accept \
+        comment="mik: never mark the container" place-before=$firstMark
+    } else={
+      /ip firewall mangle add chain=prerouting src-address=$MikSubnet action=accept \
+        comment="mik: never mark the container"
+    }
   }
-  # multicast + limited broadcast: the RouterOS address-list API cannot
-  # express "!224.0.0.0/4" inline, so add an explicit accept rule before the
-  # tunnel rule instead. (Added below, guarded once.)
-}
-:if ([:len [/ip firewall mangle find where comment="mik: mark tunnel connections"]] = 0) do={
-  :local tunnelRule [:pick [/ip firewall mangle find where chain=prerouting and action=mark-routing and comment="World -> tunnel"] 0]
-  :if ([:len $tunnelRule] > 0) do={
-    /ip firewall mangle add chain=prerouting dst-address-type=!local dst-address-list=!mik-private \
-      action=mark-connection new-connection-mark=mik-conn passthrough=yes \
-      comment="mik: mark tunnel connections" place-before=$tunnelRule
-  } else={
-    /ip firewall mangle add chain=prerouting dst-address-type=!local dst-address-list=!mik-private \
-      action=mark-connection new-connection-mark=mik-conn passthrough=yes \
-      comment="mik: mark tunnel connections"
+  :if ([:len [/ip firewall mangle find where comment="mik: no tunnel for LAN/mDNS"]] = 0) do={
+    :if ([:len $firstMark] > 0) do={
+      /ip firewall mangle add chain=prerouting dst-address=224.0.0.0/4 action=accept \
+        comment="mik: no tunnel for LAN/mDNS" place-before=$firstMark
+    } else={
+      /ip firewall mangle add chain=prerouting dst-address=224.0.0.0/4 action=accept \
+        comment="mik: no tunnel for LAN/mDNS"
+    }
   }
-}
-# LAN/mDNS must never be marked into the tunnel, even on an old install.
-:if ([:len [/ip firewall mangle find where comment="mik: no tunnel for LAN/mDNS"]] = 0) do={
-  :local tunnelRule [:pick [/ip firewall mangle find where chain=prerouting and action=mark-routing and comment="World -> tunnel"] 0]
-  :if ([:len $tunnelRule] > 0) do={
-    /ip firewall mangle add chain=prerouting dst-address=224.0.0.0/4 action=accept \
-      comment="mik: no tunnel for LAN/mDNS" place-before=$tunnelRule
-  } else={
-    /ip firewall mangle add chain=prerouting dst-address=224.0.0.0/4 action=accept \
-      comment="mik: no tunnel for LAN/mDNS"
+  :if ([:len [/ip firewall mangle find where comment="mik: MSS clamp"]] = 0) do={
+    /ip firewall mangle add chain=forward protocol=tcp tcp-flags=syn action=change-mss \
+      new-mss=1360 tcp-mss=1361-65535 out-interface=$MikVeth comment="mik: MSS clamp"
+  }
+  :if ([:len [/ip firewall mangle find where comment="mik: MSS clamp back"]] = 0) do={
+    /ip firewall mangle add chain=forward protocol=tcp tcp-flags=syn action=change-mss \
+      new-mss=1360 tcp-mss=1361-65535 in-interface=$MikVeth comment="mik: MSS clamp back"
   }
 }
 
-# RouterOS ships the fasttrack rule; limiting it to unmarked connections is a
-# change to RouterOS's own config, not to ours. What the rule had is saved
-# once, and uninstall puts it back, or removing this project would leave the
-# router's own firewall altered. Locate it by action (stable across locales
-# and renames), falling back to the defconf comment for older RouterOS.
+# --- scope: all ---------------------------------------------------------------
+# Full tunnel: every non-local, non-private destination from any LAN source and
+# from the router itself. This is the 1.3.x behaviour and the default.
+:if ($MikScope = "all") do={
+  :if ([:len [/ip firewall mangle find where comment="mik: mark tunnel connections"]] = 0) do={
+    :if ([:len $firstMark] > 0) do={
+      /ip firewall mangle add chain=prerouting dst-address-type=!local dst-address-list=!mik-private \
+        action=mark-connection new-connection-mark=mik-conn passthrough=yes \
+        comment="mik: mark tunnel connections" place-before=$firstMark
+    } else={
+      /ip firewall mangle add chain=prerouting dst-address-type=!local dst-address-list=!mik-private \
+        action=mark-connection new-connection-mark=mik-conn passthrough=yes \
+        comment="mik: mark tunnel connections"
+    }
+  }
+  :if ([:len [/ip firewall mangle find where chain=prerouting and action=mark-routing and comment="World -> tunnel"]] = 0) do={
+    :if ([:len $firstMark] > 0) do={
+      /ip firewall mangle add chain=prerouting dst-address-type=!local dst-address-list=!mik-private \
+        action=mark-routing new-routing-mark=$tableName passthrough=no \
+        comment="World -> tunnel" place-before=$firstMark
+    } else={
+      /ip firewall mangle add chain=prerouting dst-address-type=!local dst-address-list=!mik-private \
+        action=mark-routing new-routing-mark=$tableName passthrough=no \
+        comment="World -> tunnel"
+    }
+  }
+  :local firstOutMark [:pick [/ip firewall mangle find where chain=output and action=mark-routing] 0]
+  :if ([:len [/ip firewall mangle find where comment="mik: router to LAN"]] = 0) do={
+    :if ([:len $firstOutMark] > 0) do={
+      /ip firewall mangle add chain=output dst-address-list=mik-private action=accept \
+        comment="mik: router to LAN" place-before=$firstOutMark
+    } else={
+      /ip firewall mangle add chain=output dst-address-list=mik-private action=accept \
+        comment="mik: router to LAN"
+    }
+  }
+  :if ([:len [/ip firewall mangle find where chain=output and action=mark-routing and comment="World -> tunnel (router)"]] = 0) do={
+    /ip firewall mangle add chain=output dst-address-type=!local \
+      action=mark-routing new-routing-mark=$tableName passthrough=no \
+      comment="World -> tunnel (router)"
+  }
+  :if ([:len [/ip firewall mangle find where comment="mik: MSS clamp (router output)"]] = 0) do={
+    /ip firewall mangle add chain=output protocol=tcp tcp-flags=syn action=change-mss \
+      new-mss=1360 tcp-mss=1361-65535 comment="mik: MSS clamp (router output)"
+  }
+}
+
+# --- scope: lan ---------------------------------------------------------------
+# Every private LAN source, but no chain=output rules: Winbox, SSH, WireGuard
+# and other router-originated traffic keep the main table. Port 53 sent to the
+# router by a LAN client is redirected into the tunnel so the answer cannot be
+# poisoned; in-interface!=veth keeps the container's own DNS out of it.
+:if ($MikScope = "lan") do={
+  :if ([:len [/ip firewall mangle find where comment="mik: mark tunnel connections"]] = 0) do={
+    :if ([:len $firstMark] > 0) do={
+      /ip firewall mangle add chain=prerouting src-address-list=mik-private \
+        dst-address-type=!local dst-address-list=!mik-private \
+        action=mark-connection new-connection-mark=mik-conn passthrough=yes \
+        comment="mik: mark tunnel connections" place-before=$firstMark
+    } else={
+      /ip firewall mangle add chain=prerouting src-address-list=mik-private \
+        dst-address-type=!local dst-address-list=!mik-private \
+        action=mark-connection new-connection-mark=mik-conn passthrough=yes \
+        comment="mik: mark tunnel connections"
+    }
+  }
+  :if ([:len [/ip firewall mangle find where chain=prerouting and action=mark-routing and comment="World -> tunnel"]] = 0) do={
+    :if ([:len $firstMark] > 0) do={
+      /ip firewall mangle add chain=prerouting src-address-list=mik-private \
+        dst-address-type=!local dst-address-list=!mik-private \
+        action=mark-routing new-routing-mark=$tableName passthrough=no \
+        comment="World -> tunnel" place-before=$firstMark
+    } else={
+      /ip firewall mangle add chain=prerouting src-address-list=mik-private \
+        dst-address-type=!local dst-address-list=!mik-private \
+        action=mark-routing new-routing-mark=$tableName passthrough=no \
+        comment="World -> tunnel"
+    }
+  }
+  :if ([:len [/ip firewall mangle find where comment="mik: dns to tunnel (mark udp)"]] = 0) do={
+    :if ([:len $firstMark] > 0) do={
+      /ip firewall mangle add chain=prerouting src-address-list=mik-private \
+        dst-address-type=local protocol=udp dst-port=53 \
+        action=mark-connection new-connection-mark=mik-conn passthrough=yes \
+        comment="mik: dns to tunnel (mark udp)" place-before=$firstMark
+    } else={
+      /ip firewall mangle add chain=prerouting src-address-list=mik-private \
+        dst-address-type=local protocol=udp dst-port=53 \
+        action=mark-connection new-connection-mark=mik-conn passthrough=yes \
+        comment="mik: dns to tunnel (mark udp)"
+    }
+  }
+  :if ([:len [/ip firewall mangle find where comment="mik: dns to tunnel (mark tcp)"]] = 0) do={
+    :if ([:len $firstMark] > 0) do={
+      /ip firewall mangle add chain=prerouting src-address-list=mik-private \
+        dst-address-type=local protocol=tcp dst-port=53 \
+        action=mark-connection new-connection-mark=mik-conn passthrough=yes \
+        comment="mik: dns to tunnel (mark tcp)" place-before=$firstMark
+    } else={
+      /ip firewall mangle add chain=prerouting src-address-list=mik-private \
+        dst-address-type=local protocol=tcp dst-port=53 \
+        action=mark-connection new-connection-mark=mik-conn passthrough=yes \
+        comment="mik: dns to tunnel (mark tcp)"
+    }
+  }
+  :if ([:len [/ip firewall mangle find where comment="mik: dns to tunnel (route udp)"]] = 0) do={
+    :if ([:len $firstMark] > 0) do={
+      /ip firewall mangle add chain=prerouting src-address-list=mik-private \
+        dst-address-type=local protocol=udp dst-port=53 \
+        action=mark-routing new-routing-mark=$tableName passthrough=no \
+        comment="mik: dns to tunnel (route udp)" place-before=$firstMark
+    } else={
+      /ip firewall mangle add chain=prerouting src-address-list=mik-private \
+        dst-address-type=local protocol=udp dst-port=53 \
+        action=mark-routing new-routing-mark=$tableName passthrough=no \
+        comment="mik: dns to tunnel (route udp)"
+    }
+  }
+  :if ([:len [/ip firewall mangle find where comment="mik: dns to tunnel (route tcp)"]] = 0) do={
+    :if ([:len $firstMark] > 0) do={
+      /ip firewall mangle add chain=prerouting src-address-list=mik-private \
+        dst-address-type=local protocol=tcp dst-port=53 \
+        action=mark-routing new-routing-mark=$tableName passthrough=no \
+        comment="mik: dns to tunnel (route tcp)" place-before=$firstMark
+    } else={
+      /ip firewall mangle add chain=prerouting src-address-list=mik-private \
+        dst-address-type=local protocol=tcp dst-port=53 \
+        action=mark-routing new-routing-mark=$tableName passthrough=no \
+        comment="mik: dns to tunnel (route tcp)"
+    }
+  }
+  :if ([:len [/ip firewall nat find where comment="mik: dns to tunnel (udp)"]] = 0) do={
+    /ip firewall nat add chain=dstnat action=dst-nat protocol=udp dst-port=53 \
+      src-address-list=mik-private dst-address-type=local in-interface!=$MikVeth \
+      to-addresses=1.1.1.1 to-ports=53 comment="mik: dns to tunnel (udp)"
+  }
+  :if ([:len [/ip firewall nat find where comment="mik: dns to tunnel (tcp)"]] = 0) do={
+    /ip firewall nat add chain=dstnat action=dst-nat protocol=tcp dst-port=53 \
+      src-address-list=mik-private dst-address-type=local in-interface!=$MikVeth \
+      to-addresses=1.1.1.1 to-ports=53 comment="mik: dns to tunnel (tcp)"
+  }
+}
+
+# --- scope: list --------------------------------------------------------------
+# Only the addresses in mik-clients. The import owns the entries it tagged
+# "mik: client" and rewrites them from MikSrcAddress on every import; entries a
+# user adds in Winbox without that comment are never removed.
+:if ($MikScope = "list") do={
+  # :foreach over a string is not iteration in RouterOS: a single IP or a
+  # comma-separated string stays one element and mik-clients would be empty.
+  # Convert both accepted forms to an array before the loop below.
+  :if ([:typeof $MikSrcAddress] = "str") do={
+    :set MikSrcAddress [:toarray $MikSrcAddress]
+  }
+  :if ([:typeof $MikSrcAddress] != "array") do={
+    :error "v2raymik: MikSrcAddress must be an array or a comma-separated string"
+  }
+  :foreach a in=$MikSrcAddress do={
+    :local addr [:tostr $a]
+    # [:toarray] of "a, b" leaves a leading space on " b"; strip it or the
+    # address-list add below fails on a value such as " 10.20.30.5".
+    :while ([:len $addr] > 0 and ([:pick $addr 0] = " " or [:pick $addr 0] = "\t")) do={
+      :set addr [:pick $addr 1 [:len $addr]]
+    }
+    :while ([:len $addr] > 0 and ([:pick $addr ([:len $addr] - 1)] = " " or [:pick $addr ([:len $addr] - 1)] = "\t")) do={
+      :set addr [:pick $addr 0 ([:len $addr] - 1)]
+    }
+    :if ([:len $addr] > 0) do={
+      :if ([:len [/ip firewall address-list find where list="mik-clients" and address=$addr and comment="mik: client"]] = 0) do={
+        /ip firewall address-list add list="mik-clients" address=$addr comment="mik: client"
+      }
+    }
+  }
+  :if ([:len [/ip firewall mangle find where comment="mik: mark tunnel connections"]] = 0) do={
+    :if ([:len $firstMark] > 0) do={
+      /ip firewall mangle add chain=prerouting src-address-list=mik-clients \
+        dst-address-type=!local dst-address-list=!mik-private \
+        action=mark-connection new-connection-mark=mik-conn passthrough=yes \
+        comment="mik: mark tunnel connections" place-before=$firstMark
+    } else={
+      /ip firewall mangle add chain=prerouting src-address-list=mik-clients \
+        dst-address-type=!local dst-address-list=!mik-private \
+        action=mark-connection new-connection-mark=mik-conn passthrough=yes \
+        comment="mik: mark tunnel connections"
+    }
+  }
+  :if ([:len [/ip firewall mangle find where chain=prerouting and action=mark-routing and comment="World -> tunnel"]] = 0) do={
+    :if ([:len $firstMark] > 0) do={
+      /ip firewall mangle add chain=prerouting src-address-list=mik-clients \
+        dst-address-type=!local dst-address-list=!mik-private \
+        action=mark-routing new-routing-mark=$tableName passthrough=no \
+        comment="World -> tunnel" place-before=$firstMark
+    } else={
+      /ip firewall mangle add chain=prerouting src-address-list=mik-clients \
+        dst-address-type=!local dst-address-list=!mik-private \
+        action=mark-routing new-routing-mark=$tableName passthrough=no \
+        comment="World -> tunnel"
+    }
+  }
+  :if ([:len [/ip firewall mangle find where comment="mik: dns to tunnel (mark udp)"]] = 0) do={
+    :if ([:len $firstMark] > 0) do={
+      /ip firewall mangle add chain=prerouting src-address-list=mik-clients \
+        dst-address-type=local protocol=udp dst-port=53 \
+        action=mark-connection new-connection-mark=mik-conn passthrough=yes \
+        comment="mik: dns to tunnel (mark udp)" place-before=$firstMark
+    } else={
+      /ip firewall mangle add chain=prerouting src-address-list=mik-clients \
+        dst-address-type=local protocol=udp dst-port=53 \
+        action=mark-connection new-connection-mark=mik-conn passthrough=yes \
+        comment="mik: dns to tunnel (mark udp)"
+    }
+  }
+  :if ([:len [/ip firewall mangle find where comment="mik: dns to tunnel (mark tcp)"]] = 0) do={
+    :if ([:len $firstMark] > 0) do={
+      /ip firewall mangle add chain=prerouting src-address-list=mik-clients \
+        dst-address-type=local protocol=tcp dst-port=53 \
+        action=mark-connection new-connection-mark=mik-conn passthrough=yes \
+        comment="mik: dns to tunnel (mark tcp)" place-before=$firstMark
+    } else={
+      /ip firewall mangle add chain=prerouting src-address-list=mik-clients \
+        dst-address-type=local protocol=tcp dst-port=53 \
+        action=mark-connection new-connection-mark=mik-conn passthrough=yes \
+        comment="mik: dns to tunnel (mark tcp)"
+    }
+  }
+  :if ([:len [/ip firewall mangle find where comment="mik: dns to tunnel (route udp)"]] = 0) do={
+    :if ([:len $firstMark] > 0) do={
+      /ip firewall mangle add chain=prerouting src-address-list=mik-clients \
+        dst-address-type=local protocol=udp dst-port=53 \
+        action=mark-routing new-routing-mark=$tableName passthrough=no \
+        comment="mik: dns to tunnel (route udp)" place-before=$firstMark
+    } else={
+      /ip firewall mangle add chain=prerouting src-address-list=mik-clients \
+        dst-address-type=local protocol=udp dst-port=53 \
+        action=mark-routing new-routing-mark=$tableName passthrough=no \
+        comment="mik: dns to tunnel (route udp)"
+    }
+  }
+  :if ([:len [/ip firewall mangle find where comment="mik: dns to tunnel (route tcp)"]] = 0) do={
+    :if ([:len $firstMark] > 0) do={
+      /ip firewall mangle add chain=prerouting src-address-list=mik-clients \
+        dst-address-type=local protocol=tcp dst-port=53 \
+        action=mark-routing new-routing-mark=$tableName passthrough=no \
+        comment="mik: dns to tunnel (route tcp)" place-before=$firstMark
+    } else={
+      /ip firewall mangle add chain=prerouting src-address-list=mik-clients \
+        dst-address-type=local protocol=tcp dst-port=53 \
+        action=mark-routing new-routing-mark=$tableName passthrough=no \
+        comment="mik: dns to tunnel (route tcp)"
+    }
+  }
+  :if ([:len [/ip firewall nat find where comment="mik: dns to tunnel (udp)"]] = 0) do={
+    /ip firewall nat add chain=dstnat action=dst-nat protocol=udp dst-port=53 \
+      src-address-list=mik-clients dst-address-type=local in-interface!=$MikVeth \
+      to-addresses=1.1.1.1 to-ports=53 comment="mik: dns to tunnel (udp)"
+  }
+  :if ([:len [/ip firewall nat find where comment="mik: dns to tunnel (tcp)"]] = 0) do={
+    /ip firewall nat add chain=dstnat action=dst-nat protocol=tcp dst-port=53 \
+      src-address-list=mik-clients dst-address-type=local in-interface!=$MikVeth \
+      to-addresses=1.1.1.1 to-ports=53 comment="mik: dns to tunnel (tcp)"
+  }
+}
+
+# --- scope: manual ------------------------------------------------------------
+# No mangle rules, no FastTrack change and no /ip dns change. The operator's own
+# rules point at new-routing-mark=$tableName.
+
+# --- FastTrack ---------------------------------------------------------------
+# RouterOS's fasttrack rule sends established connections past mangle. Marked
+# connections must skip it or they leave by the WAN. In manual mode nothing is
+# marked by us, so the rule is left as found and saved originals are put back.
 :local fasttrack [:pick [/ip firewall filter find where action=fasttrack-connection and chain=forward] 0]
 :if ([:len $fasttrack] = 0) do={
   :set fasttrack [:pick [/ip firewall filter find where comment="defconf: fasttrack"] 0]
 }
-:if ([:len $fasttrack] > 0) do={
-  :if ([:typeof $MikFasttrackSaved] = "nothing") do={
-    :global MikFasttrackSaved true
-    :do { :global MikFasttrackSavedMark [/ip firewall filter get $fasttrack connection-mark] } on-error={ :global MikFasttrackSavedMark "" }
-    :do { :global MikFasttrackSavedList [/ip firewall filter get $fasttrack src-address-list] } on-error={ :global MikFasttrackSavedList "" }
+:if ($MikScope = "manual") do={
+  :if ([:len $fasttrack] > 0 and [:typeof $MikFasttrackSaved] != "nothing") do={
+    :if ([:len $MikFasttrackSavedMark] > 0) do={
+      :do { /ip firewall filter set $fasttrack connection-mark=$MikFasttrackSavedMark } on-error={}
+    } else={
+      :do { /ip firewall filter unset $fasttrack value-name=connection-mark } on-error={}
+    }
+    :if ([:len $MikFasttrackSavedList] > 0) do={
+      :do { /ip firewall filter set $fasttrack src-address-list=$MikFasttrackSavedList } on-error={}
+    } else={
+      :do { /ip firewall filter unset $fasttrack value-name=src-address-list } on-error={}
+    }
   }
-  /ip firewall filter set $fasttrack connection-mark=no-mark
-}
-
-# Re-importing updates an existing "World -> tunnel" to the LAN/multicast
-# exclusions instead of leaving the old blanket match. The two rules
-# (prerouting and router-output) are rebuilt on every install to this shape.
-:if ([:len [/ip firewall mangle find where chain=prerouting and action=mark-routing and comment="World -> tunnel" and dst-address-list!="!mik-private"]] > 0) do={
-  /ip firewall mangle remove [find where chain=prerouting and action=mark-routing and comment="World -> tunnel"]
-}
-:if ([:len [/ip firewall mangle find where chain=prerouting and action=mark-routing and comment="World -> tunnel"]] = 0) do={
-  /ip firewall mangle add chain=prerouting dst-address-type=!local dst-address-list=!mik-private \
-    action=mark-routing new-routing-mark=$tableName passthrough=no \
-    comment="World -> tunnel"
-}
-:if ([:len [/ip firewall mangle find where chain=output and action=mark-routing and comment="World -> tunnel (router)"]] = 0) do={
-  /ip firewall mangle add chain=output dst-address-type=!local \
-    action=mark-routing new-routing-mark=$tableName passthrough=no \
-    comment="World -> tunnel (router)"
-}
-
-# --- MSS ----------------------------------------------------------------------
-# The tunnel adds a header; without this, large TLS handshakes hang instead of
-# failing, which looks like "the site is broken".
-:if ([:len [/ip firewall mangle find where comment="mik: MSS clamp"]] = 0) do={
-  /ip firewall mangle add chain=forward protocol=tcp tcp-flags=syn action=change-mss \
-    new-mss=1360 tcp-mss=1361-65535 out-interface=$MikVeth comment="mik: MSS clamp"
-}
-:if ([:len [/ip firewall mangle find where comment="mik: MSS clamp back"]] = 0) do={
-  /ip firewall mangle add chain=forward protocol=tcp tcp-flags=syn action=change-mss \
-    new-mss=1360 tcp-mss=1361-65535 in-interface=$MikVeth comment="mik: MSS clamp back"
-}
-:if ([:len [/ip firewall mangle find where comment="mik: MSS clamp (router output)"]] = 0) do={
-  /ip firewall mangle add chain=output protocol=tcp tcp-flags=syn action=change-mss \
-    new-mss=1360 tcp-mss=1361-65535 comment="mik: MSS clamp (router output)"
+  :if ([:typeof $MikFasttrackSaved] != "nothing") do={
+    /system script environment remove [find where name="MikFasttrackSaved"]
+    /system script environment remove [find where name="MikFasttrackSavedMark"]
+    /system script environment remove [find where name="MikFasttrackSavedList"]
+  }
+} else={
+  :if ([:len $fasttrack] > 0) do={
+    :if ([:typeof $MikFasttrackSaved] = "nothing") do={
+      :global MikFasttrackSaved true
+      :do { :global MikFasttrackSavedMark [/ip firewall filter get $fasttrack connection-mark] } on-error={ :global MikFasttrackSavedMark "" }
+      :do { :global MikFasttrackSavedList [/ip firewall filter get $fasttrack src-address-list] } on-error={ :global MikFasttrackSavedList "" }
+    }
+    /ip firewall filter set $fasttrack connection-mark=no-mark
+  }
 }
 
 # --- firewall: what the container may reach -----------------------------------
@@ -644,6 +948,21 @@
 # unreachable. Connection-state accepts only here, so a fresh container still
 # cannot reach out to the LAN.
 :local firstFwdDrop [:pick [/ip firewall filter find where chain=forward and action=drop] 0]
+# A strict forward chain that only permits out-interface-list=WAN would drop
+# LAN -> veth traffic and the panel would be unreachable. One accept above the
+# first drop fixes that without opening anything else (the container's own
+# filter rules decide what it may reach). Manual mode owns its own forward chain.
+:if ($MikScope != "manual" and [:len [/ip firewall filter find where comment="mik: forward to container"]] = 0) do={
+  :if ([:len $firstFwdDrop] > 0) do={
+    /ip firewall filter add chain=forward out-interface=$MikVeth \
+      connection-state=new,established,related action=accept \
+      comment="mik: forward to container" place-before=$firstFwdDrop
+  } else={
+    /ip firewall filter add chain=forward out-interface=$MikVeth \
+      connection-state=new,established,related action=accept \
+      comment="mik: forward to container"
+  }
+}
 :if ([:len [/ip firewall filter find where comment="mik: container replies (established)"]] = 0) do={
   :if ([:len $firstFwdDrop] > 0) do={
     /ip firewall filter add chain=forward action=accept connection-state=established,related,untracked \
@@ -730,20 +1049,33 @@
 }
 
 # --- DNS upstream -------------------------------------------------------------
-# The router resolves names with its own upstream. Those queries leave the
-# router directly, not through the tunnel, so the answers can be poisoned and
-# the tunnel then dials a wrong address. Point the upstream at public resolvers
-# instead: the router-output mangle rule above sends them through the tunnel
-# table. Keep the old servers so uninstall can put them back.
-:if ([:typeof $MikDnsSavedServers] = "nothing") do={
-  :global MikDnsSavedServers [/ip dns get servers]
-}
-:if ([/ip dns get servers] != "1.1.1.1,8.8.8.8") do={
-  /ip dns set servers=1.1.1.1,8.8.8.8 allow-remote-requests=yes
-  /ip dns cache flush
+# Only scope "all" (or an explicit MikTouchDns=true) changes the router's own
+# resolver: its queries leave in chain=output, which is marked in that scope.
+# In lan/list/manual the router's DNS and management stay on the main table;
+# lan and list give their clients unpoisoned DNS with the port-53 redirect
+# above instead. Both original values are saved for mode switches/uninstall.
+:if ($touchDns = true) do={
+  :if ([:typeof $MikDnsSavedServers] = "nothing") do={
+    :global MikDnsSavedServers [/ip dns get servers]
+    :global MikDnsSavedAllowRemote [/ip dns get allow-remote-requests]
+  }
+  :if ([/ip dns get servers] != "1.1.1.1,8.8.8.8" or [:typeof $MikDnsSavedAllowRemote] = "nothing") do={
+    /ip dns set servers=1.1.1.1,8.8.8.8 allow-remote-requests=yes
+    /ip dns cache flush
+  }
+} else={
+  :if ([:typeof $MikDnsSavedServers] != "nothing") do={
+    :do { /ip dns set servers=$MikDnsSavedServers } on-error={}
+    :if ([:typeof $MikDnsSavedAllowRemote] = "bool") do={
+      :do { /ip dns set allow-remote-requests=$MikDnsSavedAllowRemote } on-error={}
+    }
+    :do { /ip dns cache flush } on-error={}
+    /system script environment remove [find where name="MikDnsSavedServers"]
+    /system script environment remove [find where name="MikDnsSavedAllowRemote"]
+  }
 }
 
-:log info "v2raymik: installed; the panel comes up at http://<router>:$MikAdminLanPort/ once the container is running"
+:log info ("v2raymik: installed in scope " . $MikScope . "; the panel comes up at http://<router>:$MikAdminLanPort/ once the container is running")
 # What to look at afterwards. The MTU is the one that fails quietly: pages load
 # and large downloads hang, which reads as "the tunnel is slow" and is not.
 :log info "v2raymik: verify 1 - the tunnel MTU must be 1400: /container shell $MikContainerName cmd=\"grep mtu /etc/sing-box/config.json\""

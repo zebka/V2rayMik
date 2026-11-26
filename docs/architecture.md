@@ -4,9 +4,12 @@
 
 1. A LAN client (or the router) sends to any IPv4 destination other than the
    container subnet.
-2. `chain=prerouting` (and `chain=output` for router-originated traffic) mangle
-   marks the packet into the `mik-tunnel` routing table. The container's own
-   subnet is exempted before any mark rule, so the transport never marks itself.
+2. `chain=prerouting` mangle marks the packet into the `mik-tunnel` routing
+   table. Which sources are marked depends on `MikScope`: all sources (`all`),
+   RFC1918 sources (`lan`), or address-list `mik-clients` (`list`). Only `all`
+   also marks `chain=output`, so the other scopes leave router management on
+   the main table. The container's own subnet is exempted before any mark rule,
+   so the transport never marks itself. `manual` adds no mangle rules.
 3. The router looks up `mik-tunnel`, finds `0.0.0.0/0 gateway=172.17.0.2
    distance=1`, and forwards to the veth.
 4. `srcnat` masquerades the flow to `172.17.0.1`, the router's address on the
@@ -18,9 +21,19 @@
 7. Replies arrive on `tun0`, the kernel routes them to the on-link `172.17.0.1`,
    and the router un-NATs them back to the client.
 
-There is deliberately no selection of "which destinations go through the
-tunnel". Everything goes; that is the whole design. If the tunnel is down,
-the route is dead and traffic is dropped.
+Private destinations stay on the main table in every automatic scope, so
+inter-VLAN and upstream-modem traffic is never tunneled. Internet-bound
+traffic from the selected sources goes through the tunnel; if the tunnel is
+down the route is dead and that traffic is dropped (fail-closed). Traffic
+outside the selected scope uses the main table and is not fail-closed — in
+`manual` mode that is entirely the operator's decision.
+
+`lan` and `list` add a DNS path for their clients: port-53 queries to the
+router are `dst-address-type=local` at prerouting time, so they get their own
+connection and routing marks before `dstnat` rewrites them to `1.1.1.1`. The
+routing decision then uses the mark and sends the query into `mik-tunnel`,
+where sing-box's `hijack-dns` answers it. `in-interface!=veth` on the dstnat
+rules keeps the container out of this path.
 
 ## Why two `/1` routes instead of a default
 
@@ -155,8 +168,11 @@ the live TUN and the measurement would describe the wrong node.
   fits the WAN MTU and is dropped or fragmented. The MSS clamp below only
   covers TCP that enters from the LAN, not UDP inside the tunnel.
 - There is no fallback route. When the tunnel is down, marked traffic is
-  dropped. The router's own traffic is marked the same, on purpose: a silent
-  ISP path on every outage is how the exit country lies.
+  dropped. In `all` the router's own traffic is marked the same, on purpose:
+  a silent ISP path on every outage is how the exit country lies. In `lan`
+  and `list` that guarantee deliberately covers only the selected clients,
+  so router management survives a tunnel outage; `manual` has no automatic
+  fail-closed guarantee.
 
 There is deliberately no `check-gateway=ping` on the tunnel route. On the
 reference device the container did not answer ICMP reliably, which silently

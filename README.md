@@ -21,10 +21,18 @@ LAN device ──► RouterOS ──► veth ──► container (Xray / sing-bo
                      (LAN and private ranges stay direct)
 ```
 
-- **RouterOS** marks every non-LAN packet and sends it to the container.
-- **The container** runs the engine and forwards everything through the node you picked.
-- **If the node is down**, marked traffic is dropped, not sent out your ISP (fail-closed).
+- **RouterOS** marks traffic into the container according to `MikScope`: `all`
+  (everything, the 1.3.x default), `lan` (all private LAN clients, recommended
+  for a router you manage remotely), `list` (only the IPs in `mik-clients`), or
+  `manual` (no rules; you write your own).
+- **The container** runs the engine and forwards marked traffic through the node you picked.
+- **If the node is down**, marked traffic is dropped, not sent out your ISP (fail-closed for the traffic you marked).
 - **The panel** at `http://<router>:8081/` picks the node; no password, LAN only.
+
+`lan` and `list` leave router-originated traffic (Winbox, SSH, WireGuard,
+updates) on the main table, so remote management cannot be locked out. Both
+redirect LAN port-53 DNS into the tunnel so clients get unpoisoned answers.
+See `docs/install.md`, "Choose a scope".
 
 ## Supported nodes
 
@@ -49,6 +57,18 @@ One line on the router downloads the import file and runs it. Nothing to copy:
 That creates the veth, the mounts, the container, the routing table, the
 firewall and the LAN dst-nat. Running the same line again is the upgrade path.
 The container starts by itself once its image is ready.
+
+On a router you manage remotely, set the scope before the import so management
+traffic stays on the main table:
+
+```rsc
+:global MikScope "lan"
+/import file-name=v2raymik.rsc
+```
+
+Use `list` instead to tunnel only selected clients; put their IPs in
+`:global MikSrcAddress` and add more later in Winbox under
+`/ip firewall address-list`, list `mik-clients`.
 
 **Disk names.** The container's image and data go on a disk. The installer
 looks for these, in this order, and uses the first one it finds:
