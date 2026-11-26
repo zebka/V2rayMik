@@ -100,6 +100,27 @@
 </div>
 
 <div class="card">
+  <h2>Scope</h2>
+  <div class="row">
+    <div class="field">
+      <label for="scope">What to tunnel</label>
+      <select id="scope">
+        <option value="lan" selected>lan — all private LAN clients (recommended)</option>
+        <option value="list">list — only the selected clients</option>
+        <option value="all">all — LAN and router output (1.3.x default)</option>
+        <option value="manual">manual — plumbing only, write your own rules</option>
+      </select>
+      <p class="hint"><code>lan</code> leaves router management (Winbox, SSH, WireGuard) on the main table and redirects LAN DNS into the tunnel. <code>list</code> tunnels only the clients you name. <code>all</code> is the old full-tunnel behaviour. <code>manual</code> adds no mangle rules at all.</p>
+    </div>
+    <div class="field" id="clientsField" hidden>
+      <label for="clients">Clients to tunnel (list mode)</label>
+      <input id="clients" type="text" placeholder="192.168.10.0/24, 10.20.30.5">
+      <p class="hint">Comma-separated IPs or CIDRs. You can add more later in Winbox under <code>/ip firewall address-list</code>, list <code>mik-clients</code>, without re-importing.</p>
+    </div>
+  </div>
+</div>
+
+<div class="card">
   <h2>Registry</h2>
   <div class="row">
     <div class="field">
@@ -137,7 +158,7 @@
   // The release the import URL points at. The image tag has to be the same
   // version, because the .rsc at that tag pins that version. Bumping the
   // release is a one-line change here and in the URL below.
-  const VERSION = '1.3.26';
+  const VERSION = '1.3.28';
   const IMPORT_URL = `https://raw.githubusercontent.com/zebka/V2rayMik/v${VERSION}/router/v2raymik.rsc`;
   // The "Next:" hint and the generated block must show the same import line,
   // so it is built from IMPORT_URL once and reused in both places.
@@ -150,6 +171,9 @@
     containerName: document.getElementById('containerName'),
     registry: document.getElementById('registry'),
     cert: document.getElementById('cert'),
+    scope: document.getElementById('scope'),
+    clients: document.getElementById('clients'),
+    clientsField: document.getElementById('clientsField'),
     output: document.getElementById('output'),
   };
 
@@ -168,6 +192,14 @@
     if (disk) out.push(`:global MikDisk "${disk}${part ? '-' + part : ''}"`);
     if (name) out.push(`:global MikContainerName "${name}"`);
     out.push(`:global MikAdminLanPort "${lanPort}"`);
+
+    // The generator recommends "lan" for a router that is managed remotely;
+    // the import file itself still defaults to "all" for older installs.
+    out.push(`:global MikScope "${vars.scope.value}"`);
+    if (vars.scope.value === 'list') {
+      const clients = vars.clients.value.trim();
+      if (clients) out.push(`:global MikSrcAddress "${clients}"`);
+    }
 
     if (vars.registry.value === 'arvancloud') {
       out.push(`:global MikRegistryUrl "https://docker.arvancloud.ir"`);
@@ -192,7 +224,15 @@
     vars.output.textContent = gen();
   }
 
+  // Show the client field only for list mode, and keep the output in sync
+  // when the client list is edited.
+  vars.clients.addEventListener('input', render);
+  function renderClients() {
+    vars.clientsField.hidden = vars.scope.value !== 'list';
+  }
+
   document.querySelectorAll('select').forEach(sel => sel.addEventListener('change', () => {
+    if (sel.id === 'scope') renderClients();
     if (sel.id === 'lanPort' && sel.value === 'custom') {
       const port = prompt('Port (1–65535)', '8081');
       if (port === null) return;
@@ -226,6 +266,7 @@
     URL.revokeObjectURL(a.href);
   });
 
+  renderClients();
   render();
 </script>
 </body>
