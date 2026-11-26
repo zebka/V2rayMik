@@ -20,3 +20,10 @@ assert_eq "$(has 'value=$MikTunMtu')" "yes" "TUN_MTU takes the knob's value"
 # says the process is alive, not that the tunnel carries anything.
 assert_eq "$(has 'generate_204')" "yes" "healthcheck makes a real request"
 assert_eq "$(has 'healthcheck-cmd=')" "yes" "healthcheck is set"
+
+# Before a node is configured the probe must pass, or RouterOS counts failed
+# tries and restarts the container while the user is still in the panel.
+assert_eq "$(has '/data/state.json')" "yes" "the configured-node check is present"
+assert_eq "$(has 'exit 0; fi;')" "yes" "an unconfigured container passes the healthcheck"
+assert_eq "$(has '\${NODE_LINK:-}')" "yes" "the environment node link is checked too"
+assert_eq "$(has '/etc/sing-box/outbound.json')" "yes" "the outbound file is checked too"

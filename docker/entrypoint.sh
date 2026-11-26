@@ -260,7 +260,7 @@ build_active_config() {
   fi
 
   if [ ! -e "$NODE_OUTBOUND_FILE" ]; then
-    log "no node configured yet: open http://<router LAN address>:8081/ , add a subscription or node link, and the tunnel starts"
+    # The supervisor logs the waiting notice once per unconfigured state.
     return 1
   fi
   ob=$(cat "$NODE_OUTBOUND_FILE")
@@ -335,16 +335,23 @@ supervise() {
   reason=""
   xpid=""
   xpid_x=""
+  idle_logged=false
   trap 'reason=reload; restart=1; kill_children reload' HUP
   trap 'kill_children stopping; exit 0' TERM INT
 
   while :; do
     status_write false "" ""
     if ! build_active_config; then
-      log "no usable config yet; waiting"
+      # One notice per unconfigured wait state: RouterOS has a bounded log ring
+      # and this loop repeats every 10s until someone adds a node in the panel.
+      if [ "$idle_logged" = false ]; then
+        log "no usable config yet: open http://<router LAN address>:8081/ , add a subscription or node link, and the tunnel starts"
+        idle_logged=true
+      fi
       sleep 10
       continue
     fi
+    idle_logged=false
     log "starting: ${ACTIVE_LABEL} [${ENGINE}] endpoint ${host:-?} -> ${IPV4}, tun ${TUN_NAME}, egress ${ETH}, gw ${GW:-none}"
 
     if [ "$ENGINE" = "xray" ]; then

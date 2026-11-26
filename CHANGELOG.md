@@ -1,4 +1,19 @@
 # Changelog
+## 1.3.29 - 2026-11-26
+
+### Fixed
+
+- The supervisor logs the "no usable config yet" notice once per unconfigured
+  wait state instead of every 10 seconds, so it no longer fills the router's
+  bounded log ring while a node is being added in the panel.
+- The container healthcheck passes before a node is configured. RouterOS no
+  longer counts failed tries and restarts the container and panel while the
+  user is still configuring it. With a node configured, the check is unchanged:
+  `tun0`, `pidof sing-box`, and a `generate_204` request.
+- The generator writes `#` comments and a directly runnable import line, which
+  RouterOS accepts; the DNS redirect rules use
+  `in-interface=("!" . $MikVeth)` instead of the invalid `!=` argument form.
+
 ## 1.3.28 - 2026-11-26
 
 ### Added

@@ -101,11 +101,11 @@
 # The image is pinned to the version of this file: a router must never run a
 # container the repository does not describe. The tag is bumped with every
 # release, and CI checks that it matches VERSION.
-:if ([:typeof $MikImage] = "nothing") do={ :global MikImage "ghcr.io/zebka/v2raymik:1.3.28" }
+:if ([:typeof $MikImage] = "nothing") do={ :global MikImage "ghcr.io/zebka/v2raymik:1.3.29" }
 # The fallback names the Docker Hub repository on purpose. A Docker Hub mirror
 # serves the Docker Hub namespace and has never heard of ghcr.io/zebka/...,
 # so swapping only the registry would silently pull nothing.
-:if ([:typeof $MikImageFallback] = "nothing") do={ :global MikImageFallback "azebka/v2raymik:1.3.28" }
+:if ([:typeof $MikImageFallback] = "nothing") do={ :global MikImageFallback "azebka/v2raymik:1.3.29" }
 :if ([:typeof $MikImageFile] = "nothing") do={ :global MikImageFile "" }
 :if ([:typeof $MikCheckCertificate] = "nothing") do={ :global MikCheckCertificate "yes" }
 # Registry used for the pull. If you set MikRegistryUrl yourself, that registry
@@ -559,9 +559,12 @@
 # test. wget is in the image (busybox-extras). One request is not a
 # throughput test: a healthy container can still be too slow for big
 # downloads. The longer timeout (wget -T 10) and start-period (90s) keep a
-# slow boot from killing the container on the first check.
+# slow boot from killing the container on the first check. Before a node is
+# configured there is no tunnel to check, so the probe passes: RouterOS must
+# not count failed tries and restart the container while the user is still
+# adding a node in the panel.
 :do {
-  /container set [find where name=$MikContainerName] healthcheck-cmd="/bin/sh -c 'ip link show tun0 >/dev/null 2>&1 && pidof sing-box >/dev/null 2>&1 && wget -q -T 10 -O /dev/null http://www.gstatic.com/generate_204'" \
+  /container set [find where name=$MikContainerName] healthcheck-cmd="/bin/sh -c 'if [ ! -f /data/state.json ] && [ -z \"\${NODE_LINK:-}\" ] && [ ! -f /etc/sing-box/outbound.json ]; then exit 0; fi; ip link show tun0 >/dev/null 2>&1 && pidof sing-box >/dev/null 2>&1 && wget -q -T 10 -O /dev/null http://www.gstatic.com/generate_204'" \
     healthcheck-interval=00:01:00 healthcheck-start-period=00:01:30 healthcheck-retries=8 stop-on-unhealthy=yes memory-high=268435456
 } on-error={ :log warning "v2raymik: could not set a healthcheck (RouterOS too old?) — the container still runs" }
 
